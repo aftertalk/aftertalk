@@ -51,6 +51,8 @@ Web tests need the dev Postgres (`docker compose -f docker-compose.dev.yml up -d
 - **Name**: always "Aftertalk", never "AfterTalk".
 - **Commits**: no `Co-Authored-By` lines for AI assistants, no "Generated with"
   footers in commits or PRs.
-- **Merging**: work on a branch, open a PR, CI must be green. A PR is merged only
-  after an explicit yes from a maintainer.
+- **Merging**: work on a branch, open a PR. `main` is protected for everyone,
+  admins included: CI green and one approval from the other maintainer (not
+  the author, not the last pusher). An AI assistant never merges without an
+  explicit yes.
 - **Licence**: AGPL-3.0. No outside contributions until a CLA exists.
