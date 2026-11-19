@@ -56,5 +56,6 @@
     }
   },
   "title": "JobLimits",
-  "type": "object"
+  "type": "object",
+  "x-aftertalk-schema-version": 1
 }

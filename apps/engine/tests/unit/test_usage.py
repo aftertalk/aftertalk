@@ -1,5 +1,3 @@
-from decimal import Decimal
-
 import pytest
 from pydantic import ValidationError
 
@@ -21,8 +19,12 @@ def test_step_usage_rejects_negative_and_extra() -> None:
 
 
 def test_step_usage_cost_decimal_and_frozen() -> None:
-    u = StepUsage(step="x", cost_usd="0.0123", tier="fast")
-    assert u.cost_usd == Decimal("0.0123")
+    u = StepUsage(step="x", cost_usd=0.0123, tier="fast", connection="c1", output_mode="tool")
+    assert u.cost_usd == 0.0123 and u.connection == "c1" and u.output_mode == "tool"
+    with pytest.raises(ValidationError):
+        StepUsage(step="x", cost_usd=-1)
+    with pytest.raises(ValidationError):
+        StepUsage(step="x", output_mode="auto")
     with pytest.raises(ValidationError):
         u.step = "y"  # type: ignore[misc]
 

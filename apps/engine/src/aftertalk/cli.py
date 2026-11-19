@@ -32,7 +32,15 @@ def main(
 
 def _mask_keys(node: Any) -> Any:
     if isinstance(node, dict):
-        return {k: ("***" if k == "api_key" and v else _mask_keys(v)) for k, v in node.items()}
+        out: dict[str, Any] = {}
+        for k, v in node.items():
+            if k == "api_key" and v:
+                out[k] = "***"
+            elif k == "extra_headers" and isinstance(v, dict):
+                out[k] = {name: "***" for name in v}
+            else:
+                out[k] = _mask_keys(v)
+        return out
     return node
 
 
@@ -55,7 +63,7 @@ def config_show(ctx: typer.Context) -> None:
 
 @app.command()
 def serve(
-    host: Annotated[str, typer.Option(help="Address to listen on.")] = "0.0.0.0",
+    host: Annotated[str, typer.Option(help="Address to listen on.")] = "127.0.0.1",
     port: Annotated[int, typer.Option(help="Port to listen on.")] = 8000,
 ) -> None:
     r"""Run the HTTP server the web app calls (needs the \[server] extra)."""

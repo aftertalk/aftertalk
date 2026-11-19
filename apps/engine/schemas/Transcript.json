@@ -10,6 +10,7 @@
         "start": {
           "anyOf": [
             {
+              "minimum": 0,
               "type": "number"
             },
             {
@@ -22,6 +23,7 @@
         "end": {
           "anyOf": [
             {
+              "minimum": 0,
               "type": "number"
             },
             {
@@ -92,6 +94,7 @@
         "start": {
           "anyOf": [
             {
+              "minimum": 0,
               "type": "number"
             },
             {
@@ -104,6 +107,7 @@
         "end": {
           "anyOf": [
             {
+              "minimum": 0,
               "type": "number"
             },
             {
@@ -122,6 +126,7 @@
     }
   },
   "additionalProperties": false,
+  "description": "A transcript. The adapter sets `timing` from what the provider actually returned.",
   "properties": {
     "text": {
       "title": "Text",
@@ -142,6 +147,7 @@
     "duration_seconds": {
       "anyOf": [
         {
+          "minimum": 0,
           "type": "number"
         },
         {
@@ -174,5 +180,6 @@
     "timing"
   ],
   "title": "Transcript",
-  "type": "object"
+  "type": "object",
+  "x-aftertalk-schema-version": 1
 }
