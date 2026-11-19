@@ -1,8 +1,8 @@
-"""Write the engine's OpenAPI schema to packages/engine/openapi.json.
+"""Write the engine's OpenAPI schema to apps/engine/openapi.json.
 
 Web's client is generated from this file with Orval; CI fails when the committed
 file differs from what this script writes.
-    uv run --project packages/engine python packages/engine/scripts/export_openapi.py
+    uv run --project apps/engine python apps/engine/scripts/export_openapi.py
 """
 
 import json

@@ -51,10 +51,10 @@ jobs:
       - uses: astral-sh/setup-uv@v7
         with:
           version: '0.12.24'
-      - run: uv sync --frozen --project packages/engine
-      - run: uv run --project packages/engine ruff check packages/engine
-      - run: uv run --project packages/engine ruff format --check packages/engine
-      - run: uv run --project packages/engine pytest packages/engine
+      - run: uv sync --frozen --project apps/engine
+      - run: uv run --project apps/engine ruff check apps/engine
+      - run: uv run --project apps/engine ruff format --check apps/engine
+      - run: uv run --project apps/engine pytest apps/engine
 
   compose:
     runs-on: ubuntu-latest

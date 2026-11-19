@@ -6,13 +6,13 @@ Self-hosted call analysis. Monorepo with two projects:
 - `apps/web/`: Next.js 16 (TypeScript, pnpm). UI, Better Auth, **the only code
   that reads or writes Postgres** (Drizzle), uploads, the job queue (a `jobs`
   table and a 10-second in-process tick). See `apps/web/README.md`.
-- `packages/engine/`: Python 3.13 FastAPI (uv). **Stateless, no database.**
+- `apps/engine/`: Python 3.13 FastAPI (uv). **Stateless, no database.**
   Audio decoding, voice detection, transcription, diarization, redaction, LLM
-  analysis, quote matching. See `packages/engine/README.md`.
+  analysis, quote matching. See `apps/engine/README.md`.
 
 They talk over signed HTTP (`POST /jobs` to the engine, result and progress
 callbacks to web) and share the `/data` volume. The engine owns the contract:
-`packages/engine/aftertalk_engine/api/contract.py` → `packages/engine/openapi.json`
+`apps/engine/aftertalk_engine/api/contract.py` → `apps/engine/openapi.json`
 → Orval client in `apps/web/lib/engine/`. Change all three in one PR.
 
 ## Spec
@@ -28,9 +28,9 @@ Read the relevant item before building it.
 pnpm install
 pnpm --filter web lint && pnpm --filter web typecheck && pnpm --filter web test
 pnpm --filter web format:check
-uv run --project packages/engine ruff check packages/engine
-uv run --project packages/engine ruff format --check packages/engine
-uv run --project packages/engine pytest packages/engine
+uv run --project apps/engine ruff check apps/engine
+uv run --project apps/engine ruff format --check apps/engine
+uv run --project apps/engine pytest apps/engine
 docker compose -f docker-compose.dev.yml up -d --build --wait   # all services
 ```
 
