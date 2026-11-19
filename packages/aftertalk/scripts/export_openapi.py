@@ -1,8 +1,8 @@
-"""Write the engine's OpenAPI schema to packages/engine/openapi.json.
+"""Write the engine's OpenAPI schema to packages/aftertalk/openapi.json.
 
 Web's client is generated from this file with Orval; CI fails when the committed
 file differs from what this script writes.
-    uv run --project packages/engine python packages/engine/scripts/export_openapi.py
+    uv run --project packages/aftertalk python packages/aftertalk/scripts/export_openapi.py
 """
 
 import json
@@ -11,7 +11,7 @@ from pathlib import Path
 
 os.environ.setdefault("ENGINE_CALLBACK_SECRET", "export-only")
 
-from aftertalk_engine.api.app import app  # noqa: E402
+from aftertalk.api.app import app  # noqa: E402
 
 OUT = Path(__file__).resolve().parent.parent / "openapi.json"
 

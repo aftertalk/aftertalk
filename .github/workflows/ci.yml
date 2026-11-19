@@ -51,10 +51,10 @@ jobs:
       - uses: astral-sh/setup-uv@v7
         with:
           version: '0.12.24'
-      - run: uv sync --frozen --project packages/engine
-      - run: uv run --project packages/engine ruff check packages/engine
-      - run: uv run --project packages/engine ruff format --check packages/engine
-      - run: uv run --project packages/engine pytest packages/engine
+      - run: uv sync --frozen --all-extras --project packages/aftertalk
+      - run: uv run --project packages/aftertalk ruff check packages/aftertalk
+      - run: uv run --project packages/aftertalk ruff format --check packages/aftertalk
+      - run: uv run --project packages/aftertalk pytest packages/aftertalk
 
   compose:
     runs-on: ubuntu-latest
