@@ -37,7 +37,7 @@ test('wrong token is refused; the right one creates owner, organisation, project
   const [membership] = await db.select().from(organizationMembers).where(eq(organizationMembers.userId, me!.id));
   expect(membership.role).toBe('OWNER');
   const [project] = await db.select().from(projects).where(eq(projects.id, projectId));
-  expect(project).toMatchObject({ name: 'First project', visibility: 'ORG', allowedLanguages: ['en', 'pl'] });
+  expect(project).toMatchObject({ name: 'First project', visibility: 'ORG', allowedLanguages: ['en'] });
   expect(await db.select().from(speakerPresets).where(eq(speakerPresets.projectId, projectId))).toHaveLength(1);
   const [template] = await db.select().from(analysisTemplates).where(eq(analysisTemplates.projectId, projectId));
   expect(template).toMatchObject({ name: 'General QA', isActive: true });

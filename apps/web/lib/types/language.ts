@@ -1,4 +1,4 @@
-// The languages a call can be processed in (#15). A project allows a subset; Polish is the default.
+// The languages a call can be processed in (#15). A project allows a subset; its first language is its default.
 export const SupportedLanguage = {
   pl: 'pl',
   en: 'en',

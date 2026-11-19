@@ -1,7 +1,14 @@
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import { getRequestConfig } from 'next-intl/server';
 
-import { APP_TIME_ZONE, DEFAULT_LOCALE, isSupportedLocale, isValidTimeZone, TIME_ZONE_COOKIE } from './config';
+import {
+  APP_TIME_ZONE,
+  DEFAULT_LOCALE,
+  isSupportedLocale,
+  isValidTimeZone,
+  negotiateLocale,
+  TIME_ZONE_COOKIE,
+} from './config';
 
 type Messages = Record<string, unknown>;
 
@@ -26,7 +33,7 @@ export default getRequestConfig(async ({ locale: requestedLocale }) => {
     ? requestedLocale
     : isSupportedLocale(cookieLocale)
       ? cookieLocale
-      : DEFAULT_LOCALE;
+      : (negotiateLocale((await headers()).get('accept-language')) ?? DEFAULT_LOCALE);
 
   const core = (await import(`@/messages/${locale}.json`)).default as Messages;
   const ee = (await import(`@ee/messages/${locale}.json`)).default as Messages;

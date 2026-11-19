@@ -19,9 +19,9 @@
     {
       "turn": 3,
       "type": "customer_number",
-      "text": "40-221-873",
+      "text": "four zero, two two one, eight seven three",
       "start": 39,
-      "end": 49
+      "end": 80
     },
     {
       "turn": 4,
@@ -40,9 +40,9 @@
     {
       "turn": 14,
       "type": "phone_number_fragment",
-      "text": "482",
+      "text": "four eight two",
       "start": 57,
-      "end": 60
+      "end": 71
     },
     {
       "turn": 20,

@@ -23,3 +23,22 @@ export function isValidTimeZone(value: string | undefined): value is string {
 export function isSupportedLocale(value: string | undefined): value is SupportedLocale {
   return !!value && SUPPORTED_LOCALES.includes(value as SupportedLocale);
 }
+
+/**
+ * The best supported locale for an Accept-Language header ("pl-PL,pl;q=0.9,en;q=0.8"), or null.
+ * Used when no NEXT_LOCALE cookie is set, so a Polish browser gets Polish without a switcher (#90).
+ */
+export function negotiateLocale(acceptLanguage: string | null | undefined): SupportedLocale | null {
+  if (!acceptLanguage) return null;
+  const ranked = acceptLanguage
+    .split(',')
+    .map((part, index) => {
+      const [tag, ...params] = part.trim().split(';');
+      const q = params.map((p) => p.trim()).find((p) => p.startsWith('q='));
+      const weight = q ? Number(q.slice(2)) : 1;
+      return { lang: tag.trim().toLowerCase().split('-')[0], weight: Number.isFinite(weight) ? weight : 0, index };
+    })
+    .filter((x) => x.weight > 0)
+    .sort((a, b) => b.weight - a.weight || a.index - b.index);
+  return ranked.map((x) => x.lang).find(isSupportedLocale) ?? null;
+}

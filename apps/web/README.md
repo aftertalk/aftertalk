@@ -24,7 +24,7 @@ app/              routes (App Router); app/(ee)/ is reserved for the commercial 
 app/api/          route handlers (health now; upload, auth and internal job routes later)
 components/ui/    shared UI components, copied from the cloud app unchanged
 i18n/             next-intl config; constants.ts holds every message key
-messages/         pl.json and en.json (Polish is the default)
+messages/         en.json and pl.json (English is the default)
 ee/               extension stubs the commercial fork replaces; never edit them here
 lib/db/           Postgres pool and Drizzle; schema and migrations from phase 1
 lib/log.ts        JSON logs with a fixed set of fields

@@ -161,7 +161,7 @@ export const projects = appSchema.table(
     allowedLanguages: text('allowed_languages')
       .array()
       .notNull()
-      .default(sql`'{pl}'::text[]`),
+      .default(sql`'{en}'::text[]`),
     memberPiiAccess: text('member_pii_access', { enum: PII_ACCESS }).notNull().default('full'),
     /** null keeps calls for ever. */
     retentionDays: integer('retention_days'),

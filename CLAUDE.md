@@ -48,6 +48,10 @@ Web tests need the dev Postgres (`docker compose -f docker-compose.dev.yml up -d
 - **Provider keys** are stored encrypted in web and sent per job; the engine
   never stores them.
 - **Name**: always "Aftertalk", never "AfterTalk".
+- **Language**: English first, Polish second (spec #90). English is the UI
+  default and the language of docs, examples and new copy; every new UI string
+  also gets its Polish translation in `messages/pl.json`. The customers are
+  Polish teams, so Polish stays fully supported.
 - **Commits**: no `Co-Authored-By` lines for AI assistants, no "Generated with"
   footers in commits or PRs.
 - **Merging**: work on a branch, open a PR. `main` is protected for everyone,

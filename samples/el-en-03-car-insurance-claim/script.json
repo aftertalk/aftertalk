@@ -29,12 +29,12 @@
     {
       "turn": 4,
       "speaker": "agent",
-      "text": "I'm glad you're both okay. Could I take your name and policy number, please?"
+      "text": "I'm glad nobody was hurt. Could I take your name and policy number, please?"
     },
     {
       "turn": 5,
       "speaker": "customer",
-      "text": "Sophie Turner. The policy number is NGI-5520-0917."
+      "text": "Sophie Turner. The policy number is N G I, five five two zero, zero nine one seven."
     },
     {
       "turn": 6,
@@ -44,7 +44,7 @@
     {
       "turn": 7,
       "speaker": "customer",
-      "text": "It's KD19 XRM, a grey hatchback."
+      "text": "It's K D one nine, X Q Z, a grey hatchback."
     },
     {
       "turn": 8,
@@ -64,7 +64,7 @@
     {
       "turn": 11,
       "speaker": "customer",
-      "text": "Yes. His name is Peter Lang, and his registration is BT21 HFO. He said it was his fault."
+      "text": "Yes. His name is Peter Lang, and his registration is B T two one, H Q I. He said it was his fault."
     },
     {
       "turn": 12,
@@ -94,7 +94,7 @@
     {
       "turn": 17,
       "speaker": "customer",
-      "text": "It ends in 619."
+      "text": "It ends in six one nine."
     },
     {
       "turn": 18,
@@ -119,7 +119,7 @@
     {
       "turn": 22,
       "speaker": "agent",
-      "text": "Yes. As the other driver admitted fault, we'll book you into one of our approved garages and arrange a courtesy car. Your claim number is 33-81402."
+      "text": "Yes. As the other driver admitted fault, we'll book you into one of our approved garages and arrange a courtesy car. Your claim number is three three, eight one four zero two."
     },
     {
       "turn": 23,

@@ -31,6 +31,13 @@
       "end": 94
     },
     {
+      "turn": 15,
+      "type": "address",
+      "text": "ulicy Zakopiańskiej w Krakowie",
+      "start": 45,
+      "end": 75
+    },
+    {
       "turn": 17,
       "type": "person",
       "text": "Jan Malinowski",

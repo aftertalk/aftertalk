@@ -19,9 +19,9 @@
     {
       "turn": 5,
       "type": "policy_number",
-      "text": "NGI-5520-0917",
+      "text": "N G I, five five two zero, zero nine one seven",
       "start": 36,
-      "end": 49
+      "end": 82
     },
     {
       "turn": 6,
@@ -33,9 +33,9 @@
     {
       "turn": 7,
       "type": "vehicle_registration",
-      "text": "KD19 XRM",
+      "text": "K D one nine, X Q Z",
       "start": 5,
-      "end": 13
+      "end": 24
     },
     {
       "turn": 9,
@@ -54,9 +54,9 @@
     {
       "turn": 11,
       "type": "vehicle_registration",
-      "text": "BT21 HFO",
+      "text": "B T two one, H Q I",
       "start": 53,
-      "end": 61
+      "end": 71
     },
     {
       "turn": 15,
@@ -68,9 +68,9 @@
     {
       "turn": 17,
       "type": "phone_number_fragment",
-      "text": "619",
+      "text": "six one nine",
       "start": 11,
-      "end": 14
+      "end": 23
     },
     {
       "turn": 24,

@@ -272,7 +272,7 @@ CREATE TABLE "app"."projects" (
 	"organization_id" uuid NOT NULL,
 	"visibility" text DEFAULT 'ORG' NOT NULL,
 	"default_role" text DEFAULT 'VIEWER' NOT NULL,
-	"allowed_languages" text[] DEFAULT '{pl}'::text[] NOT NULL,
+	"allowed_languages" text[] DEFAULT '{en}'::text[] NOT NULL,
 	"member_pii_access" text DEFAULT 'full' NOT NULL,
 	"retention_days" integer,
 	CONSTRAINT "projects_visibility_check" CHECK (visibility in ('ORG', 'PRIVATE')),

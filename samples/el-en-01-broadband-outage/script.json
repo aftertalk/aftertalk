@@ -24,7 +24,7 @@
     {
       "turn": 3,
       "speaker": "customer",
-      "text": "Daniel Whitmore. The account number is 40-221-873."
+      "text": "Daniel Whitmore. The account number is four zero, two two one, eight seven three."
     },
     {
       "turn": 4,
@@ -79,7 +79,7 @@
     {
       "turn": 14,
       "speaker": "agent",
-      "text": "Of course. Is the best number still the mobile ending in 482?"
+      "text": "Of course. Is the best number still the mobile ending in four eight two?"
     },
     {
       "turn": 15,
@@ -99,7 +99,7 @@
     {
       "turn": 18,
       "speaker": "agent",
-      "text": "Then call us and quote ticket number 77310, and you'll go straight to the technical team without repeating everything."
+      "text": "Then call us and quote ticket number seven seven three one zero, and you'll go straight to the technical team without repeating everything."
     },
     {
       "turn": 19,

@@ -2314,7 +2314,7 @@
           "type": "text[]",
           "primaryKey": false,
           "notNull": true,
-          "default": "'{pl}'::text[]"
+          "default": "'{en}'::text[]"
         },
         "member_pii_access": {
           "name": "member_pii_access",

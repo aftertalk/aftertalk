@@ -1,7 +1,7 @@
 'use server';
 
 import { headers } from 'next/headers';
-import { getTranslations } from 'next-intl/server';
+import { getLocale, getTranslations } from 'next-intl/server';
 
 import { i18n } from '@/i18n/constants';
 import { auth } from '@/lib/auth/auth';
@@ -42,6 +42,8 @@ export async function completeSetup(input: {
     }
     validateNewAccount(input);
     const t = await getTranslations();
+    // The first project allows only the setup user's UI language (#90), so its calls are forced to that
+    // language with no detection step; the owner can allow more languages later.
 
     const created = await createUser({ email: input.email, name: input.name, password: input.password });
     let projectId: string;
@@ -62,7 +64,7 @@ export async function completeSetup(input: {
             name: t(i18n.setup.projectName),
             organizationId: org.id,
             visibility: 'ORG',
-            allowedLanguages: ['en', 'pl'],
+            allowedLanguages: [(await getLocale()) === 'pl' ? 'pl' : 'en'],
           })
           .returning({ id: projects.id });
 
