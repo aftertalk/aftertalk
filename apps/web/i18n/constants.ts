@@ -50,6 +50,8 @@ export const i18n = {
     transcriptionLanguages: {
       pl: 'common.transcriptionLanguages.pl',
       en: 'common.transcriptionLanguages.en',
+      uk: 'common.transcriptionLanguages.uk',
+      de: 'common.transcriptionLanguages.de',
     },
     languages: {
       polish: 'common.languages.polish',

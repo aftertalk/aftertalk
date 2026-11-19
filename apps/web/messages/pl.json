@@ -48,7 +48,9 @@
     },
     "transcriptionLanguages": {
       "pl": "Polski",
-      "en": "Angielski"
+      "en": "Angielski",
+      "uk": "Ukraiński",
+      "de": "Niemiecki"
     },
     "languages": {
       "polish": "Polski",
