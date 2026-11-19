@@ -4,6 +4,8 @@ from typing import Literal, get_args
 
 from pydantic import BaseModel
 
+from aftertalk.models.usage import StepUsage
+
 ErrorCode = Literal[
     "provider_auth",
     "provider_unreachable",
@@ -14,6 +16,7 @@ ErrorCode = Literal[
     "provider_bad_response",
     "provider_output_invalid",
     "provider_refused",
+    "provider_config_invalid",
     "limit_exceeded",
     "internal",
 ]
@@ -28,6 +31,7 @@ _SENTENCES: dict[ErrorCode, str] = {
     "provider_bad_response": "The provider rejected the request or sent a response that could not be used.",
     "provider_output_invalid": "The model did not produce output in the requested format.",
     "provider_refused": "The provider refused to answer this request.",
+    "provider_config_invalid": "The connection settings are not valid for this provider.",
     "limit_exceeded": "A limit set for this job was reached.",
     "internal": "An internal error occurred.",
 }
@@ -37,18 +41,21 @@ _RETRYABLE: frozenset[ErrorCode] = frozenset({"provider_unreachable", "provider_
 
 
 class JobError(BaseModel):
-    """A failure as web receives it: the code and whether a retry may help."""
+    """A failure as web receives it: the code, whether a retry may help, and what the run used."""
 
     code: ErrorCode
     retryable: bool
+    usage: StepUsage | None = None
 
 
 class EngineError(Exception):
     """A failure with a stable code. `str()` is the code and a fixed sentence, never provider text."""
 
-    def __init__(self, code: ErrorCode) -> None:
+    def __init__(self, code: ErrorCode, usage: StepUsage | None = None) -> None:
         super().__init__(code)
         self.code: ErrorCode = code
+        # What a failed run used before it stopped, so callers can bill and log it.
+        self.usage: StepUsage | None = usage
         self.retryable: bool = code in _RETRYABLE
         # Raised from inside `except` blocks that hold provider bodies; do not chain them.
         self.__suppress_context__ = True
@@ -57,4 +64,4 @@ class EngineError(Exception):
         return f"{self.code}: {_SENTENCES[self.code]}"
 
     def to_model(self) -> JobError:
-        return JobError(code=self.code, retryable=self.retryable)
+        return JobError(code=self.code, retryable=self.retryable, usage=self.usage)

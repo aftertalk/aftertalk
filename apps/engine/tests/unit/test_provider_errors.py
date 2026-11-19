@@ -33,16 +33,32 @@ from aftertalk.providers.net import BlockedAddressError
 BODY = "PROVIDER-BODY-sk-secret-123"
 
 
-def http(category: type[ModelAPIError] | None, status: int) -> ModelHTTPError:
-    return ModelHTTPError.for_category(category, status_code=status, model_name="m", body=BODY)  # type: ignore[arg-type]
+def http(
+    category: type[ModelAPIError] | None, status: int, code: str | None = None, kind: str | None = None
+) -> ModelHTTPError:
+    return ModelHTTPError.for_category(
+        category,  # type: ignore[arg-type]
+        status_code=status,
+        model_name="m",
+        body=BODY,
+        provider_error_code=code,
+        provider_error_type=kind,
+    )
 
 
 CASES = [
     (http(ModelAuthenticationError, 401), "provider_auth"),
     (http(None, 401), "provider_auth"),
     (http(None, 403), "provider_auth"),
-    (http(ModelNotFoundError, 404), "provider_model_not_found"),
-    (http(None, 404), "provider_model_not_found"),
+    (http(ModelNotFoundError, 404, code="model_not_found"), "provider_model_not_found"),
+    (http(None, 404, code="model_not_found"), "provider_model_not_found"),
+    (http(ModelNotFoundError, 404, kind="not_found_error"), "provider_model_not_found"),
+    (http(ModelNotFoundError, 404), "provider_bad_response"),  # a bare 404 is more often a wrong base URL
+    (http(None, 404), "provider_bad_response"),
+    (http(None, 404, code="404"), "provider_bad_response"),
+    (http(None, 400, code="content_filter"), "provider_refused"),
+    (http(ModelRequestRejectedError, 400, code="content_policy_violation"), "provider_refused"),
+    (http(None, 400, kind="ResponsibleAIPolicyViolation"), "provider_refused"),
     (http(ModelContextWindowExceededError, 400), "provider_context_too_long"),
     (http(ModelRateLimitError, 429), "provider_rate_limited"),
     (http(None, 429), "provider_rate_limited"),
@@ -106,13 +122,15 @@ def test_retryable_flags_follow_codes() -> None:
 
 
 def test_raise_from_none_leaves_no_traceback_chain() -> None:
+    # The pattern the engine uses: build the error inside the except, raise it after the block.
+    error: EngineError | None = None
     try:
-        try:
-            raise http(None, 401)
-        except ModelHTTPError as exc:
-            raise to_engine_error(exc) from None
-    except EngineError as err:
-        assert err.__cause__ is None and err.__suppress_context__
+        raise http(None, 401)
+    except ModelHTTPError as exc:
+        error = to_engine_error(exc)
+    with pytest.raises(EngineError) as info:
+        raise error
+    assert info.value.__cause__ is None and info.value.__context__ is None
 
 
 def test_cancellation_is_not_mapped() -> None:
