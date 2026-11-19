@@ -2,7 +2,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from aftertalk_engine.settings import get_settings
+from aftertalk.settings import get_settings
 
 
 @asynccontextmanager

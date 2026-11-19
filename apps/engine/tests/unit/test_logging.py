@@ -3,7 +3,7 @@ import logging
 
 import pytest
 
-from aftertalk_engine.logging import JsonFormatter, log, setup_logging
+from aftertalk.logging import JsonFormatter, log, setup_logging
 
 
 def test_log_writes_one_json_line_with_allowed_fields(capsys: pytest.CaptureFixture[str]) -> None:

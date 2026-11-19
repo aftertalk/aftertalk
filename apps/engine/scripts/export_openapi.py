@@ -11,7 +11,7 @@ from pathlib import Path
 
 os.environ.setdefault("ENGINE_CALLBACK_SECRET", "export-only")
 
-from aftertalk_engine.api.app import app  # noqa: E402
+from aftertalk.api.app import app  # noqa: E402
 
 OUT = Path(__file__).resolve().parent.parent / "openapi.json"
 
