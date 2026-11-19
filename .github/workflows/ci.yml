@@ -32,6 +32,8 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 22
+          # setup-node reads packageManager and looks for pnpm before corepack has installed it.
+          package-manager-cache: false
       - run: corepack enable
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter web lint
