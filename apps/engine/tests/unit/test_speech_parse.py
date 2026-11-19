@@ -70,14 +70,14 @@ def test_words_everywhere_is_word_timing() -> None:
     assert t.timing == "word" and [len(s.words) for s in t.segments] == [1, 1]
 
 
-def test_segment_without_words_downgrades_to_segment_and_drops_words() -> None:
+def test_words_are_kept_where_they_exist_even_below_word_timing() -> None:
     t = parse({"text": "a b", "segments": [seg("a", 0, 1), seg("b", 1, 2)], "words": [word("a", 0, 1)]})
-    assert t.timing == "segment" and all(not s.words for s in t.segments)
+    assert t.timing == "segment" and [len(s.words) for s in t.segments] == [1, 0]
 
 
-def test_segment_missing_times_downgrades_to_none() -> None:
+def test_half_the_segments_without_times_downgrades_to_none() -> None:
     t = parse({"text": "a b", "segments": [seg("a", 0, 1), {"text": "b"}], "words": [word("a", 0, 1)]})
-    assert t.timing == "none" and all(not s.words for s in t.segments)
+    assert t.timing == "none" and [s.text for s in t.segments] == ["a", "b"]
 
 
 @pytest.mark.parametrize(
@@ -89,7 +89,7 @@ def test_segment_missing_times_downgrades_to_none() -> None:
         word("x", 1.5, 1.0),
         word("x", math.nan, 1),
         word("x", 0, math.inf),
-        word("x", "0", "1"),
+        word("x", "zero", "1"),
         word("x", True, 1),
         {"word": "x"},
         {"start": 0, "end": 1},

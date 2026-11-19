@@ -2,6 +2,7 @@
 
 import json
 import threading
+import time
 from dataclasses import dataclass, field
 from email import policy
 from email.parser import BytesParser
@@ -77,6 +78,8 @@ class FakeSpeech:
         self.reject_verbose = False  # 400 for verbose_json, as Speaches does without the granularities
         self.reject_param: str | None = None  # the param named in that 400 (None: the error names no param)
         self.language = "polish"
+        self.reject_granularities = False  # 400 naming timestamp_granularities when they are sent
+        self.drip = False  # answer a byte at a time, slowly: never idle long, never finishing
         self._server = ThreadingHTTPServer(("127.0.0.1", 0), self._handler())
 
     @property
@@ -111,6 +114,7 @@ class FakeSpeech:
                 return {"text": VERBOSE_TEXT}
 
     def _answer(self, seen: Seen) -> Forced:
+        granular = bool(seen.values("timestamp_granularities[]"))
         if self.always is not None:
             return self.always
         if self.forced:
@@ -118,10 +122,15 @@ class FakeSpeech:
         if self.redirect_to:
             return Forced(302, "", {"Location": self.redirect_to})
         verbose = seen.values("response_format") == ["verbose_json"]
+        if verbose and granular and self.reject_granularities:
+            return Forced(400, error_body("not supported", param="timestamp_granularities[]"))
         if verbose and self.reject_verbose:
             return Forced(400, error_body("not supported", param=self.reject_param))
         if verbose and self.shape != "text":
-            return Forced(200, json.dumps(self._verbose()))
+            data = self._verbose()
+            if not granular:
+                data.pop("words", None)  # verbose_json without granularities has segments only
+            return Forced(200, json.dumps(data))
         if self.shape == "languages":
             return Forced(200, json.dumps(self._verbose()))
         return Forced(200, json.dumps({"text": VERBOSE_TEXT}))
@@ -150,6 +159,18 @@ class FakeSpeech:
                 outer.seen.append(seen)
                 answer = outer._answer(seen)
                 data = answer.body.encode()
+                if outer.drip:
+                    self.send_response(200)
+                    self.send_header("Content-Length", "100000")
+                    self.end_headers()
+                    try:
+                        for _ in range(1000):
+                            self.wfile.write(b" ")
+                            self.wfile.flush()
+                            time.sleep(0.05)
+                    except OSError:
+                        pass
+                    return
                 self.send_response(answer.status)
                 self.send_header("Content-Type", "application/json")
                 self.send_header("Content-Length", str(len(data)))

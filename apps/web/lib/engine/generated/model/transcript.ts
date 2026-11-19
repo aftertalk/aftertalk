@@ -9,6 +9,12 @@ import type { TranscriptTiming } from './transcriptTiming';
 
 /**
  * A transcript. The adapter sets `timing` from what the provider actually returned.
+ *
+ * `timing` is the level the transcript can be relied on for: `segment` means every segment has a start and end;
+ * `word` adds that at least 90% of the segments with text have timed words (and there is at least one word).
+ * Words are kept wherever the provider gave them, so a `word` transcript may have segments without words (they keep
+ * their segment times), and a `segment` transcript may still carry some words. `none` is text only (or too few
+ * segment times to use).
  */
 export interface Transcript {
   text: string;

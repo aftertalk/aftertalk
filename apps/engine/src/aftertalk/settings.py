@@ -12,6 +12,9 @@ class CliSettings(BaseSettings):
     # Refuse LLM and speech endpoints that resolve to private, loopback or link-local addresses.
     # Turn on for a shared or hosted engine; leave off when your own models run on localhost.
     block_private_addresses: bool = False
+    # An HTTP proxy for provider calls (PROVIDER_PROXY). Proxy variables in the environment are ignored.
+    # Refused together with block_private_addresses: a proxy would get around the address guard.
+    provider_proxy: str | None = None
 
 
 class Settings(CliSettings):

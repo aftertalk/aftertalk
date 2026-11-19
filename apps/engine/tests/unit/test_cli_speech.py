@@ -94,9 +94,11 @@ def test_wav_connection(fake_speech: FakeSpeech, tmp_path: Path, audio_file: Pat
 
 def test_fallback_is_reported_on_stderr(fake_speech: FakeSpeech, tmp_path: Path, audio_file: Path) -> None:
     fake_speech.reject_verbose = True
+    fake_speech.reject_param = "response_format"
     result = invoke(setup(tmp_path, fake_speech.base_url), "transcribe", str(audio_file), "-f", "json")
     assert result.exit_code == 0
-    assert json.loads(result.stdout)["transcript"]["timing"] == "none"
+    data = json.loads(result.stdout)
+    assert data["transcript"]["timing"] == "none" and data["usage"]["speech_format"] == "json"
     assert "timestamps" in result.stderr.lower()
 
 
@@ -175,7 +177,7 @@ def test_temp_files_are_removed(
 
     monkeypatch.setattr(tempfile, "tempdir", str(tmp_path / "tmp"))
     invoke(setup(tmp_path, fake_speech.base_url), "transcribe", str(audio_file))
-    assert list((tmp_path / "tmp").iterdir()) == []
+    assert [p for p in (tmp_path / "tmp").rglob("*") if p.is_file()] == []
 
 
 # ---- aftertalk providers test --kind speech ----
@@ -239,3 +241,29 @@ def test_bundled_test_audio_is_a_two_second_mono_16k_wav() -> None:
         stream = container.streams.audio[0]
         assert (stream.rate, len(stream.layout.channels), stream.codec_context.name) == (16000, 1, "pcm_s16le")
         assert 1.2 < container.duration / 1_000_000 < 2.5
+
+
+def test_unknown_language_is_a_usage_error(fake_speech: FakeSpeech, tmp_path: Path, audio_file: Path) -> None:
+    result = invoke(setup(tmp_path, fake_speech.base_url), "transcribe", str(audio_file), "--language", "klingon")
+    assert result.exit_code == 2 and "unknown language" in result.output and fake_speech.seen == []
+
+
+def test_language_names_are_normalised(fake_speech: FakeSpeech, tmp_path: Path, audio_file: Path) -> None:
+    result = invoke(setup(tmp_path, fake_speech.base_url), "transcribe", str(audio_file), "--language", "Polish")
+    assert result.exit_code == 0 and fake_speech.seen[0].values("language") == ["pl"]
+
+
+def test_output_file_is_private(fake_speech: FakeSpeech, tmp_path: Path, audio_file: Path) -> None:
+    import stat
+
+    target = tmp_path / "call.txt"
+    result = invoke(setup(tmp_path, fake_speech.base_url), "transcribe", str(audio_file), "-o", str(target))
+    assert result.exit_code == 0 and stat.S_IMODE(target.stat().st_mode) == 0o600
+
+
+def test_connection_upload_limit_stops_the_conversion(fake_speech: FakeSpeech, tmp_path: Path) -> None:
+    big = make_tone(tmp_path / "big.wav", seconds=60.0, rate=16000, channels=1)
+    env = setup(tmp_path, fake_speech.base_url, ", audio_format: wav, max_upload_mb: 1")
+    result = invoke(env, "--json", "transcribe", str(big))  # 60 s of 16 kHz s16 is 1.9 MB
+    assert result.exit_code == 1 and json.loads(result.stdout)["code"] == "audio_too_long"
+    assert fake_speech.seen == []

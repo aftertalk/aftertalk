@@ -420,6 +420,12 @@
             "title": "Audio Format",
             "type": "string"
           },
+          "max_upload_mb": {
+            "default": 25,
+            "exclusiveMinimum": 0,
+            "title": "Max Upload Mb",
+            "type": "integer"
+          },
           "extra_headers": {
             "additionalProperties": {
               "format": "password",
@@ -565,6 +571,23 @@
             "title": "Attempts",
             "type": "integer"
           },
+          "speech_format": {
+            "anyOf": [
+              {
+                "enum": [
+                  "verbose_json",
+                  "verbose_json_segments",
+                  "json"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Speech Format"
+          },
           "duration_ms": {
             "default": 0,
             "minimum": 0,
@@ -593,7 +616,7 @@
       },
       "Transcript": {
         "additionalProperties": false,
-        "description": "A transcript. The adapter sets `timing` from what the provider actually returned.",
+        "description": "A transcript. The adapter sets `timing` from what the provider actually returned.\n\n`timing` is the level the transcript can be relied on for: `segment` means every segment has a start and end;\n`word` adds that at least 90% of the segments with text have timed words (and there is at least one word).\nWords are kept wherever the provider gave them, so a `word` transcript may have segments without words (they keep\ntheir segment times), and a `segment` transcript may still carry some words. `none` is text only (or too few\nsegment times to use).",
         "properties": {
           "text": {
             "title": "Text",
@@ -681,6 +704,18 @@
             ],
             "default": null,
             "title": "End"
+          },
+          "probability": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Probability"
           }
         },
         "required": [

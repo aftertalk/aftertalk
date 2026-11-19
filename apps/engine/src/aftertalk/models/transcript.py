@@ -26,6 +26,7 @@ class Word(BaseModel):
     text: str
     start: Seconds | None = None
     end: Seconds | None = None
+    probability: float | None = None
 
     @model_validator(mode="after")
     def _times(self) -> "Word":
@@ -51,7 +52,14 @@ class Segment(BaseModel):
 
 
 class Transcript(BaseModel):
-    """A transcript. The adapter sets `timing` from what the provider actually returned."""
+    """A transcript. The adapter sets `timing` from what the provider actually returned.
+
+    `timing` is the level the transcript can be relied on for: `segment` means every segment has a start and end;
+    `word` adds that at least 90% of the segments with text have timed words (and there is at least one word).
+    Words are kept wherever the provider gave them, so a `word` transcript may have segments without words (they keep
+    their segment times), and a `segment` transcript may still carry some words. `none` is text only (or too few
+    segment times to use).
+    """
 
     model_config = _CONFIG
 
@@ -70,9 +78,8 @@ class Transcript(BaseModel):
         if any(seg.start is None or seg.end is None for seg in self.segments):
             raise ValueError(f"timing {self.timing!r} requires start and end on every segment")
         if self.timing == "word":
-            for seg in self.segments:
-                if seg.text.strip() and not seg.words:
-                    raise ValueError("timing 'word' requires words on every segment with text")
-                if any(w.start is None or w.end is None for w in seg.words):
-                    raise ValueError("timing 'word' requires start and end on every word")
+            if self.text.strip() and not any(seg.words for seg in self.segments):
+                raise ValueError("timing 'word' requires at least one word")
+            if any(w.start is None or w.end is None for seg in self.segments for w in seg.words):
+                raise ValueError("timing 'word' requires start and end on every word")
         return self

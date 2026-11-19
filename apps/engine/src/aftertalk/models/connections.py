@@ -1,5 +1,6 @@
 """Connections to LLM and speech-to-text services. Keys are `SecretStr` and never printed."""
 
+import re
 from typing import Annotated, Any, Literal
 from urllib.parse import urlsplit
 
@@ -109,10 +110,27 @@ def reveal(model: BaseModel) -> dict[str, Any]:
     return model.model_dump(mode="json", context={"reveal_secrets": True})
 
 
+_HEADER_NAME = re.compile(r"^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$")
+# The client sets these itself; overriding them would break the request or smuggle one.
+_RESERVED_HEADERS = frozenset({"host", "content-type", "content-length", "transfer-encoding"})
+
+
 def _check_extra_headers(cls: Any, value: dict[str, SecretStr]) -> dict[str, SecretStr]:
-    for name in value:
-        if name.strip().lower() in _AUTH_HEADERS:
+    for name, secret in value.items():
+        lowered = name.strip().lower()
+        if lowered in _AUTH_HEADERS:
             raise ValueError(f"header {name!r} is not allowed in extra_headers; put the key in api_key")
+        if lowered in _RESERVED_HEADERS:
+            raise ValueError(f"header {name!r} is set by Aftertalk and cannot be overridden")
+        if not _HEADER_NAME.match(name):
+            raise ValueError("header names may only contain letters, digits and !#$%&'*+-.^_`|~")
+        text = secret.get_secret_value()
+        if "\r" in text or "\n" in text or "\x00" in text:
+            raise ValueError(f"header {name!r} has a line break in its value")
+        try:
+            text.encode("latin-1")
+        except UnicodeEncodeError:
+            raise ValueError(f"header {name!r} has characters outside latin-1 in its value") from None
     return value
 
 
@@ -159,6 +177,7 @@ class SpeechConnection(BaseModel):
     api_key: ApiKey | None = None
     model: ModelName
     audio_format: Literal["flac", "wav"] = "flac"
+    max_upload_mb: PositiveInt = 25  # the provider's upload ceiling in MiB; longer audio fails with audio_too_long
     extra_headers: dict[str, HeaderValue] = {}
 
     _no_auth_headers = field_validator("extra_headers")(_check_extra_headers)

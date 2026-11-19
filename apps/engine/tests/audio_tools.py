@@ -1,5 +1,6 @@
 """Generate test audio with PyAV (no binary fixtures)."""
 
+from fractions import Fraction
 from pathlib import Path
 
 import av
@@ -20,6 +21,25 @@ def make_tone(
         frame.sample_rate = rate
         for packet in stream.encode(frame):
             container.mux(packet)
+        for packet in stream.encode(None):
+            container.mux(packet)
+    return path
+
+
+def make_offset_aac(path: Path, *, offset: float = 2.0, seconds: float = 1.0, rate: int = 44100) -> Path:
+    """An mp4/m4a whose audio starts `offset` seconds into the media timeline."""
+    samples = np.sin(2 * np.pi * 440 * np.arange(int(rate * seconds)) / rate)
+    tone = (samples * 10000).astype(np.int16)
+    with av.open(str(path), "w") as container:
+        stream = container.add_stream("aac", rate=rate, layout="mono")
+        for i in range(0, len(tone), 1024):
+            chunk = np.ascontiguousarray(tone[i : i + 1024]).reshape(1, -1)
+            frame = av.AudioFrame.from_ndarray(chunk, format="s16", layout="mono")
+            frame.sample_rate = rate
+            frame.pts = int(offset * rate) + i
+            frame.time_base = Fraction(1, rate)
+            for packet in stream.encode(frame):
+                container.mux(packet)
         for packet in stream.encode(None):
             container.mux(packet)
     return path
