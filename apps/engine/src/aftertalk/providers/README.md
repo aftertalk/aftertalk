@@ -1,9 +1,8 @@
 # providers
 
 Adapters to outside services, built from the settings in each job request (keys
-are never stored or logged). `protocols.py` and `models.py` (transcription and
-diarization interfaces, word model), `speech/openai_compatible.py` (OpenAI, Groq,
-self-hosted Whisper), `diarization/pyannote.py`. Spec: items 65-67, 69.
+are never stored or logged). `speech/` (transcription, below), `llm.py` and `output.py`
+(LLM), `diarization/pyannote.py` (later). Spec: items 65-67, 69.
 
 ## LLM
 
@@ -63,3 +62,81 @@ variables while it builds the clients, so a connection sends only what it config
 their default base URLs explicitly. A setting the provider rejects when the model is built (for example an
 OpenRouter name without its vendor) is `provider_config_invalid`. A 404 is `provider_model_not_found` only when
 the provider names the model in its error code; a bare 404 is `provider_bad_response` (often a wrong base URL).
+
+## Speech
+
+`speech/` turns one encoded audio upload into a `Transcript` and a `StepUsage`. Which servers work, and what is
+verified, is in `apps/engine/docs/providers.md`.
+
+| File | What it does |
+| --- | --- |
+| `speech/protocols.py` | `SpeechProvider` (`capabilities`, `transcribe(audio, language=, prompt=, deadline=, allowed_languages=)`) and `SpeechCapabilities` (`word_times`, `segment_times`, `speakers`, `channels`, `max_upload_bytes`). A native adapter such as Deepgram implements the same protocol. `EncodedAudio` (from `audio/encode.py`) is the upload: bytes or a temp file, `filename`, `content_type`, `duration_seconds`, `size_bytes`. |
+| `speech/openai_compatible.py` | The only adapter in M1: `POST {base_url}/audio/transcriptions` with plain `httpx2` (not the OpenAI SDK, so `OPENAI_API_KEY`, `OPENAI_BASE_URL` and `OPENAI_ORG_ID` are never read). It is the only place that reads the key and `extra_headers`. `Authorization: Bearer` is sent only when a key is set. `open_speech(conn, block_private=)` makes the client and closes it. `transcribe_detailed` also says whether the fallback ran. |
+| `speech/parse.py` | Response to `Transcript`; sets `timing` from what survived parsing. |
+| `speech/languages.py` | `normalize_language`: "polish", "pl", "pt-BR" to `pl`, `pl`, `pt`; unknown to None. |
+| `speech/errors.py` | Status and transport failure to an `EngineError` code, on a bare `httpx2.Response`. |
+
+### Request
+
+Multipart: `file`, `model`, `response_format=verbose_json`, the literal field `timestamp_granularities[]` twice
+(`word` and `segment`), and `language` and `prompt` when set. Redirects are never followed.
+
+### Fallback
+
+Some servers answer a 400 or 422 to `verbose_json` or the granularities (Speaches does without `verbose_json`;
+the newer OpenAI models accept only `json`). When the JSON error names `response_format` or
+`timestamp_granularities`, or names no parameter, the request is repeated once with `response_format=json` and no
+granularities. `StepUsage.attempts` counts both (`transcribe_detailed(...).fallback` is true). An error that names
+another parameter (`file`, `model`) is not a fallback case.
+
+### Timing levels
+
+`Transcript.timing` is set from the response, never from the request:
+
+| Level | When | Subtitles |
+| --- | --- | --- |
+| `word` | every segment with text has timed words | yes |
+| `segment` | segments have times, some have no usable words (words are then dropped from all segments) | yes |
+| `none` | text only, or a segment without usable times | no (`vtt` and `srt` fail with exit 1) |
+
+Words come at the top level (OpenAI, Groq) and are given to the segment they overlap most, or nested in the
+segments (whisper.cpp). A word with a missing, negative, infinite or reversed time is dropped instead of failing the
+job, and the level goes down if a segment is left without words. Words with no segments at all become one segment.
+Silence (segments present, none of them) is `segment`.
+
+### Limits and retries
+
+- Upload ceiling 25 MB by default (`max_upload_bytes` on the constructor; Groq dev tier takes 100 MB). Above it the
+  job fails with `audio_too_long` before any request; a 413 from the server is the same code. No chunking in M1.
+- A 429, 5xx, 408 or dropped connection is tried 3 times in all, waiting 2 s then 10 s, or `Retry-After` (capped at
+  60 s). A wait that would pass `deadline` (an absolute `time.monotonic()` value) fails with `limit_exceeded` instead.
+  A blocked private address, a 413 and 429 with `insufficient_quota` (`provider_quota_exceeded`) are not retried.
+- `requests` counts requests that got a response; `attempts` counts every request sent.
+- Language: a forced `language` is sent as is. Otherwise the provider detects it, and a detected language outside
+  `allowed_languages` fails with `language_not_allowed`. A provider that reports no language (text-only models)
+  cannot be checked and is let through.
+- Errors carry a code only. Mapping: 401/403 `provider_auth`; 404 `provider_model_not_found` only when the JSON
+  error code names the model, otherwise `provider_bad_response` (often a wrong base URL); 413 `audio_too_long`; 429
+  `provider_rate_limited`; 408, 5xx and transport failures `provider_unreachable`; other 4xx, redirects and a 200
+  that is not a transcription `provider_bad_response`.
+
+### Audio
+
+`audio/encode.py`: `encode_for_speech(path, fmt=)` decodes anything PyAV reads, downmixes to mono, resamples to
+16 kHz and writes FLAC or WAV (16-bit PCM) to a temp file. Use it as a context manager so the file is removed.
+No audio stream, or a file that cannot be decoded, is `audio_unreadable`. `SpeechConnection.audio_format` picks the
+format: `flac` (default) or `wav` for servers that do not list FLAC (Azure, whisper.cpp without `--convert`).
+
+### Commands
+
+```sh
+aftertalk providers test --kind speech       # {"ok": true, "latency_ms": 900, "timing": "word"}
+aftertalk transcribe call.mp3 --format vtt --language pl --prompt "Kenobi" --output call.vtt
+```
+
+`providers test --kind speech` sends the bundled two-second clip (`assets/test-2s.wav`, macOS text-to-speech; replace
+it with a recording we own before a public release; `scripts/make_test_audio.py` rebuilds it). `transcribe` writes
+`text` (default), `json`, `vtt` or `srt` to stdout or `--output`; progress goes to stderr and never contains
+transcript text. `--format json` writes `{"transcript": <Transcript>, "usage": <StepUsage>}`. Exit codes: 0 ok, 1
+failure (the code is printed: `failed: provider_auth: ...`, or `{"ok": false, "code": ...}` with `--json`), 2 no
+speech connection, bad connections file or bad arguments.

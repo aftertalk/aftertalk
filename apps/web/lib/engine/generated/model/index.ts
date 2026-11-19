@@ -18,6 +18,7 @@ export * from './modelTiers';
 export * from './segment';
 export * from './speechConnection';
 export * from './speechConnectionAudioFormat';
+export * from './speechConnectionExtraHeaders';
 export * from './stepUsage';
 export * from './stepUsageOutputMode';
 export * from './stepUsageTier';

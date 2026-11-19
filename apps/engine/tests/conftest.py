@@ -2,6 +2,7 @@ from collections.abc import Iterator
 
 import pytest
 from fake_llm import FakeLLM
+from fake_speech import FakeSpeech
 from pydantic_ai import models
 
 # No test may reach a real model: a test that talks to the local fake server opts in with `fake_llm`.
@@ -26,6 +27,15 @@ def allow_requests() -> Iterator[None]:
 def fake_llm(allow_requests: None) -> Iterator[FakeLLM]:
     """A local OpenAI-compatible server on 127.0.0.1."""
     server = FakeLLM()
+    server.start()
+    yield server
+    server.stop()
+
+
+@pytest.fixture
+def fake_speech(allow_requests: None) -> Iterator[FakeSpeech]:
+    """A local OpenAI-compatible transcription server on 127.0.0.1."""
+    server = FakeSpeech()
     server.start()
     yield server
     server.stop()

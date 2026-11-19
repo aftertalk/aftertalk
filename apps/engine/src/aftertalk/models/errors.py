@@ -18,6 +18,9 @@ ErrorCode = Literal[
     "provider_output_truncated",
     "provider_refused",
     "provider_config_invalid",
+    "audio_unreadable",
+    "audio_too_long",
+    "language_not_allowed",
     "limit_exceeded",
     "internal",
 ]
@@ -34,6 +37,9 @@ _SENTENCES: dict[ErrorCode, str] = {
     "provider_output_truncated": "The model's answer was cut off at its output token limit.",
     "provider_refused": "The provider refused to answer this request.",
     "provider_config_invalid": "The connection settings are not valid for this provider.",
+    "audio_unreadable": "The file could not be read as audio, or it has no audio stream.",
+    "audio_too_long": "The audio is larger than the provider accepts in one upload.",
+    "language_not_allowed": "The spoken language is not one of the allowed languages.",
     "limit_exceeded": "A limit set for this job was reached.",
     "internal": "An internal error occurred.",
 }

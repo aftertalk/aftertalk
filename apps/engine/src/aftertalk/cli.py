@@ -88,6 +88,13 @@ class Kind(StrEnum):
     speech = "speech"
 
 
+class OutputFormat(StrEnum):
+    json = "json"
+    text = "text"
+    vtt = "vtt"
+    srt = "srt"
+
+
 async def _probe_llm(conn: Any, block_private: bool) -> tuple[int, str]:
     """Plain text first, then the structured-output ladder. Returns the latency and the output mode that worked."""
     from typing import Literal
@@ -126,6 +133,43 @@ async def _probe_llm(conn: Any, block_private: bool) -> tuple[int, str]:
     return int((time.monotonic() - started) * 1000), usage.output_mode or conn.output_mode
 
 
+async def _probe_speech(conn: Any, block_private: bool) -> tuple[int, str]:
+    """Send the bundled two-second clip through the same encoder as `transcribe`. Returns latency and timing."""
+    from importlib import resources
+
+    from aftertalk.audio.encode import encode_for_speech
+    from aftertalk.providers.speech.openai_compatible import open_speech
+
+    started = time.monotonic()
+    with resources.as_file(resources.files("aftertalk") / "assets" / "test-2s.wav") as clip:
+        with encode_for_speech(clip, fmt=conn.audio_format) as audio:
+            async with open_speech(conn, block_private=block_private) as provider:
+                transcript, _ = await provider.transcribe(audio, language=None, prompt=None, deadline=None)
+    return int((time.monotonic() - started) * 1000), transcript.timing
+
+
+def _speech_connection(file: Path | None) -> Any:
+    """The profile's speech connection; exits 2 with a message when there is none."""
+    from aftertalk.config.profiles import ProfileError, load_profile
+
+    try:
+        profile = load_profile(file)
+    except ProfileError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(2)
+    if profile.speech is None:
+        typer.echo("no speech connection is configured; add speech to the connections file", err=True)
+        raise typer.Exit(2)
+    return profile.speech
+
+
+def _failure(exc: Exception) -> Any:
+    from aftertalk.models.errors import EngineError
+
+    # No traceback for anything else: it could quote what the provider sent.
+    return exc if isinstance(exc, EngineError) else EngineError("internal")
+
+
 @providers_app.command("test")
 def providers_test(
     ctx: typer.Context,
@@ -141,8 +185,22 @@ def providers_test(
 
     as_json = bool((ctx.obj or {}).get("json"))
     if kind is Kind.speech:
-        typer.echo("speech test arrives in the next PR", err=True)
-        raise typer.Exit(2)
+        speech = _speech_connection(file)
+        speech_failure: EngineError | None = None
+        try:
+            speech_ms, timing = asyncio.run(_probe_speech(speech, get_cli_settings().block_private_addresses))
+        except Exception as exc:
+            speech_failure = _failure(exc)
+        if speech_failure is not None:
+            typer.echo(
+                json.dumps({"ok": False, "code": speech_failure.code}) if as_json else f"failed: {speech_failure}"
+            )
+            raise typer.Exit(1)
+        if as_json:
+            typer.echo(json.dumps({"ok": True, "latency_ms": speech_ms, "timing": timing}))
+        else:
+            typer.echo(f"ok: speech answered in {speech_ms} ms (timestamps: {timing})")
+        return
     if tier not in get_args(ModelTier):
         typer.echo(f"unknown tier {tier!r}; use one of {', '.join(get_args(ModelTier))}", err=True)
         raise typer.Exit(2)
@@ -175,6 +233,91 @@ def providers_test(
         typer.echo(json.dumps({"ok": True, "latency_ms": latency_ms, "output_mode": mode}))
     else:
         typer.echo(f"ok: llm {tier} answered in {latency_ms} ms (output mode: {mode})")
+
+
+async def _transcribe(conn: Any, audio: Any, language: str | None, prompt: str | None, block_private: bool) -> Any:
+    from aftertalk.providers.speech.openai_compatible import open_speech
+
+    async with open_speech(conn, block_private=block_private) as provider:
+        return await provider.transcribe_detailed(audio, language=language, prompt=prompt, deadline=None)
+
+
+@app.command()
+def transcribe(
+    ctx: typer.Context,
+    audio_file: Annotated[
+        Path, typer.Argument(metavar="FILE", exists=True, dir_okay=False, readable=True, help="Audio or video file.")
+    ],
+    format: Annotated[
+        OutputFormat, typer.Option("--format", "-f", help="How to write the result.")
+    ] = OutputFormat.text,
+    language: Annotated[str | None, typer.Option(help="Force the spoken language, for example pl.")] = None,
+    prompt: Annotated[str | None, typer.Option(help="Names and terms to help the recogniser.")] = None,
+    output: Annotated[Path | None, typer.Option("--output", "-o", help="Write here instead of stdout.")] = None,
+    connections: Annotated[
+        Path | None, typer.Option(help="Connections file (default ~/.aftertalk/connections.yaml).")
+    ] = None,
+) -> None:
+    """Transcribe a file with the speech connection. Exit 0 ok, 1 failure, 2 configuration or usage error.
+
+    Progress goes to stderr. `--format json` writes {"transcript": ..., "usage": ...}.
+    """
+    from aftertalk.audio.encode import encode_for_speech
+    from aftertalk.models.errors import EngineError
+    from aftertalk.render import RenderError, render_srt, render_text, render_vtt
+    from aftertalk.settings import get_cli_settings
+
+    as_json = bool((ctx.obj or {}).get("json"))
+    conn = _speech_connection(connections)
+    failure: EngineError | None = None
+    result: Any = None
+    try:
+        typer.echo("decoding audio", err=True)
+        with encode_for_speech(audio_file, fmt=conn.audio_format) as audio:
+            typer.echo(f"uploading {audio.size_bytes / 1_000_000:.1f} MB ({audio.duration_seconds:.0f} s)", err=True)
+            typer.echo("transcribing", err=True)
+            result = asyncio.run(_transcribe(conn, audio, language, prompt, get_cli_settings().block_private_addresses))
+    except Exception as exc:
+        failure = _failure(exc)
+    if failure is not None:
+        # Only the code and its fixed sentence are printed, never what the provider sent.
+        if as_json:
+            typer.echo(json.dumps({"ok": False, "code": failure.code}))
+        else:
+            typer.echo(f"failed: {failure}", err=True)
+        raise typer.Exit(1)
+    if result.fallback:
+        typer.echo("the provider rejected timestamps, so this transcript has none", err=True)
+    transcript = result.transcript
+    text: str | None = None
+    problem: str | None = None
+    try:
+        match format:
+            case OutputFormat.json:
+                payload = {
+                    "transcript": transcript.model_dump(mode="json"),
+                    "usage": result.usage.model_dump(mode="json"),
+                }
+                text = json.dumps(payload, indent=2, ensure_ascii=False) + "\n"
+            case OutputFormat.text:
+                text = render_text(transcript)
+            case OutputFormat.vtt:
+                text = render_vtt(transcript)
+            case OutputFormat.srt:
+                text = render_srt(transcript)
+    except RenderError as exc:
+        problem = str(exc)
+    if text is None:
+        typer.echo(problem, err=True)
+        raise typer.Exit(1)
+    if output is None:
+        typer.echo(text, nl=False)
+        return
+    try:
+        output.write_text(text, encoding="utf-8")
+    except OSError as exc:
+        typer.echo(f"cannot write {output}: {exc.strerror}", err=True)
+        raise typer.Exit(1)
 
 
 @app.command()

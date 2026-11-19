@@ -46,6 +46,9 @@
               "provider_output_truncated",
               "provider_refused",
               "provider_config_invalid",
+              "audio_unreadable",
+              "audio_too_long",
+              "language_not_allowed",
               "limit_exceeded",
               "internal"
             ],
@@ -421,6 +424,16 @@
             ],
             "title": "Audio Format",
             "type": "string"
+          },
+          "extra_headers": {
+            "additionalProperties": {
+              "format": "password",
+              "type": "string",
+              "writeOnly": true
+            },
+            "default": {},
+            "title": "Extra Headers",
+            "type": "object"
           }
         },
         "required": [
