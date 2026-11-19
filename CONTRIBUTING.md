@@ -10,7 +10,7 @@ this code.
 
 1. Branch from `main` (`phase-1`, `engine-contract`, `fix-upload-limit`, ...).
 2. Keep a PR to one project where possible: web PRs touch `apps/web/`, engine
-   PRs touch `packages/engine/`. A contract change touches both, in one PR.
+   PRs touch `apps/engine/`. A contract change touches both, in one PR.
 3. Run the checks listed in `CLAUDE.md` before pushing; CI runs the same ones
    plus a full `docker compose` start.
 4. Open a PR that names the spec items it builds ("items 59, 60").

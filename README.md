@@ -31,7 +31,7 @@ Needs Node 22 with corepack, Python 3.13 and uv, and Docker.
 corepack enable && pnpm install
 docker compose -f docker-compose.dev.yml up -d --build   # all services from source
 pnpm --filter web test        # Jest, against the dev Postgres on 127.0.0.1:5433
-uv run --project packages/engine pytest packages/engine
+uv run --project apps/engine pytest apps/engine
 ```
 
 ## Open source and commercial
@@ -97,7 +97,7 @@ Everything a user sees and everything that is stored.
 - **Results**: receives the engine's signed result callback, checks it, and
   writes the whole result in one transaction.
 
-### Engine (`packages/engine`, Python)
+### Engine (`apps/engine`, Python)
 
 Stateless processing: one job in, one result out. Python because the audio
 and model libraries (PyAV, torch, Silero, GLiNER) live there.
@@ -128,7 +128,7 @@ on the internal Docker network.
 ```
 apps/web/         Next.js app: UI, login, all database work, job queue
 apps/web/ee/      Extension stubs the commercial fork replaces
-packages/engine/  Python engine: stateless processing over HTTP
+apps/engine/      Python engine: stateless processing over HTTP
 docker/           Dockerfiles and the Caddy example
 docs/             Self-hosting, provider and privacy guides
 samples/          Consented sample calls

@@ -44,5 +44,5 @@ test/             Jest database setup
 - **Logging** only through `lib/log.ts`; never log transcript text, provider
   responses or keys.
 - **The engine client** in `lib/engine/` is generated with Orval from
-  `packages/engine/openapi.json` (phase 3); never edit it by hand.
+  `apps/engine/openapi.json` (phase 3); never edit it by hand.
 - **Commercial code** goes only in the private fork, under `ee/` and `app/(ee)/`.

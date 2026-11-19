@@ -19,7 +19,7 @@ only. After it, the latest release gets security fixes.
 
 ## Scope
 
-In scope: the web app (`apps/web`), the engine (`packages/engine`), the
+In scope: the web app (`apps/web`), the engine (`apps/engine`), the
 Docker images and compose files in this repository.
 
 Out of scope: speech, diarization and LLM providers you connect, and the
