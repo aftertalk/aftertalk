@@ -51,5 +51,5 @@ Each folder's README says what goes in it and which spec items describe it.
   or keys.
 - **Providers**: settings and keys arrive in each job request; nothing is
   stored. Torch comes from the CPU-only index.
-- **Spec**: `design_draft.md` and `decisions.json` in the `aftertalk-core-spec`
-  folder; engine items are 57-77.
+- **Spec**: `design_draft.md` and `decisions.json` in the private repo
+  `aftertalk/aftertalk-spec`; engine items are 57-77.
