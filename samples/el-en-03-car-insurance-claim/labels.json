@@ -1,0 +1,83 @@
+{
+  "call": "03-car-insurance-claim",
+  "note": "Personal data in the script, marked by hand. Offsets are character offsets into the turn text. Type \"person\" is the name-recall set (spike Q1).",
+  "labels": [
+    {
+      "turn": 0,
+      "type": "person",
+      "text": "James Porter",
+      "start": 55,
+      "end": 67
+    },
+    {
+      "turn": 5,
+      "type": "person",
+      "text": "Sophie Turner",
+      "start": 0,
+      "end": 13
+    },
+    {
+      "turn": 5,
+      "type": "policy_number",
+      "text": "NGI-5520-0917",
+      "start": 36,
+      "end": 49
+    },
+    {
+      "turn": 6,
+      "type": "person",
+      "text": "Turner",
+      "start": 14,
+      "end": 20
+    },
+    {
+      "turn": 7,
+      "type": "vehicle_registration",
+      "text": "KD19 XRM",
+      "start": 5,
+      "end": 13
+    },
+    {
+      "turn": 9,
+      "type": "address",
+      "text": "Mercer Street, by the library",
+      "start": 40,
+      "end": 69
+    },
+    {
+      "turn": 11,
+      "type": "person",
+      "text": "Peter Lang",
+      "start": 17,
+      "end": 27
+    },
+    {
+      "turn": 11,
+      "type": "vehicle_registration",
+      "text": "BT21 HFO",
+      "start": 53,
+      "end": 61
+    },
+    {
+      "turn": 15,
+      "type": "person",
+      "text": "Grace Holloway",
+      "start": 45,
+      "end": 59
+    },
+    {
+      "turn": 17,
+      "type": "phone_number_fragment",
+      "text": "619",
+      "start": 11,
+      "end": 14
+    },
+    {
+      "turn": 24,
+      "type": "person",
+      "text": "Turner",
+      "start": 19,
+      "end": 25
+    }
+  ]
+}

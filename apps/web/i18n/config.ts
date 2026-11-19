@@ -1,7 +1,7 @@
 export const SUPPORTED_LOCALES = ['en', 'pl'] as const;
 export type SupportedLocale = (typeof SUPPORTED_LOCALES)[number];
 
-export const DEFAULT_LOCALE: SupportedLocale = 'pl';
+export const DEFAULT_LOCALE: SupportedLocale = 'en';
 
 // Dates render in the signed-in user's zone (their account setting, mirrored into TIME_ZONE_COOKIE so
 // every request knows it without a backend call), and in Warsaw time otherwise: the market is Polish and

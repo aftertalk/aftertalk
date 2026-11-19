@@ -1,0 +1,135 @@
+{
+  "call": "03-car-insurance-claim",
+  "language": "en",
+  "channels": {
+    "left": "agent",
+    "right": "customer"
+  },
+  "turns": [
+    {
+      "turn": 0,
+      "speaker": "agent",
+      "text": "Good afternoon, Northgate Insurance claims, my name is James Porter. This call is recorded. How can I help?"
+    },
+    {
+      "turn": 1,
+      "speaker": "customer",
+      "text": "Hello. I'd like to report an accident. Someone drove into the back of my car this morning."
+    },
+    {
+      "turn": 2,
+      "speaker": "agent",
+      "text": "I'm sorry to hear that. First, is everyone alright? Was anyone hurt?"
+    },
+    {
+      "turn": 3,
+      "speaker": "customer",
+      "text": "No, nobody was hurt. Just shaken up. The car's in a bad way at the back, though."
+    },
+    {
+      "turn": 4,
+      "speaker": "agent",
+      "text": "I'm glad you're both okay. Could I take your name and policy number, please?"
+    },
+    {
+      "turn": 5,
+      "speaker": "customer",
+      "text": "Sophie Turner. The policy number is NGI-5520-0917."
+    },
+    {
+      "turn": 6,
+      "speaker": "agent",
+      "text": "Thank you, Ms Turner. Which vehicle was involved? The registration, please."
+    },
+    {
+      "turn": 7,
+      "speaker": "customer",
+      "text": "It's KD19 XRM, a grey hatchback."
+    },
+    {
+      "turn": 8,
+      "speaker": "agent",
+      "text": "Got it. Where and when did the accident happen?"
+    },
+    {
+      "turn": 9,
+      "speaker": "customer",
+      "text": "About half past eight, at the lights on Mercer Street, by the library. I was stopped at a red light and he just didn't brake in time."
+    },
+    {
+      "turn": 10,
+      "speaker": "agent",
+      "text": "Did you exchange details with the other driver?"
+    },
+    {
+      "turn": 11,
+      "speaker": "customer",
+      "text": "Yes. His name is Peter Lang, and his registration is BT21 HFO. He said it was his fault."
+    },
+    {
+      "turn": 12,
+      "speaker": "agent",
+      "text": "That's helpful. Do you know who he's insured with?"
+    },
+    {
+      "turn": 13,
+      "speaker": "customer",
+      "text": "He said Crestline, but I didn't get a policy number."
+    },
+    {
+      "turn": 14,
+      "speaker": "agent",
+      "text": "That's fine, we can trace it from the registration. Were there any witnesses?"
+    },
+    {
+      "turn": 15,
+      "speaker": "customer",
+      "text": "A woman at the bus stop saw it. Her name was Grace Holloway. She gave me her number."
+    },
+    {
+      "turn": 16,
+      "speaker": "agent",
+      "text": "Could you read me the last three digits so I can attach it to the claim? We'll ask you for the full number by email."
+    },
+    {
+      "turn": 17,
+      "speaker": "customer",
+      "text": "It ends in 619."
+    },
+    {
+      "turn": 18,
+      "speaker": "agent",
+      "text": "Thank you. Did you take photos of the damage and the scene?"
+    },
+    {
+      "turn": 19,
+      "speaker": "customer",
+      "text": "Yes, about ten. The boot won't close properly and the rear light is smashed."
+    },
+    {
+      "turn": 20,
+      "speaker": "agent",
+      "text": "Please upload them through the link I'm sending you now. Is the car safe to drive?"
+    },
+    {
+      "turn": 21,
+      "speaker": "customer",
+      "text": "I don't think so, with the light broken. Can you arrange a repair?"
+    },
+    {
+      "turn": 22,
+      "speaker": "agent",
+      "text": "Yes. As the other driver admitted fault, we'll book you into one of our approved garages and arrange a courtesy car. Your claim number is 33-81402."
+    },
+    {
+      "turn": 23,
+      "speaker": "customer",
+      "text": "Thank you, that's a relief."
+    },
+    {
+      "turn": 24,
+      "speaker": "agent",
+      "text": "You're welcome, Ms Turner. A claims handler will call you within one working day. Take care."
+    }
+  ]
+}

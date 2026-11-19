@@ -1,0 +1,120 @@
+{
+  "call": "01-broadband-outage",
+  "language": "en",
+  "channels": {
+    "left": "agent",
+    "right": "customer"
+  },
+  "turns": [
+    {
+      "turn": 0,
+      "speaker": "agent",
+      "text": "Good morning, Linkwave, you're speaking with Hannah Brooks. This call is recorded for quality and training. How can I help?"
+    },
+    {
+      "turn": 1,
+      "speaker": "customer",
+      "text": "Morning. This is the second time I've called this week. My internet is down again. Nothing has worked since last night, and I work from home."
+    },
+    {
+      "turn": 2,
+      "speaker": "agent",
+      "text": "I'm sorry, that's really frustrating, especially when you're working from home. Before I check the line I need to confirm who I'm speaking with. Could I have your full name and account number?"
+    },
+    {
+      "turn": 3,
+      "speaker": "customer",
+      "text": "Daniel Whitmore. The account number is 40-221-873."
+    },
+    {
+      "turn": 4,
+      "speaker": "agent",
+      "text": "Thank you, Mr Whitmore. And the first line of the address the service is installed at?"
+    },
+    {
+      "turn": 5,
+      "speaker": "customer",
+      "text": "14 Calder Road, flat 3."
+    },
+    {
+      "turn": 6,
+      "speaker": "agent",
+      "text": "Perfect, that matches. I can see a ticket from Tuesday. Was the router restarted that time?"
+    },
+    {
+      "turn": 7,
+      "speaker": "customer",
+      "text": "Yes, your colleague had me unplug it, and it came back for about a day. Now it's dead again. The light on the front is flashing red."
+    },
+    {
+      "turn": 8,
+      "speaker": "agent",
+      "text": "Flashing red means the router can't see a signal from our network, so this isn't a setting on your side. Let me run a line test now. It takes about a minute."
+    },
+    {
+      "turn": 9,
+      "speaker": "customer",
+      "text": "Fine. But honestly, I'm paying for this every month and I've lost two working days."
+    },
+    {
+      "turn": 10,
+      "speaker": "agent",
+      "text": "I understand. The test shows a fault outside your home, most likely at the street cabinet. I'm booking an engineer for you."
+    },
+    {
+      "turn": 11,
+      "speaker": "customer",
+      "text": "When? I can't wait another week."
+    },
+    {
+      "turn": 12,
+      "speaker": "agent",
+      "text": "The earliest slot is tomorrow between eight and twelve. Will someone be home then?"
+    },
+    {
+      "turn": 13,
+      "speaker": "customer",
+      "text": "Yes, I'll be in. Can the engineer call before they arrive?"
+    },
+    {
+      "turn": 14,
+      "speaker": "agent",
+      "text": "Of course. Is the best number still the mobile ending in 482?"
+    },
+    {
+      "turn": 15,
+      "speaker": "customer",
+      "text": "Yes, that's the one."
+    },
+    {
+      "turn": 16,
+      "speaker": "agent",
+      "text": "Great. Because this is the second outage this week, I'm also adding a credit for the days without service. It will show on your next bill."
+    },
+    {
+      "turn": 17,
+      "speaker": "customer",
+      "text": "Okay, that helps a bit. And if it goes down again after the repair?"
+    },
+    {
+      "turn": 18,
+      "speaker": "agent",
+      "text": "Then call us and quote ticket number 77310, and you'll go straight to the technical team without repeating everything."
+    },
+    {
+      "turn": 19,
+      "speaker": "customer",
+      "text": "Alright. Thanks for sorting it out."
+    },
+    {
+      "turn": 20,
+      "speaker": "agent",
+      "text": "You're welcome, Mr Whitmore. Is there anything else I can help with today?"
+    },
+    {
+      "turn": 21,
+      "speaker": "customer",
+      "text": "No, that's all. Bye."
+    }
+  ]
+}

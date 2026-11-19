@@ -62,7 +62,7 @@ export async function completeSetup(input: {
             name: t(i18n.setup.projectName),
             organizationId: org.id,
             visibility: 'ORG',
-            allowedLanguages: ['pl'],
+            allowedLanguages: ['en', 'pl'],
           })
           .returning({ id: projects.id });
 

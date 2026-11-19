@@ -1,0 +1,20 @@
+{
+  "call": "02-solar-sales",
+  "note": "Personal data in the script, marked by hand. Offsets are character offsets into the turn text. Type \"person\" is the name-recall set (spike Q1).",
+  "labels": [
+    {
+      "turn": 0,
+      "type": "person",
+      "text": "Ryan Clarke",
+      "start": 15,
+      "end": 26
+    },
+    {
+      "turn": 11,
+      "type": "person",
+      "text": "Margaret Ellis",
+      "start": 0,
+      "end": 14
+    }
+  ]
+}

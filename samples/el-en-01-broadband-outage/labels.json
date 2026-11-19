@@ -1,0 +1,55 @@
+{
+  "call": "01-broadband-outage",
+  "note": "Personal data in the script, marked by hand. Offsets are character offsets into the turn text. Type \"person\" is the name-recall set (spike Q1).",
+  "labels": [
+    {
+      "turn": 0,
+      "type": "person",
+      "text": "Hannah Brooks",
+      "start": 45,
+      "end": 58
+    },
+    {
+      "turn": 3,
+      "type": "person",
+      "text": "Daniel Whitmore",
+      "start": 0,
+      "end": 15
+    },
+    {
+      "turn": 3,
+      "type": "customer_number",
+      "text": "40-221-873",
+      "start": 39,
+      "end": 49
+    },
+    {
+      "turn": 4,
+      "type": "person",
+      "text": "Whitmore",
+      "start": 14,
+      "end": 22
+    },
+    {
+      "turn": 5,
+      "type": "address",
+      "text": "14 Calder Road, flat 3",
+      "start": 0,
+      "end": 22
+    },
+    {
+      "turn": 14,
+      "type": "phone_number_fragment",
+      "text": "482",
+      "start": 57,
+      "end": 60
+    },
+    {
+      "turn": 20,
+      "type": "person",
+      "text": "Whitmore",
+      "start": 19,
+      "end": 27
+    }
+  ]
+}

@@ -45,7 +45,7 @@ export async function makeProject(
       name: 'Project',
       visibility: opts.visibility ?? 'ORG',
       defaultRole: opts.defaultRole ?? 'VIEWER',
-      allowedLanguages: ['pl'],
+      allowedLanguages: ['en', 'pl'],
     })
     .returning({ id: projects.id });
   return p.id;
