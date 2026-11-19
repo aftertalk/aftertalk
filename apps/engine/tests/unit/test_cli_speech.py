@@ -267,3 +267,17 @@ def test_connection_upload_limit_stops_the_conversion(fake_speech: FakeSpeech, t
     result = invoke(env, "--json", "transcribe", str(big))  # 60 s of 16 kHz s16 is 1.9 MB
     assert result.exit_code == 1 and json.loads(result.stdout)["code"] == "audio_too_long"
     assert fake_speech.seen == []
+
+
+@pytest.mark.parametrize("fmt", ["vtt", "srt"])
+def test_subtitles_skip_untimed_segments_and_say_so(
+    fake_speech: FakeSpeech, tmp_path: Path, audio_file: Path, fmt: str
+) -> None:
+    fake_speech.shape = "untimed"
+    result = invoke(setup(tmp_path, fake_speech.base_url), "transcribe", str(audio_file), "-f", fmt)
+    assert result.exit_code == 0
+    assert "no times here" not in result.stdout and result.stdout.count("-->") == 9
+    assert "skipped 1 segment" in result.stderr
+    data = json.loads(invoke(setup(tmp_path, fake_speech.base_url), "transcribe", str(audio_file), "-f", "json").stdout)
+    untimed = data["transcript"]["segments"][4]
+    assert untimed["text"] == "no times here" and untimed["start"] is None and untimed["end"] is None

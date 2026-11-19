@@ -8,6 +8,8 @@ TimingLevel = Literal["word", "segment", "none"]
 
 _CONFIG = ConfigDict(extra="forbid", frozen=True, hide_input_in_errors=True)
 
+COVERAGE = 0.9  # share of segments that must be timed (and have words) for `segment` and `word` timing
+
 Seconds = Annotated[float, Field(ge=0, allow_inf_nan=False)]
 
 
@@ -54,11 +56,11 @@ class Segment(BaseModel):
 class Transcript(BaseModel):
     """A transcript. The adapter sets `timing` from what the provider actually returned.
 
-    `timing` is the level the transcript can be relied on for: `segment` means every segment has a start and end;
-    `word` adds that at least 90% of the segments with text have timed words (and there is at least one word).
-    Words are kept wherever the provider gave them, so a `word` transcript may have segments without words (they keep
-    their segment times), and a `segment` transcript may still carry some words. `none` is text only (or too few
-    segment times to use).
+    `timing` is the level the transcript can be relied on for. `segment`: at least 90% of the segments with text have a
+    start and end. `word`: that too, and at least 90% of those segments have timed words. A segment that has no usable
+    time keeps its text and has `start` and `end` both `None`: times are never estimated, so a consumer must treat
+    `None` as "no playback for this segment". Words are kept wherever the provider gave them and always have times.
+    `none` is text only (or too few segment times to use).
     """
 
     model_config = _CONFIG
@@ -73,13 +75,15 @@ class Transcript(BaseModel):
     def _timing(self) -> "Transcript":
         if self.timing == "none":
             return self
-        if self.text.strip() and not self.segments:
+        segments = [seg for seg in self.segments if seg.text.strip()]
+        if self.text.strip() and not segments:
             raise ValueError(f"timing {self.timing!r} requires at least one segment when text is not blank")
-        if any(seg.start is None or seg.end is None for seg in self.segments):
-            raise ValueError(f"timing {self.timing!r} requires start and end on every segment")
-        if self.timing == "word":
-            if self.text.strip() and not any(seg.words for seg in self.segments):
-                raise ValueError("timing 'word' requires at least one word")
-            if any(w.start is None or w.end is None for seg in self.segments for w in seg.words):
-                raise ValueError("timing 'word' requires start and end on every word")
+        if any((seg.start is None) != (seg.end is None) for seg in self.segments):
+            raise ValueError("a segment has both start and end, or neither")
+        if any(w.start is None or w.end is None for seg in self.segments for w in seg.words):
+            raise ValueError("every word has start and end")
+        if segments and sum(seg.start is not None for seg in segments) < COVERAGE * len(segments):
+            raise ValueError(f"timing {self.timing!r} requires start and end on at least 90% of the segments")
+        if self.timing == "word" and segments and sum(bool(seg.words) for seg in segments) < COVERAGE * len(segments):
+            raise ValueError("timing 'word' requires timed words on at least 90% of the segments")
         return self

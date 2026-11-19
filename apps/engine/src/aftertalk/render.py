@@ -23,9 +23,15 @@ def _cues(transcript: Transcript, sep: str, name: str) -> list[tuple[str, str]]:
     if transcript.timing == "none":
         raise RenderError(f"{name} needs timestamps, and this provider returned none; use --format json or text")
     return [
-        (f"{_stamp(seg.start or 0.0, sep)} --> {_stamp(seg.end or 0.0, sep)}", _cue_text(seg.text))
+        (f"{_stamp(seg.start, sep)} --> {_stamp(seg.end, sep)}", _cue_text(seg.text))
         for seg in transcript.segments
+        if seg.start is not None and seg.end is not None  # an untimed segment gets no cue: times are never invented
     ]
+
+
+def untimed_segments(transcript: Transcript) -> int:
+    """How many segments `render_vtt` and `render_srt` skip because they have no times."""
+    return sum(1 for seg in transcript.segments if seg.start is None or seg.end is None)
 
 
 def render_text(transcript: Transcript) -> str:

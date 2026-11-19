@@ -7,8 +7,8 @@ downgrades the level instead of failing the job, and no segment text is ever dro
 Rules:
 - Times may be numbers or numeric strings; anything else, negative, infinite or reversed is "no time".
 - A word without a usable time is dropped; a segment without one keeps its text.
-- `segment` timing needs usable times on at least 90% of the segments; the others get the gap between their
-  neighbours (start of the gap = end of the previous timed segment, end = start of the next one).
+- `segment` timing needs usable times on at least 90% of the segments. The others stay untimed (`start` and `end`
+  are None): times are never estimated, and consumers treat None as "no playback for this segment".
 - `word` timing needs, on top of that, timed words on at least 90% of the segments. Segments without words keep their
   segment times. Words are kept wherever they exist.
 """
@@ -87,24 +87,13 @@ def _language(data: dict[str, Any], forced: str | None) -> str | None:
     return normalize_language(reported_language(data)) or normalize_language(forced)
 
 
-def _fill_gaps(segments: list[Segment]) -> list[Segment]:
-    """Give each untimed segment the gap between its timed neighbours."""
-    out: list[Segment] = []
-    for index, seg in enumerate(segments):
-        if seg.start is not None:
-            out.append(seg)
-            continue
-        before = next((s.end for s in reversed(segments[:index]) if s.end is not None), 0.0) or 0.0
-        after = next((s.start for s in segments[index + 1 :] if s.start is not None), None)
-        end = max(after if after is not None else before, before)
-        out.append(seg.model_copy(update={"start": before, "end": end}))
-    return out
-
-
 def _assign(words: list[Word], segments: list[Segment]) -> list[list[Word]]:
     """Give each top-level word to the segment it overlaps most; a word in a gap goes to the nearest one."""
     buckets: list[list[Word]] = [[] for _ in segments]
-    order = sorted(range(len(segments)), key=lambda i: (segments[i].start or 0.0, segments[i].end or 0.0))
+    order = sorted(
+        (i for i, seg in enumerate(segments) if seg.start is not None),  # untimed segments get no top-level words
+        key=lambda i: (segments[i].start or 0.0, segments[i].end or 0.0),
+    )
     spans = [(segments[i].start or 0.0, segments[i].end or 0.0) for i in order]
     starts = [start for start, _ in spans]
     for word in sorted(words, key=lambda w: (w.start or 0.0, w.end or 0.0)):
@@ -112,7 +101,7 @@ def _assign(words: list[Word], segments: list[Segment]) -> list[list[Word]]:
         middle = (word.start + word.end) / 2
         at = bisect.bisect_right(starts, middle)
         best, best_score = 0, (-1.0, -math.inf)
-        for position in range(max(at - 3, 0), min(at + 3, len(segments))):
+        for position in range(max(at - 3, 0), min(at + 3, len(order))):
             start, end = spans[position]
             overlap = max(0.0, min(word.end, end) - max(word.start, start))
             gap = max(start - middle, middle - end, 0.0)
@@ -160,7 +149,6 @@ def parse_transcription(data: Any, *, audio_seconds: float | None, forced_langua
     if segments:
         timed = sum(1 for seg in segments if seg.start is not None)
         if timed / len(segments) >= COVERAGE:
-            segments = _fill_gaps(segments)
             timing = "segment"
             if top_words:
                 buckets = _assign(top_words, segments)

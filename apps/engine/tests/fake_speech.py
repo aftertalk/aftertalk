@@ -108,6 +108,10 @@ class FakeSpeech:
                     {**SEGMENTS[1], "words": [{**w, "probability": 0.8} for w in WORDS[2:]]},
                 ]
                 return {**base, "segments": nested}
+            case "untimed":  # ten segments, one of them without times
+                many = [{**SEGMENTS[0], "id": i, "start": i, "end": i + 1, "text": f" s{i}"} for i in range(10)]
+                many[4] = {"id": 4, "text": " no times here"}
+                return {**base, "segments": many}
             case "languages":
                 return {"text": VERBOSE_TEXT, "languages": [self.language, "english"]}
             case _:

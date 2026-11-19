@@ -99,10 +99,10 @@ param such as `file` or `model`) stops as `provider_bad_response`. The rung that
 | Level | When | Subtitles |
 | --- | --- | --- |
 | `word` | at least 90% of the segments have timed words (and at least one word) | yes |
-| `segment` | at least 90% of the segments have times; the others get the gap between their neighbours | yes |
+| `segment` | at least 90% of the segments have times; the others stay untimed (`start` and `end` are None) | yes, untimed segments are skipped |
 | `none` | text only, or fewer than 90% of the segments have usable times | no (`vtt` and `srt` fail with exit 1) |
 
-Words are kept wherever the provider gave them, at every level; a `word` transcript may have segments without
+Times are never estimated: an untimed segment keeps its text and consumers must treat `None` as "no playback for this segment". `vtt` and `srt` skip such segments and print one stderr note with the count. Words are kept wherever the provider gave them, at every level and always with times; a `word` transcript may have segments without
 words (they keep their segment times). Words come at the top level (OpenAI, Groq) and are given to the segment they
 overlap most, or nested in the segments (whisper.cpp, with `probability`). Times may be numbers or numeric strings. A
 word with a missing, negative, infinite or reversed time is dropped, and a segment with such a time keeps its text:

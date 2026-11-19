@@ -83,3 +83,6 @@ update the table above.
 - Audio is always mixed down to mono and only the first audio stream is read. Two-channel calls (one speaker per
   channel) and files with several audio tracks are handled in M2.
 - No chunking: audio over `max_upload_mb` fails with `audio_too_long`.
+- Times are never estimated. A segment the provider gave no usable time for keeps its text with `start` and `end`
+  `None` (allowed while at least 90% of the segments are timed); treat `None` as "no playback for this segment".
+  Subtitle output skips those segments and says how many.
