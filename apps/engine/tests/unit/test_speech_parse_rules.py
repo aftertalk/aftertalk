@@ -4,7 +4,7 @@ from typing import Any
 
 import pytest
 
-from aftertalk.models.transcript import Segment, Transcript
+from aftertalk.models.transcript import Segment, Transcript, Word
 from aftertalk.providers.speech.languages import _TABLE, CODES, normalize_language
 from aftertalk.providers.speech.parse import parse_transcription, reported_language
 
@@ -45,24 +45,32 @@ def test_segments_without_words_keep_their_segment_times() -> None:
 
 def test_segment_timing_needs_times_on_nine_of_ten_segments() -> None:
     t = parse(ten_segments(with_words=0, timed=9))
-    assert t.timing == "segment" and all(s.start is not None for s in t.segments)
+    assert t.timing == "segment"
     assert parse(ten_segments(with_words=0, timed=8)).timing == "none"
 
 
-def test_an_untimed_segment_gets_the_gap_between_its_neighbours() -> None:
+def test_an_untimed_segment_stays_untimed() -> None:
     segments = [seg(f"s{i}", i * 2, i * 2 + 1) for i in range(10)]
     segments[4] = {"text": "middle"}
     t = parse({"text": "x", "segments": segments})
     assert t.timing == "segment"
-    assert (t.segments[4].start, t.segments[4].end) == (7.0, 10.0) and t.segments[4].text == "middle"
+    assert (t.segments[4].start, t.segments[4].end) == (None, None) and t.segments[4].text == "middle"
+    assert all(s.start is not None for i, s in enumerate(t.segments) if i != 4)
 
 
-def test_untimed_first_and_last_segments() -> None:
+def test_untimed_first_and_last_segments_stay_untimed() -> None:
     segments = [{"text": "first"}] + [seg(f"s{i}", i + 1, i + 2) for i in range(18)] + [{"text": "last"}]
     t = parse({"text": "x", "segments": segments})
     assert t.timing == "segment"
-    assert (t.segments[0].start, t.segments[0].end) == (0.0, 1.0)
-    assert t.segments[-1].start == t.segments[-1].end == 19.0
+    assert (t.segments[0].start, t.segments[0].end) == (None, None)
+    assert (t.segments[-1].start, t.segments[-1].end) == (None, None)
+
+
+def test_top_level_words_never_land_in_an_untimed_segment() -> None:
+    segments = [seg(f"s{i}", i, i + 1) for i in range(10)]
+    segments[3] = {"text": "untimed"}
+    t = parse({"text": "x", "segments": segments, "words": [word("w", 3.2, 3.4)]})
+    assert t.segments[3].words == [] and sum(len(s.words) for s in t.segments) == 1
 
 
 def test_numeric_strings_are_times() -> None:
@@ -91,9 +99,20 @@ def test_unsorted_segments_still_get_the_right_words() -> None:
     assert [[w.text for w in s.words] for s in t.segments] == [["c"], ["a"], ["b"]]
 
 
-def test_word_validator_rule() -> None:
-    with pytest.raises(ValueError, match="at least one word"):
+def test_validator_rules() -> None:
+    with pytest.raises(ValueError, match="at least 90%"):
         Transcript(text="a", timing="word", segments=[Segment(text="a", start=0, end=1)])
+    ok = [Segment(text=f"s{i}", start=i, end=i + 1) for i in range(9)] + [Segment(text="x")]
+    assert Transcript(text="x", timing="segment", segments=ok).segments[-1].start is None
+    with pytest.raises(ValueError, match="at least 90%"):
+        Transcript(text="x", timing="segment", segments=[*ok, Segment(text="y")])
+    with pytest.raises(ValueError, match="both start and end"):
+        Transcript(text="x", timing="segment", segments=[Segment(text="a", start=1)])
+    with pytest.raises(ValueError, match="every word"):
+        Transcript(
+            text="a", timing="word", segments=[Segment(text="a", start=0, end=1, words=[Word(text="a", start=0)])]
+        )
+    assert Transcript(text="a", timing="none", segments=[Segment(text="a")]).timing == "none"
     t = Transcript(text="a", timing="segment", segments=[Segment(text="a", start=0, end=1)])
     assert t.segments[0].words == []
 
@@ -148,7 +167,10 @@ def test_no_segment_text_is_lost_or_invented(seed: int) -> None:
     assert " ".join(s.text for s in t.segments) == " ".join(expected)
     assert t.text == "whole text"
     if t.timing != "none":
-        assert all(s.start is not None and s.end is not None and s.start <= s.end for s in t.segments)
+        for s in t.segments:  # both times or neither; never an estimate
+            assert (s.start is None) == (s.end is None)
+            assert s.start is None or (s.end is not None and s.start <= s.end)
+        assert sum(s.start is not None for s in t.segments) >= 0.9 * len(t.segments)
 
 
 # ---- languages ----

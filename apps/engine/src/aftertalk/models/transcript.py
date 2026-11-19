@@ -8,6 +8,7 @@ TimingLevel = Literal["word", "segment", "none"]
 
 _CONFIG = ConfigDict(extra="forbid", frozen=True, hide_input_in_errors=True)
 
+COVERAGE = 0.9  # share of segments with text that must be timed (and fully word-timed) for `segment` and `word`
 # Providers align words separately from segments, so a word may spill a little past a segment edge.
 WORD_SLACK_SECONDS = 0.5
 
@@ -35,6 +36,11 @@ def spells(words: "list[Word]", text: str) -> bool:
 def split_words(text: str) -> "list[Word]":
     """The text split on whitespace into untimed words: what a segment gets when the provider gave no usable words."""
     return [Word(text=part) for part in text.split()]
+
+
+def word_timed(seg: "Segment") -> bool:
+    """Whether the segment has a start and end and words that all have times."""
+    return seg.start is not None and bool(seg.words) and all(w.start is not None for w in seg.words)
 
 
 class Word(BaseModel):
@@ -80,10 +86,13 @@ class Transcript(BaseModel):
     """A transcript. The adapter sets `timing` from what the provider actually returned.
 
     At every timing level: non-blank text is in segments, every segment with text has words, and the words spell the
-    segment's text (letters and digits, lower-cased). A word may have no times; a timed word lies within its timed
-    segment, up to 0.5 seconds outside it. `segment` timing also needs start and end on every segment, and `word` timing
-    needs, on top of that, times on every word of a segment with text. A consumer that needs a time for a word uses
-    the word's time, else its segment's time, else there is none.
+    segment's text (letters and digits, lower-cased). A segment or a word has start and end, or neither: times are
+    never estimated or copied. A timed word lies within its timed segment, up to 0.5 seconds outside it.
+
+    `timing` is the level the transcript can be relied on for. `segment`: at least 90% of the segments with text have
+    a start and end. `word`: that too, and at least 90% of the segments with text have times on all their words.
+    `none` is text only (or too few times to use). A consumer that needs a time for a word uses the word's time, else
+    its segment's time, else there is none (no playback).
     """
 
     model_config = _CONFIG
@@ -96,9 +105,12 @@ class Transcript(BaseModel):
 
     @model_validator(mode="after")
     def _timing(self) -> "Transcript":
-        if self.text.strip() and not self.segments:
+        spoken = [seg for seg in self.segments if seg.text.strip()]
+        if self.text.strip() and not spoken:
             raise ValueError("a transcript with text needs at least one segment")
         for seg in self.segments:
+            if (seg.start is None) != (seg.end is None):
+                raise ValueError("a segment has both start and end, or neither")
             if seg.text.strip() and not seg.words:
                 raise ValueError("every segment with text needs words")
             if not spells(seg.words, seg.text):
@@ -110,12 +122,10 @@ class Transcript(BaseModel):
                     continue
                 if w.start < seg.start - WORD_SLACK_SECONDS or w.end > seg.end + WORD_SLACK_SECONDS:
                     raise ValueError("a word lies outside its segment")
-        if self.timing == "none":
+        if self.timing == "none" or not spoken:
             return self
-        if any(seg.start is None or seg.end is None for seg in self.segments):
-            raise ValueError(f"timing {self.timing!r} requires start and end on every segment")
-        if self.timing == "word" and any(
-            w.start is None for seg in self.segments if seg.text.strip() for w in seg.words
-        ):
-            raise ValueError("timing 'word' requires start and end on every word")
+        if sum(seg.start is not None for seg in spoken) < COVERAGE * len(spoken):
+            raise ValueError(f"timing {self.timing!r} requires start and end on at least 90% of the segments")
+        if self.timing == "word" and sum(word_timed(seg) for seg in spoken) < COVERAGE * len(spoken):
+            raise ValueError("timing 'word' requires times on all words of at least 90% of the segments")
         return self

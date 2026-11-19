@@ -277,7 +277,7 @@ def transcribe(
     """
     from aftertalk.models.errors import EngineError
     from aftertalk.providers.speech.languages import normalize_language
-    from aftertalk.render import RenderError, render_srt, render_text, render_vtt
+    from aftertalk.render import RenderError, render_srt, render_text, render_vtt, untimed_segments
     from aftertalk.settings import get_cli_settings
 
     as_json = bool((ctx.obj or {}).get("json"))
@@ -322,6 +322,8 @@ def transcribe(
                 text = render_vtt(transcript)
             case OutputFormat.srt:
                 text = render_srt(transcript)
+        if format in (OutputFormat.vtt, OutputFormat.srt) and (skipped := untimed_segments(transcript)):
+            typer.echo(f"skipped {skipped} segment(s) without timestamps", err=True)
     except RenderError as exc:
         problem = str(exc)
     if text is None:
