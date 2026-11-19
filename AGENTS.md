@@ -18,7 +18,7 @@ callbacks to web) and share the `/data` volume. The engine owns the contract:
 ## Spec
 
 The design and the build plan are `design_draft.md` and `decisions.json`
-in the `aftertalk-core-spec` folder (not in this repo). The plan's numbered
+in the private repo `aftertalk/aftertalk-spec` (clone it next to this one). The plan's numbered
 items ("item 59") and decisions ("#36") are referenced in commits and PRs.
 Read the relevant item before building it.
 
