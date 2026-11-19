@@ -1,0 +1,9 @@
+# HTTPS in front of Aftertalk. Replace the host name, then run Caddy on the
+# same Docker network as the web service.
+aftertalk.example.com {
+	# Job callbacks are internal: the engine reaches web directly.
+	@internal path /internal/*
+	respond @internal 404
+
+	reverse_proxy web:3000
+}

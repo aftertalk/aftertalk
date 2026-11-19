@@ -1,0 +1,82 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: aftertalk
+          POSTGRES_PASSWORD: aftertalk
+          POSTGRES_DB: aftertalk
+        ports: ['5433:5432']
+        options: >-
+          --health-cmd "pg_isready -U aftertalk" --health-interval 2s --health-timeout 3s --health-retries 30
+    env:
+      TEST_DATABASE_URL: postgres://aftertalk:aftertalk@127.0.0.1:5433/postgres
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter web lint
+      - run: pnpm --filter web typecheck
+      - run: pnpm --filter web test
+      - run: pnpm --filter web build
+        env:
+          SKIP_ENV_VALIDATION: '1'
+
+  engine:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v7
+        with:
+          version: '0.12.24'
+      - run: uv sync --frozen --project packages/engine
+      - run: uv run --project packages/engine ruff check packages/engine
+      - run: uv run --project packages/engine ruff format --check packages/engine
+      - run: uv run --project packages/engine pytest packages/engine
+
+  compose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Build and start all services
+        run: docker compose -f docker-compose.dev.yml up -d --build --wait --wait-timeout 300
+      - name: Show service state
+        if: always()
+        run: docker compose -f docker-compose.dev.yml ps -a && docker compose -f docker-compose.dev.yml logs --tail 50
+
+  # The public repo creates the stub files in apps/web/ee/ once and never edits them.
+  # Skipped in the commercial fork, which replaces them.
+  ee-stubs:
+    if: github.repository == 'aftertalk/aftertalk'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Fail when a commit modifies, deletes or renames a file under apps/web/ee/
+        run: |
+          changed=$(git log --format='%h %s' --diff-filter=MDRT -- apps/web/ee/)
+          if [ -n "$changed" ]; then
+            echo "These commits change files under apps/web/ee/ after they were created:"
+            echo "$changed"
+            exit 1
+          fi

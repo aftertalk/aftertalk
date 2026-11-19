@@ -1,0 +1,17 @@
+{
+  "name": "aftertalk",
+  "private": true,
+  "packageManager": "pnpm@12.21.0",
+  "scripts": {
+    "test:e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.65.1",
+    "otpauth": "9.6.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "undici": "7.29.1"
+    }
+  }
+}
