@@ -5,7 +5,7 @@
  * so "/<TAB>/evil.example" becomes "//evil.example": control characters are rejected outright,
  * and whatever is left must still resolve to our own origin.
  */
-export function safeNext(next: string | null, fallback = '/setup'): string {
+export function safeNext(next: string | null, fallback = '/'): string {
   if (!next || !/^\/(?![/\\])/.test(next) || /[\u0000-\u001f\u007f]/.test(next)) return fallback;
   const base = 'https://aftertalk.invalid';
   try {

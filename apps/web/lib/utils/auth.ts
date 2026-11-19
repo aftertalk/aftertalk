@@ -1,40 +1,17 @@
-import { getAccessToken } from '@/lib/auth/cookies';
-import { getTokenDisplayName, getTokenEmail, getTokenRole, getTokenUserId, isTokenExpired } from '@/lib/auth/jwt';
+import { getSessionUser } from '@/lib/access';
 
 /**
- * Get the authenticated user ID from the JWT access token cookie.
- * Used for internal operations called from server actions.
- * Throws if not authenticated.
+ * The signed-in user's id, for server actions. Throws when signed out.
+ * Kept from the cloud (item 18d); reads the Better Auth session.
  */
 export async function getSessionUserId(): Promise<string> {
-  const token = await getAccessToken();
-  // Reject expired tokens too, matching getCurrentUser and the middleware.
-  if (!token || isTokenExpired(token)) throw new Error('Unauthorized');
-  return getTokenUserId(token);
+  const user = await getSessionUser();
+  if (!user) throw new Error('Unauthorized');
+  return user.id;
 }
 
-/**
- * Get the current user (id + email) from the JWT access token cookie.
- * Returns null if not authenticated.
- */
-export async function getCurrentUser(): Promise<{
-  id: string;
-  email: string;
-  role?: string;
-  displayName?: string;
-} | null> {
-  const token = await getAccessToken();
-  // Treat an expired token as logged-out, matching the auth middleware — otherwise the
-  // landing page shows "Dashboard" for a dead session and the middleware bounces it back.
-  if (!token || isTokenExpired(token)) return null;
-  try {
-    return {
-      id: getTokenUserId(token),
-      email: getTokenEmail(token) ?? '',
-      role: getTokenRole(token),
-      displayName: getTokenDisplayName(token),
-    };
-  } catch {
-    return null;
-  }
+/** The signed-in user, or null. Same return type as the cloud's, without the cloud-admin `role`. */
+export async function getCurrentUser(): Promise<{ id: string; email: string; displayName?: string } | null> {
+  const user = await getSessionUser();
+  return user ? { id: user.id, email: user.email, displayName: user.name || undefined } : null;
 }

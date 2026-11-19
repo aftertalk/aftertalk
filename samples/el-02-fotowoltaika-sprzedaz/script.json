@@ -1,0 +1,120 @@
+{
+  "call": "02-fotowoltaika-sprzedaz",
+  "language": "pl",
+  "channels": {
+    "left": "agent",
+    "right": "customer"
+  },
+  "turns": [
+    {
+      "turn": 0,
+      "speaker": "agent",
+      "text": "Dzień dobry, Marek z firmy SłonecznyDom. Dzwonię, bo w pani okolicy montujemy teraz panele fotowoltaiczne z dużym rabatem. Ma pani dwie minutki?"
+    },
+    {
+      "turn": 1,
+      "speaker": "customer",
+      "text": "Dzień dobry... A skąd pan ma mój numer?"
+    },
+    {
+      "turn": 2,
+      "speaker": "agent",
+      "text": "Z bazy partnerskiej, wszystko zgodnie z prawem. Ale proszę posłuchać, bo to naprawdę okazja. Ile pani teraz płaci za prąd miesięcznie?"
+    },
+    {
+      "turn": 3,
+      "speaker": "customer",
+      "text": "No, nie wiem dokładnie, jakieś trzysta złotych, zimą więcej."
+    },
+    {
+      "turn": 4,
+      "speaker": "agent",
+      "text": "No właśnie! A z naszymi panelami gwarantuję, że rachunki spadną pani do zera. Zero złotych, na zawsze."
+    },
+    {
+      "turn": 5,
+      "speaker": "customer",
+      "text": "Na zawsze? Sąsiad ma panele i jednak coś płaci."
+    },
+    {
+      "turn": 6,
+      "speaker": "agent",
+      "text": "Bo sąsiad pewnie kupił u konkurencji. U nas jest inna technologia. Promocja jest tylko do piątku, więc musiałbym dzisiaj wpisać panią na listę."
+    },
+    {
+      "turn": 7,
+      "speaker": "customer",
+      "text": "Ale ja muszę to przemyśleć, porozmawiać z mężem. Ile to w ogóle kosztuje?"
+    },
+    {
+      "turn": 8,
+      "speaker": "agent",
+      "text": "Instalacja to około trzydziestu pięciu tysięcy, ale nie musi pani płacić od razu. Mamy kredyt, rata wychodzi mniej niż obecny rachunek za prąd."
+    },
+    {
+      "turn": 9,
+      "speaker": "customer",
+      "text": "Kredyt? Nie, ja nie chcę żadnych kredytów."
+    },
+    {
+      "turn": 10,
+      "speaker": "agent",
+      "text": "To nie jest taki zwykły kredyt, to finansowanie. Właściwie panele same się spłacają. Każdy, kto się nie zdecydował, potem żałował."
+    },
+    {
+      "turn": 11,
+      "speaker": "customer",
+      "text": "Proszę pana, ja naprawdę nie chcę dziś nic podpisywać."
+    },
+    {
+      "turn": 12,
+      "speaker": "agent",
+      "text": "Rozumiem, rozumiem. To może chociaż umówimy doradcę na bezpłatny audyt? Przyjedzie, zmierzy dach, nic pani nie traci. Może być w czwartek o siedemnastej?"
+    },
+    {
+      "turn": 13,
+      "speaker": "customer",
+      "text": "No... jak bezpłatny, to niech będzie, ale mąż musi być w domu."
+    },
+    {
+      "turn": 14,
+      "speaker": "agent",
+      "text": "Super. Proszę podać adres i numer PESEL, to od razu sprawdzimy pani zdolność kredytową przed wizytą."
+    },
+    {
+      "turn": 15,
+      "speaker": "customer",
+      "text": "PESEL? Po co panu PESEL do audytu dachu?"
+    },
+    {
+      "turn": 16,
+      "speaker": "agent",
+      "text": "Tak się po prostu robi, żeby doradca nie jechał na marne. Wszystko jest bezpieczne."
+    },
+    {
+      "turn": 17,
+      "speaker": "customer",
+      "text": "Nie, PESELU przez telefon nie podam. Adres mogę: Krótka siedem, Wieliczka."
+    },
+    {
+      "turn": 18,
+      "speaker": "agent",
+      "text": "Dobrze, to bez PESELU. Zapisałem: Krótka siedem, Wieliczka, czwartek siedemnasta. Doradca zadzwoni przed przyjazdem."
+    },
+    {
+      "turn": 19,
+      "speaker": "customer",
+      "text": "A jak się rozmyślę, to gdzie mam zadzwonić?"
+    },
+    {
+      "turn": 20,
+      "speaker": "agent",
+      "text": "Doradca wszystko wyjaśni na miejscu. Dziękuję, miłego dnia!"
+    },
+    {
+      "turn": 21,
+      "speaker": "customer",
+      "text": "Ale... halo? No dobrze. Do widzenia."
+    }
+  ]
+}

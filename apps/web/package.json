@@ -12,7 +12,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "generate": "orval",
-    "build:migrate": "esbuild lib/db/migrate.ts --bundle --platform=node --target=node22 --outfile=dist/migrate.js",
+    "build:migrate": "esbuild lib/db/migrate.ts scripts/reset-owner.ts --bundle --platform=node --target=node22 --outdir=dist --entry-names=[name]",
     "seed": "tsx scripts/seed.ts"
   },
   "dependencies": {
@@ -50,6 +50,7 @@
     "react-markdown": "^10.1.0",
     "recharts": "^3.10.1",
     "remark-gfm": "^4.0.1",
+    "server-only": "^0.0.1",
     "sonner": "^2.0.8",
     "tailwind-merge": "^3.7.0",
     "zod": "^4.6.5"

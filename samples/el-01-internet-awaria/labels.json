@@ -1,0 +1,41 @@
+{
+  "call": "01-internet-awaria",
+  "note": "Personal data in the script, marked by hand. Offsets are character offsets into the turn text. Type \"person\" is the name-recall set (spike Q1).",
+  "labels": [
+    {
+      "turn": 0,
+      "type": "person",
+      "text": "Anna Wiśniewska",
+      "start": 34,
+      "end": 49
+    },
+    {
+      "turn": 3,
+      "type": "person",
+      "text": "Tomasz Kowalczyk",
+      "start": 0,
+      "end": 16
+    },
+    {
+      "turn": 3,
+      "type": "customer_number",
+      "text": "cztery osiem dwa jeden siedem trzy",
+      "start": 35,
+      "end": 69
+    },
+    {
+      "turn": 5,
+      "type": "address",
+      "text": "Ulica Lipowa dwanaście, mieszkanie cztery, Poznań",
+      "start": 0,
+      "end": 49
+    },
+    {
+      "turn": 10,
+      "type": "phone_number_fragment",
+      "text": "trzysta czterdzieści pięć",
+      "start": 197,
+      "end": 222
+    }
+  ]
+}

@@ -1515,5 +1515,74 @@
     "title": "Brak dostępu",
     "orgManagersOnly": "Tę stronę widzą właściciel i administratorzy organizacji. Jeśli jej potrzebujesz, poproś ich o rolę administratora.",
     "backToProjects": "Wróć do projektów"
+  },
+  "setup": {
+    "title": "Pierwsze uruchomienie",
+    "description": "Utwórz konto właściciela. Token konfiguracji znajdziesz w logu kontenera web (docker compose logs web).",
+    "token": "Token konfiguracji",
+    "name": "Imię i nazwisko",
+    "submit": "Utwórz konto",
+    "submitting": "Tworzenie…",
+    "invalidToken": "Nieprawidłowy token konfiguracji. Sprawdź log kontenera web.",
+    "alreadyDone": "Konfiguracja została już wykonana.",
+    "orgName": "Moja organizacja",
+    "projectName": "Pierwszy projekt",
+    "templateName": "Ogólna ocena jakości",
+    "presetName": "Klient / Konsultant",
+    "customer": "Klient",
+    "agent": "Konsultant",
+    "categories": {
+      "question": {
+        "name": "Pytania",
+        "description": "Pytania o produkt, usługę lub konto"
+      },
+      "order": {
+        "name": "Zamówienia",
+        "description": "Nowe zamówienia, zmiany i status zamówienia"
+      },
+      "cancellation": {
+        "name": "Rezygnacje",
+        "description": "Wypowiedzenia umów i rezygnacje z usług"
+      },
+      "other": {
+        "name": "Inne",
+        "description": "Rozmowy, które nie pasują do pozostałych kategorii"
+      }
+    }
+  },
+  "twoFactorExtra": {
+    "confirmPassword": "Potwierdź hasło, aby włączyć weryfikację dwuetapową.",
+    "start": "Dalej",
+    "skip": "Pomiń na razie",
+    "required": "Twoja organizacja wymaga weryfikacji dwuetapowej.",
+    "backupCodes": "Kody zapasowe. Zapisz je w bezpiecznym miejscu: każdy działa raz, gdy nie masz telefonu.",
+    "useBackupCode": "Użyj kodu zapasowego",
+    "backupCode": "Kod zapasowy"
+  },
+  "recovery": {
+    "askAdmin": "Nie pamiętasz hasła? Poproś administratora organizacji o nowy link.",
+    "resetNotice": "Hasło do Twojego konta zostało zresetowane {date} przez {by}.",
+    "someone": "administratora"
+  },
+  "invitation": {
+    "joinTitle": "Dołącz do {organization}",
+    "joinDescription": "Masz już konto z adresem {email}. Zaloguj się, aby dołączyć.",
+    "join": "Dołącz",
+    "signInToJoin": "Zaloguj się, aby dołączyć",
+    "wrongAccount": "To zaproszenie jest dla {email}. Wyloguj się i zaloguj na to konto.",
+    "invalid": "To zaproszenie wygasło, zostało cofnięte lub już użyte. Poproś o nowe.",
+    "emailLabel": "E-mail"
+  },
+  "noOrganization": {
+    "title": "Nie należysz do żadnej organizacji",
+    "description": "Poproś administratora organizacji o zaproszenie.",
+    "signOut": "Wyloguj się"
+  },
+  "home": {
+    "placeholder": "Strony projektu pojawią się w kolejnym etapie. Jesteś zalogowany jako {email}.",
+    "twoFactorOn": "Weryfikacja dwuetapowa: włączona",
+    "twoFactorOff": "Weryfikacja dwuetapowa: wyłączona",
+    "setUpTwoFactor": "Włącz weryfikację dwuetapową",
+    "signOut": "Wyloguj się"
   }
 }

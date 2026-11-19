@@ -1,0 +1,27 @@
+{
+  "call": "02-fotowoltaika-sprzedaz",
+  "note": "Personal data in the script, marked by hand. Offsets are character offsets into the turn text. Type \"person\" is the name-recall set (spike Q1).",
+  "labels": [
+    {
+      "turn": 0,
+      "type": "person",
+      "text": "Marek",
+      "start": 13,
+      "end": 18
+    },
+    {
+      "turn": 17,
+      "type": "address",
+      "text": "Krótka siedem, Wieliczka",
+      "start": 49,
+      "end": 73
+    },
+    {
+      "turn": 18,
+      "type": "address",
+      "text": "Krótka siedem, Wieliczka",
+      "start": 34,
+      "end": 58
+    }
+  ]
+}

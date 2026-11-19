@@ -1,0 +1,55 @@
+{
+  "call": "03-szkoda-komunikacyjna",
+  "note": "Personal data in the script, marked by hand. Offsets are character offsets into the turn text. Type \"person\" is the name-recall set (spike Q1).",
+  "labels": [
+    {
+      "turn": 0,
+      "type": "person",
+      "text": "Piotr Zieliński",
+      "start": 58,
+      "end": 73
+    },
+    {
+      "turn": 9,
+      "type": "person",
+      "text": "Katarzyna Nowak",
+      "start": 0,
+      "end": 15
+    },
+    {
+      "turn": 11,
+      "type": "policy_number",
+      "text": "P L dwa zero dwa sześć, zero zero osiem jeden pięć dwa",
+      "start": 0,
+      "end": 54
+    },
+    {
+      "turn": 12,
+      "type": "vehicle_registration",
+      "text": "K R jeden dwa trzy A B",
+      "start": 72,
+      "end": 94
+    },
+    {
+      "turn": 17,
+      "type": "person",
+      "text": "Jan Malinowski",
+      "start": 0,
+      "end": 14
+    },
+    {
+      "turn": 17,
+      "type": "vehicle_registration",
+      "text": "K R K siedem siedem dwa pięć",
+      "start": 28,
+      "end": 56
+    },
+    {
+      "turn": 24,
+      "type": "person",
+      "text": "Katarzyno",
+      "start": 15,
+      "end": 24
+    }
+  ]
+}
