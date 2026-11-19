@@ -1,0 +1,21 @@
+name: Feature request
+description: Suggest something Aftertalk should do.
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Outside pull requests are not accepted yet (see CONTRIBUTING.md), but ideas are welcome.
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What are you trying to do, and what gets in the way today?
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What you would like
+    validations:
+      required: false
