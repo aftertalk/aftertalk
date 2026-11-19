@@ -26,7 +26,7 @@ Or the whole stack: `docker compose -f docker-compose.dev.yml up -d --build`.
 ```
 src/aftertalk/
   cli.py       the `aftertalk` command (Typer)
-  models/      data models shared with web (through openapi.json)
+  models/      data models and error codes shared with web (through openapi.json)
   config/      the CLI connections file (~/.aftertalk/connections.yaml)
   api/         HTTP: app, job contract (OpenAPI), signing and callbacks
   pipeline/    step runner, transcript cache, turns

@@ -30,6 +30,38 @@
   },
   "components": {
     "schemas": {
+      "JobError": {
+        "description": "A failure as web receives it: the code and whether a retry may help.",
+        "properties": {
+          "code": {
+            "enum": [
+              "provider_auth",
+              "provider_unreachable",
+              "provider_rate_limited",
+              "provider_quota_exceeded",
+              "provider_model_not_found",
+              "provider_context_too_long",
+              "provider_bad_response",
+              "provider_output_invalid",
+              "provider_refused",
+              "limit_exceeded",
+              "internal"
+            ],
+            "title": "Code",
+            "type": "string"
+          },
+          "retryable": {
+            "title": "Retryable",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "code",
+          "retryable"
+        ],
+        "title": "JobError",
+        "type": "object"
+      },
       "JobLimits": {
         "additionalProperties": false,
         "description": "Per-job caps. None means no limit.",
