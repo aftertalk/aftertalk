@@ -28,6 +28,9 @@ def test_codes_are_the_agreed_set() -> None:
         "provider_output_invalid",
         "provider_refused",
         "provider_config_invalid",
+        "audio_unreadable",
+        "audio_too_long",
+        "language_not_allowed",
         "limit_exceeded",
         "internal",
     }

@@ -109,6 +109,13 @@ def reveal(model: BaseModel) -> dict[str, Any]:
     return model.model_dump(mode="json", context={"reveal_secrets": True})
 
 
+def _check_extra_headers(cls: Any, value: dict[str, SecretStr]) -> dict[str, SecretStr]:
+    for name in value:
+        if name.strip().lower() in _AUTH_HEADERS:
+            raise ValueError(f"header {name!r} is not allowed in extra_headers; put the key in api_key")
+    return value
+
+
 class LLMConnection(BaseModel):
     """One LLM endpoint. `api_key` None means a keyless own server."""
 
@@ -124,13 +131,7 @@ class LLMConnection(BaseModel):
     output_mode: OutputMode = "auto"
     context_window: PositiveInt | None = None
 
-    @field_validator("extra_headers")
-    @classmethod
-    def _no_auth_headers(cls, value: dict[str, SecretStr]) -> dict[str, SecretStr]:
-        for name in value:
-            if name.strip().lower() in _AUTH_HEADERS:
-                raise ValueError(f"header {name!r} is not allowed in extra_headers; put the key in api_key")
-        return value
+    _no_auth_headers = field_validator("extra_headers")(_check_extra_headers)
 
     @model_validator(mode="after")
     def _check_adapter(self) -> "LLMConnection":
@@ -158,6 +159,9 @@ class SpeechConnection(BaseModel):
     api_key: ApiKey | None = None
     model: ModelName
     audio_format: Literal["flac", "wav"] = "flac"
+    extra_headers: dict[str, HeaderValue] = {}
+
+    _no_auth_headers = field_validator("extra_headers")(_check_extra_headers)
 
 
 class ModelTiers(BaseModel):

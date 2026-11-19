@@ -165,3 +165,13 @@ def test_azure_api_version() -> None:
 def test_resolve_unknown_tier() -> None:
     with pytest.raises(ValueError, match="tier"):
         ModelTiers(default=llm()).resolve("huge")  # type: ignore[arg-type]
+
+
+def test_speech_extra_headers_are_secret_and_cannot_carry_auth() -> None:
+    s = SpeechConnection(base_url="https://x.test/v1", model="m", extra_headers={"X-Tenant": KEY})
+    assert KEY not in repr(s) and KEY not in s.model_dump_json()
+    assert s.extra_headers["X-Tenant"].get_secret_value() == KEY
+    with pytest.raises(ValidationError, match="not allowed in extra_headers"):
+        SpeechConnection(base_url="https://x.test/v1", model="m", extra_headers={"Authorization": "x"})
+    with pytest.raises(ValidationError, match="not allowed in extra_headers"):
+        llm(extra_headers={"api-key": "x"})
