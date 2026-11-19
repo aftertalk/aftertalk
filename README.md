@@ -9,6 +9,12 @@ features yet.
 
 ## Quickstart
 
+> **No release yet.** The prebuilt images that `docker-compose.yml` uses are
+> published with the first release. Until then, run from source with
+> `docker-compose.dev.yml` (see Development below).
+
+Once released:
+
 ```sh
 cp .env.example .env   # replace every change-me
 docker compose up -d
@@ -131,6 +137,10 @@ tests/            End-to-end tests and fake providers
 
 Commercial features live in a separate private repository that merges this
 one. Code for them goes only under `apps/web/ee/` and `apps/web/app/(ee)/`.
+
+## Security
+
+Report vulnerabilities privately; see [SECURITY.md](SECURITY.md).
 
 ## License
 
