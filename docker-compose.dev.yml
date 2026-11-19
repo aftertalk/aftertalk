@@ -1,0 +1,72 @@
+# Development and CI: the same services built from source.
+# Postgres is also published on 127.0.0.1:5433 for Jest on the host.
+#   docker compose -f docker-compose.dev.yml up --build
+name: aftertalk-dev
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: aftertalk
+      POSTGRES_PASSWORD: aftertalk
+      POSTGRES_DB: aftertalk
+    ports:
+      - '127.0.0.1:5433:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U aftertalk -d aftertalk']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  engine:
+    build:
+      context: .
+      dockerfile: docker/engine.Dockerfile
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATA_DIR: /data
+      WEB_URL: http://web:3000
+      ENGINE_CALLBACK_SECRET: ${ENGINE_CALLBACK_SECRET:-dev-callback-secret-change-me}
+    volumes:
+      - data:/data
+    healthcheck:
+      test: ['CMD', 'python', '-c', "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz')"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  web:
+    build:
+      context: .
+      dockerfile: docker/web.Dockerfile
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL: postgres://aftertalk:aftertalk@postgres:5432/aftertalk
+      DATA_DIR: /data
+      PUBLIC_URL: ${PUBLIC_URL:-http://localhost:3000}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-dev-better-auth-secret-change-me-0000}
+      SECRETS_KEY: ${SECRETS_KEY:-ZGV2LXNlY3JldHMta2V5LWNoYW5nZS1tZS0wMDAwMDA=}
+      ENGINE_URL: http://engine:8000
+      ENGINE_CALLBACK_SECRET: ${ENGINE_CALLBACK_SECRET:-dev-callback-secret-change-me}
+    ports:
+      - '3000:3000'
+    volumes:
+      - data:/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'node', '-e', "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  data:
+  pgdata:
