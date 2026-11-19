@@ -7,10 +7,10 @@ ENV PATH=/opt/venv/bin:$PATH
 WORKDIR /app
 COPY apps/engine/pyproject.toml apps/engine/uv.lock apps/engine/.python-version ./
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev --no-install-project --extra server --extra audio --extra pii
+    uv sync --frozen --no-dev --no-install-project --extra server --extra audio --extra pii --extra anthropic --extra google
 COPY apps/engine/src ./src
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev --extra server --extra audio --extra pii
+    uv sync --frozen --no-dev --extra server --extra audio --extra pii --extra anthropic --extra google
 RUN groupadd -g 1000 aftertalk && useradd -u 1000 -g 1000 -M aftertalk && mkdir -p /data && chown 1000:1000 /data
 USER 1000:1000
 EXPOSE 8000
