@@ -27,6 +27,7 @@ def test_codes_are_the_agreed_set() -> None:
         "provider_bad_response",
         "provider_output_invalid",
         "provider_refused",
+        "provider_config_invalid",
         "limit_exceeded",
         "internal",
     }
@@ -37,8 +38,8 @@ def test_repr_has_no_provider_text() -> None:
     assert "provider_auth" in repr(err)
 
 
-def test_to_model_carries_code_and_retryable_only() -> None:
+def test_to_model_carries_code_retryable_and_usage_only() -> None:
     from aftertalk.models.errors import JobError
 
     assert EngineError("provider_rate_limited").to_model() == JobError(code="provider_rate_limited", retryable=True)
-    assert set(JobError.model_fields) == {"code", "retryable"}
+    assert set(JobError.model_fields) == {"code", "retryable", "usage"}

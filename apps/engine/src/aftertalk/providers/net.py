@@ -4,9 +4,8 @@ With `BLOCK_PRIVATE_ADDRESSES` on, the client resolves each request's host itsel
 answer is private, loopback, link-local, multicast, reserved or unspecified (also as an IPv4-mapped, NAT64 or
 6to4 address). Redirects are never followed, so a public server cannot bounce a request to an internal one.
 
-Known gap: the check resolves the name, then the transport resolves it again to connect. A DNS server that
-answers differently the second time (DNS rebinding) can slip past. Pinning the connection to the validated
-address is out of scope here; the check still stops configuration mistakes and plain SSRF attempts.
+The connection is pinned: the request goes to the address that passed the check, with the original name as
+`Host` and TLS server name, so a second DNS answer (DNS rebinding) cannot change where it connects.
 """
 
 import asyncio
@@ -66,32 +65,60 @@ async def _resolve(host: str, port: int) -> list[str]:
 
 
 class _GuardedTransport(httpx2.AsyncBaseTransport):
-    def __init__(self, inner: httpx2.AsyncBaseTransport, resolver: Resolver) -> None:
+    """Resolves the host, validates every answer, then connects to a validated address, not to the name."""
+
+    def __init__(self, inner: httpx2.AsyncBaseTransport, resolver: Resolver, resolve_timeout: float) -> None:
         self._inner = inner
         self._resolver = resolver
+        self._resolve_timeout = resolve_timeout
 
     async def handle_async_request(self, request: httpx2.Request) -> httpx2.Response:
-        await self._check(request.url)
-        return await self._inner.handle_async_request(request)
+        host = request.url.host
+        addresses = await self._validated_addresses(request.url)
+        last: httpx2.ConnectError | None = None
+        for address in addresses:
+            # The inner transport connects to the IP we validated, so a second DNS answer cannot redirect it.
+            # `Host` stays the original name, and `sni_hostname` makes TLS check the certificate against the
+            # original name (httpcore passes it as `server_hostname` to the TLS handshake).
+            pinned = httpx2.Request(
+                request.method,
+                request.url.copy_with(host=address),
+                headers=request.headers,
+                stream=request.stream,
+                extensions={**request.extensions, "sni_hostname": host},
+            )
+            try:
+                return await self._inner.handle_async_request(pinned)
+            except httpx2.ConnectError as exc:
+                last = exc
+        assert last is not None
+        raise last
 
-    async def _check(self, url: httpx2.URL) -> None:
+    async def _validated_addresses(self, url: httpx2.URL) -> list[str]:
         host = url.host
         if is_blocked_host(host):
             raise self._blocked()
         port = url.port or (443 if url.scheme == "https" else 80)
         try:
-            addresses = await self._resolver(host, port)
+            addresses = await asyncio.wait_for(self._resolver(host, port), self._resolve_timeout)
+        except TimeoutError:
+            raise httpx2.ConnectTimeout("name resolution timed out") from None
         except OSError:
             raise httpx2.ConnectError("name resolution failed") from None
         if not addresses:
             raise httpx2.ConnectError("name resolution failed")
+        clean: list[str] = []
         for address in addresses:
+            text = address.split("%", 1)[0]
             try:
-                ip = ipaddress.ip_address(address.split("%", 1)[0])
+                ip = ipaddress.ip_address(text)
             except ValueError:
                 raise self._blocked() from None
             if is_blocked_ip(ip):
                 raise self._blocked()
+            if text not in clean:
+                clean.append(text)
+        return clean
 
     @staticmethod
     def _blocked() -> BlockedAddressError:
@@ -114,7 +141,9 @@ def make_client(
     """A client for provider calls. `resolver` and `inner` exist for tests."""
     transport: httpx2.AsyncBaseTransport | None = inner
     if block_private:
-        transport = _GuardedTransport(inner or httpx2.AsyncHTTPTransport(limits=_LIMITS), resolver or _resolve)
+        transport = _GuardedTransport(
+            inner or httpx2.AsyncHTTPTransport(limits=_LIMITS), resolver or _resolve, connect_timeout
+        )
     client = create_async_httpx2_client(timeout=httpx2.Timeout(timeout, connect=connect_timeout), transport=transport)
     client.follow_redirects = False
     return client

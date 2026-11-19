@@ -168,7 +168,10 @@ class LLMConnection(BaseModel):
         if self.api_version is not None and self.preset != "azure":
             raise ValueError("api_version is only valid with preset azure")
         if self.preset == "azure" and self.api_version is None:
-            raise ValueError("preset azure requires api_version")
+            # The Azure v1 API (https://<resource>.openai.azure.com/openai/v1) takes no api-version.
+            assert self.base_url is not None
+            if not urlsplit(self.base_url).path.lower().rstrip("/").endswith("/openai/v1"):
+                raise ValueError("preset azure requires api_version unless base_url ends in /openai/v1")
         return self
 
 

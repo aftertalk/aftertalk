@@ -180,7 +180,8 @@ async def test_open_model_blocks_private_hosts_when_asked() -> None:
             await http.get("http://169.254.169.254/v1/models")
 
 
-def test_a_model_name_the_preset_rejects_is_a_model_not_found_error(client: httpx2.AsyncClient) -> None:
+def test_a_model_name_the_preset_rejects_is_a_config_error(client: httpx2.AsyncClient) -> None:
     with pytest.raises(EngineError) as info:
         build_model(conn(preset="openrouter", api_key="k", model="no-vendor-prefix"), http_client=client)
-    assert info.value.code == "provider_model_not_found"
+    assert info.value.code == "provider_config_invalid" and not info.value.retryable
+    assert info.value.__context__ is None and info.value.__cause__ is None

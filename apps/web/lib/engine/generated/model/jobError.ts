@@ -5,11 +5,13 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { JobErrorCode } from './jobErrorCode';
+import type { StepUsage } from './stepUsage';
 
 /**
- * A failure as web receives it: the code and whether a retry may help.
+ * A failure as web receives it: the code, whether a retry may help, and what the run used.
  */
 export interface JobError {
   code: JobErrorCode;
   retryable: boolean;
+  usage?: StepUsage | null;
 }

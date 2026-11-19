@@ -89,12 +89,15 @@ async def _probe_llm(conn: Any, block_private: bool) -> tuple[int, str]:
 
     started = time.monotonic()
     async with open_model(conn, block_private=block_private) as model:
+        error: EngineError | None = None
         try:
             reply = await Agent(model, capabilities=[retry_capability()]).run("Reply with the word ok")
+            if "ok" not in reply.output.lower():
+                error = EngineError("provider_bad_response")
         except Exception as exc:
-            raise to_engine_error(exc) from None
-        if "ok" not in reply.output.lower():
-            raise EngineError("provider_bad_response")
+            error = to_engine_error(exc)
+        if error is not None:
+            raise error  # raised outside the except block: nothing from the provider is chained to it
         _, usage = await run_structured(
             model,
             conn=conn,
@@ -136,11 +139,16 @@ def providers_test(
         typer.echo("no llm connection is configured; add llm.default to the connections file", err=True)
         raise typer.Exit(2)
     conn = profile.llm.resolve(tier)  # type: ignore[arg-type]
+    failure: EngineError | None = None
     try:
         latency_ms, mode = asyncio.run(_probe_llm(conn, get_cli_settings().block_private_addresses))
     except EngineError as err:
+        failure = err
+    except Exception:
+        failure = EngineError("internal")  # no traceback: it could quote what the provider sent
+    if failure is not None:
         # Only the code and its fixed sentence are printed, never what the provider sent.
-        typer.echo(json.dumps({"ok": False, "code": err.code}) if as_json else f"failed: {err}")
+        typer.echo(json.dumps({"ok": False, "code": failure.code}) if as_json else f"failed: {failure}")
         raise typer.Exit(1)
     if as_json:
         typer.echo(json.dumps({"ok": True, "latency_ms": latency_ms, "output_mode": mode}))

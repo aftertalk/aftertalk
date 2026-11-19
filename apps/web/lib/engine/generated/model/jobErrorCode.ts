@@ -18,6 +18,7 @@ export const JobErrorCode = {
   provider_bad_response: 'provider_bad_response',
   provider_output_invalid: 'provider_output_invalid',
   provider_refused: 'provider_refused',
+  provider_config_invalid: 'provider_config_invalid',
   limit_exceeded: 'limit_exceeded',
   internal: 'internal',
 } as const;

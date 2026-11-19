@@ -113,8 +113,8 @@ async def test_native_unsupported_profile_moves_on_before_any_request() -> None:
 
     model = FunctionModel(respond, profile=ModelProfile(supports_json_schema_output=False))
     _, usage = await run(model, conn())
-    assert calls == ["tool", "prompted"]  # native raised before any request
-    assert usage.output_mode == "prompted" and usage.attempts == 3
+    assert calls == ["tool", "prompted"]  # native is skipped: the profile says it is unsupported
+    assert usage.output_mode == "prompted" and usage.attempts == 2
 
 
 async def test_auth_error_stops_the_ladder() -> None:
@@ -129,7 +129,7 @@ async def test_auth_error_stops_the_ladder() -> None:
 
 
 @pytest.mark.parametrize(
-    ("status", "code"), [(404, "provider_model_not_found"), (403, "provider_auth"), (500, "provider_unreachable")]
+    ("status", "code"), [(404, "provider_bad_response"), (403, "provider_auth"), (500, "provider_unreachable")]
 )
 async def test_other_http_errors_stop_the_ladder(status: int, code: str) -> None:
     calls: list[str] = []
