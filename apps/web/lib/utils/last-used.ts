@@ -1,8 +1,7 @@
 import { cookies } from 'next/headers';
 
-// Written by the app shell as the reader moves around (components/shared/app-shell.tsx).
-const LAST_PROJECT_COOKIE = 'atLastProject';
-const LAST_ORG_COOKIE = 'atLastOrg';
+// Written in the browser as the reader moves around (components/shared/set-last-project.tsx).
+import { LAST_ORG_COOKIE, LAST_PROJECT_COOKIE } from '@/lib/last-used-cookies';
 
 /**
  * Where to send someone who needs "an" organization or project: the one they used last, if they can

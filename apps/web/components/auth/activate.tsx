@@ -40,7 +40,8 @@ export function Activate({ token, email, organizationName, hasAccount, signedInE
       const result = await fn();
       if (!result.ok) return setError(result.error);
       toast.success(t(i18n.auth.activate.successTitle));
-      router.push('/');
+      // Item 28: offered 2FA first (the page skips itself when it is already on).
+      router.push('/setup-2fa?next=%2F');
       router.refresh();
     } catch {
       setError(t(i18n.appError.title));

@@ -11,14 +11,28 @@ import { localizedPageMetadata } from '@/lib/utils/page-metadata';
 export const dynamic = 'force-dynamic';
 export const generateMetadata = () => localizedPageMetadata('noOrganization.title');
 
+// Two cases share this page: no organisation at all, or an organisation with no project the user
+// can see. Phase 2 gives admins a "create project" button here.
 export default async function NoOrganizationPage() {
   const user = await getSessionUser();
   if (!user) redirect('/login');
-  if ((await landingFor(user.id)).kind === 'project') redirect('/');
+  const landing = await landingFor(user.id);
+  if (landing.kind === 'project') redirect('/');
   const t = await getTranslations();
+  const noProject = landing.kind === 'no-project';
+  const isAdmin = noProject && landing.orgRole !== 'MEMBER';
   return (
     <AuthShell>
-      <AuthFormHeader title={t(i18n.noOrganization.title)} description={t(i18n.noOrganization.description)} />
+      <AuthFormHeader
+        title={noProject ? t(i18n.noOrganization.noProjectTitle) : t(i18n.noOrganization.title)}
+        description={
+          isAdmin
+            ? t(i18n.noOrganization.noProjectAdmin)
+            : noProject
+              ? t(i18n.noOrganization.noProjectDescription)
+              : t(i18n.noOrganization.description)
+        }
+      />
       <div className="mt-8">
         <SignOutButton label={t(i18n.noOrganization.signOut)} />
       </div>

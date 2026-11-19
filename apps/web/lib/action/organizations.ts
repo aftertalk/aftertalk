@@ -2,16 +2,19 @@
 
 import { createHash, randomBytes } from 'node:crypto';
 
-import { and, asc, count, eq, gt, inArray, isNotNull, isNull } from 'drizzle-orm';
+import { and, asc, count, eq, gt, inArray, isNull } from 'drizzle-orm';
 import { headers } from 'next/headers';
+import { z } from 'zod';
 
 import { env } from '@/env';
-import { orgRoleAtLeast, requireOrgRole, requireUser } from '@/lib/access';
-import { auth, resetLinks } from '@/lib/auth/auth';
+import { type OrgRole, orgRoleAtLeast, requireOrgRole, requireUser } from '@/lib/access';
+import { auth } from '@/lib/auth/auth';
 import { clearTwoFactor } from '@/lib/auth/clear-2fa';
-import { createUser } from '@/lib/auth/create-user';
+import { createUser, validateNewAccount } from '@/lib/auth/create-user';
+import { issueResetToken, scramblePassword } from '@/lib/auth/reset-token';
+import { clearSignInFailures } from '@/lib/auth/throttle';
 import { db } from '@/lib/db/client';
-import { invitations, organizationMembers, organizations } from '@/lib/db/schema/app';
+import { invitations, organizationMembers, organizations, projectMembers, projects } from '@/lib/db/schema/app';
 import { session as sessionTable, user as userTable } from '@/lib/db/schema/auth';
 import { log } from '@/lib/log';
 
@@ -33,6 +36,20 @@ export type InvitationView = {
   expiresAt: string;
   expired: boolean;
 };
+
+// Every export here is a public endpoint taking any JSON, so arguments are checked before use: a
+// malformed id answers "not found" instead of a database cast error.
+const UUID = z.string().uuid();
+const TOKEN = z.string().min(1).max(200);
+function idOrNotFound(value: unknown): string {
+  const parsed = UUID.safeParse(value);
+  if (!parsed.success) throw new NotFoundError();
+  return parsed.data;
+}
+function tokenOrNull(value: unknown): string | null {
+  const parsed = TOKEN.safeParse(value);
+  return parsed.success ? parsed.data : null;
+}
 
 const hashToken = (token: string) => createHash('sha256').update(token).digest('hex');
 const newToken = () => randomBytes(32).toString('base64url');
@@ -59,13 +76,19 @@ export async function inviteMembers(
   entries: { email: string; role: InvitableRole }[]
 ): Promise<ActionResult<{ email: string; link: string }[]>> {
   return runAction(async () => {
-    const { user } = await requireOrgRole(organizationId, 'ADMIN');
+    const { user } = await requireOrgRole(idOrNotFound(organizationId), 'ADMIN');
+    if (!Array.isArray(entries)) throw new BackendError(400, 'Invalid request');
     if (entries.length === 0) return [];
     if (entries.length > MAX_INVITATIONS) throw new BackendError(400, `At most ${MAX_INVITATIONS} invitations at once`);
-    const normalised = entries.map((e) => ({ email: e.email.trim().toLowerCase(), role: e.role }));
+    const normalised = entries.map((e) => ({
+      email: typeof e?.email === 'string' ? e.email.trim().toLowerCase() : '',
+      role: e?.role,
+    }));
     for (const e of normalised) {
       if (e.role !== 'ADMIN' && e.role !== 'MEMBER') throw new BackendError(400, 'An owner cannot be invited');
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e.email)) throw new BackendError(400, `Not an email address: ${e.email}`);
+      if (!z.string().email().max(254).safeParse(e.email).success) {
+        throw new BackendError(400, `Not an email address: ${e.email.slice(0, 254)}`);
+      }
     }
     const emails = normalised.map((e) => e.email);
     if (new Set(emails).size !== emails.length) throw new BackendError(400, 'An email is listed twice');
@@ -96,7 +119,7 @@ export async function inviteMembers(
         links.map((l) => ({
           organizationId,
           email: l.email,
-          role: l.role,
+          role: l.role as InvitableRole,
           tokenHash: hashToken(l.token),
           invitedBy: user.id,
           expiresAt,
@@ -109,8 +132,15 @@ export async function inviteMembers(
 }
 
 /** Open invitations (not accepted, not revoked), expired ones included and marked. */
-export async function listInvitations(organizationId: string): Promise<InvitationView[]> {
-  await requireOrgRole(organizationId, 'ADMIN');
+export async function listInvitations(organizationId: string): Promise<ActionResult<InvitationView[]>> {
+  return runAction(async () => {
+    organizationId = idOrNotFound(organizationId);
+    await requireOrgRole(organizationId, 'ADMIN');
+    return openInvitations(organizationId);
+  });
+}
+
+async function openInvitations(organizationId: string): Promise<InvitationView[]> {
   const rows = await db
     .select()
     .from(invitations)
@@ -129,27 +159,29 @@ export async function listInvitations(organizationId: string): Promise<Invitatio
   }));
 }
 
-async function findOpenInvitationById(id: string) {
+/** The open invitation, after checking the signed-in user is an admin of its organisation. */
+async function findOpenInvitationAsAdmin(id: unknown) {
+  await requireUser();
   const [row] = await db
     .select()
     .from(invitations)
-    .where(and(eq(invitations.id, id), isNull(invitations.acceptedAt), isNull(invitations.revokedAt)));
+    .where(and(eq(invitations.id, idOrNotFound(id)), isNull(invitations.acceptedAt), isNull(invitations.revokedAt)));
   if (!row) throw new NotFoundError();
+  await requireOrgRole(row.organizationId, 'ADMIN');
   return row;
 }
 
 export async function revokeInvitation(id: string): Promise<ActionResult> {
   return runAction(async () => {
-    const inv = await findOpenInvitationById(id);
-    await requireOrgRole(inv.organizationId, 'ADMIN');
-    await db.update(invitations).set({ revokedAt: new Date() }).where(eq(invitations.id, id));
+    const inv = await findOpenInvitationAsAdmin(id);
+    await db.update(invitations).set({ revokedAt: new Date() }).where(eq(invitations.id, inv.id));
   });
 }
 
 /** Makes a new link (the old token is unrecoverable by design) and revokes the old invitation. */
 export async function resendInvitation(id: string): Promise<ActionResult<{ email: string; link: string }>> {
   return runAction(async () => {
-    const inv = await findOpenInvitationById(id);
+    const inv = await findOpenInvitationAsAdmin(id);
     const result = await inviteMembers(inv.organizationId, [{ email: inv.email, role: inv.role }]);
     if (!result.ok) throw new BackendError(400, result.error);
     return result.data[0];
@@ -157,11 +189,12 @@ export async function resendInvitation(id: string): Promise<ActionResult<{ email
 }
 
 /** What the activate page needs to know about a link. Never throws; an unusable link is `null`. */
-export async function getInvitationByToken(token: string): Promise<{
+export async function getInvitationByToken(rawToken: string): Promise<{
   email: string;
   organizationName: string;
   hasAccount: boolean;
 } | null> {
+  const token = tokenOrNull(rawToken);
   if (!token) return null;
   const [row] = await db
     .select({ email: invitations.email, organizationName: organizations.name })
@@ -218,7 +251,7 @@ export async function acceptInvitationAsNewUser(
     const info = await getInvitationByToken(token);
     if (!info) throw new NotFoundError('This invitation is not valid');
     if (info.hasAccount) throw new BackendError(409, 'An account with this email exists: sign in to join');
-    if (!name.trim()) throw new BackendError(400, 'Name is required');
+    validateNewAccount({ email: info.email, name, password });
     const created = await createUser({ email: info.email, name, password });
     let inv;
     try {
@@ -255,10 +288,26 @@ export async function acceptInvitation(token: string): Promise<ActionResult<{ or
  */
 export async function removeOrganizationMember(organizationId: string, userId: string): Promise<ActionResult> {
   return runAction(async () => {
+    organizationId = idOrNotFound(organizationId);
+    if (typeof userId !== 'string' || !userId) throw new NotFoundError();
     const actor = await requireUser();
     const self = actor.id === userId;
-    const { role: actorRole } = await requireOrgRole(organizationId, self ? 'MEMBER' : 'ADMIN', actor);
+    await requireOrgRole(organizationId, self ? 'MEMBER' : 'ADMIN', actor);
     await db.transaction(async (tx) => {
+      // One removal per organisation at a time, so two owners removing each other cannot both pass
+      // the "another owner remains" check.
+      await tx
+        .select({ id: organizations.id })
+        .from(organizations)
+        .where(eq(organizations.id, organizationId))
+        .for('no key update');
+      // The actor's role, read again under the lock: an admin removed a moment ago removes nobody.
+      const [actorNow] = await tx
+        .select({ role: organizationMembers.role })
+        .from(organizationMembers)
+        .where(and(eq(organizationMembers.organizationId, organizationId), eq(organizationMembers.userId, actor.id)));
+      if (!actorNow || (!self && !orgRoleAtLeast(actorNow.role, 'ADMIN'))) throw new ForbiddenError();
+      const actorRole = actorNow.role;
       const [target] = await tx
         .select({ role: organizationMembers.role })
         .from(organizationMembers)
@@ -276,6 +325,18 @@ export async function removeOrganizationMember(organizationId: string, userId: s
       await tx
         .delete(organizationMembers)
         .where(and(eq(organizationMembers.organizationId, organizationId), eq(organizationMembers.userId, userId)));
+      // Project roles in this organisation go too, so a later re-invite starts from nothing.
+      await tx
+        .delete(projectMembers)
+        .where(
+          and(
+            eq(projectMembers.userId, userId),
+            inArray(
+              projectMembers.projectId,
+              tx.select({ id: projects.id }).from(projects).where(eq(projects.organizationId, organizationId))
+            )
+          )
+        );
       const [{ left }] = await tx
         .select({ left: count() })
         .from(organizationMembers)
@@ -289,71 +350,72 @@ export async function removeOrganizationMember(organizationId: string, userId: s
 // --- account recovery (#73) ---------------------------------------------------------------------
 
 /**
- * The actor's role in the target's only organisation, after the two recovery conditions: the target
- * belongs to exactly one organisation, and the actor's role there is above the target's.
+ * The two recovery conditions (#73): the actor's role is above the target's in an organisation they
+ * share (and at least `least`), and the target belongs to no other organisation. Checked in that
+ * order, so someone without the right learns nothing about the target's other memberships.
  */
-async function recoveryContext(targetUserId: string, least: 'ADMIN' | 'OWNER') {
+async function recoveryContext(targetUserId: unknown, least: 'ADMIN' | 'OWNER') {
+  if (typeof targetUserId !== 'string' || !targetUserId) throw new NotFoundError();
   const actor = await requireUser();
   if (actor.id === targetUserId) throw new ForbiddenError('Use your own account settings');
   const memberships = await db
     .select({ organizationId: organizationMembers.organizationId, role: organizationMembers.role })
     .from(organizationMembers)
     .where(eq(organizationMembers.userId, targetUserId));
-  if (memberships.length === 0) throw new NotFoundError();
-  // Visible only to someone in one of the target's organisations.
-  const shared = await db
-    .select({ organizationId: organizationMembers.organizationId })
-    .from(organizationMembers)
-    .where(
-      and(
-        eq(organizationMembers.userId, actor.id),
-        inArray(
-          organizationMembers.organizationId,
-          memberships.map((m) => m.organizationId)
+  const mine = memberships.length
+    ? await db
+        .select({ organizationId: organizationMembers.organizationId, role: organizationMembers.role })
+        .from(organizationMembers)
+        .where(
+          and(
+            eq(organizationMembers.userId, actor.id),
+            inArray(
+              organizationMembers.organizationId,
+              memberships.map((m) => m.organizationId)
+            )
+          )
         )
-      )
-    );
-  if (shared.length === 0) throw new NotFoundError();
+    : [];
+  // Not in any of the target's organisations: the target does not exist for this actor.
+  if (mine.length === 0) throw new NotFoundError();
+  const above = (a: OrgRole, t: OrgRole) => orgRoleAtLeast(a, t) && a !== t;
+  const qualifying = mine.find((m) => {
+    const target = memberships.find((t) => t.organizationId === m.organizationId)!;
+    return orgRoleAtLeast(m.role, least) && above(m.role, target.role);
+  });
+  if (!qualifying) throw new ForbiddenError('You can only do this for someone whose role is below yours');
+  // Re-checked through the one access function, which also applies the organisation's 2FA rule.
+  await requireOrgRole(qualifying.organizationId, least, actor);
   if (memberships.length > 1) {
     throw new ForbiddenError('This person belongs to several organizations: the operator must use reset-owner.js');
   }
-  const target = memberships[0];
-  const { role: actorRole } = await requireOrgRole(target.organizationId, least, actor);
-  if (!orgRoleAtLeast(actorRole, target.role) || actorRole === target.role) {
-    throw new ForbiddenError('You can only do this for someone whose role is below yours');
-  }
-  return { actor, organizationId: target.organizationId };
+  return { actor, organizationId: qualifying.organizationId };
 }
 
 /**
- * A one-hour reset link for a user below the actor's role. Ends the user's sessions and records who
- * did it; the user sees that once, after their next sign-in. 2FA is not removed.
+ * A one-hour reset link for a user below the actor's role. In one transaction: the old password
+ * stops working (so whoever might know it cannot sign in before the user does), earlier links are
+ * replaced, sessions end, and who did it is recorded for the one-time notice. 2FA stays.
  */
 export async function createPasswordResetLink(userId: string): Promise<ActionResult<{ link: string }>> {
   return runAction(async () => {
     const { actor } = await recoveryContext(userId, 'ADMIN');
+    const link = await db.transaction(async (tx) => {
+      const url = await issueResetToken(tx, userId);
+      await scramblePassword(tx, userId);
+      await tx
+        .update(userTable)
+        .set({ passwordResetAt: new Date(), passwordResetBy: actor.id })
+        .where(eq(userTable.id, userId));
+      await tx.delete(sessionTable).where(eq(sessionTable.userId, userId));
+      return url;
+    });
+    // A lockout from failed sign-ins must not outlive the reset.
     const [target] = await db.select({ email: userTable.email }).from(userTable).where(eq(userTable.id, userId));
-    if (!target) throw new NotFoundError();
-    const link = await issueResetLink(userId, target.email);
-    await db
-      .update(userTable)
-      .set({ passwordResetAt: new Date(), passwordResetBy: actor.id })
-      .where(eq(userTable.id, userId));
-    await db.delete(sessionTable).where(eq(sessionTable.userId, userId));
+    if (target) await clearSignInFailures(target.email);
     log('info', 'password reset link created', { user_id: actor.id });
     return { link };
   });
-}
-
-/** Asks Better Auth for a reset token; sendResetPassword hands the URL back instead of mailing it.
- * Not exported: in a "use server" file every exported function is callable from the browser. */
-async function issueResetLink(userId: string, email: string): Promise<string> {
-  resetLinks.delete(userId);
-  await auth.api.requestPasswordReset({ body: { email, redirectTo: '/reset-password' } });
-  const link = resetLinks.get(userId);
-  resetLinks.delete(userId);
-  if (!link) throw new Error('Better Auth did not produce a reset link');
-  return link;
 }
 
 /** An organisation owner clears 2FA for a user below them who has lost their device and codes. */
@@ -362,25 +424,5 @@ export async function resetTwoFactor(userId: string): Promise<ActionResult> {
     const { actor } = await recoveryContext(userId, 'OWNER');
     await clearTwoFactor(userId);
     log('info', '2fa reset', { user_id: actor.id });
-  });
-}
-
-/** The reset notice (item 30): returned once, then cleared. */
-export async function takePasswordResetNotice(): Promise<{ at: string; by: string | null } | null> {
-  const user = await requireUser();
-  return db.transaction(async (tx) => {
-    const [row] = await tx
-      .select({ at: userTable.passwordResetAt, by: userTable.passwordResetBy })
-      .from(userTable)
-      .where(and(eq(userTable.id, user.id), isNotNull(userTable.passwordResetAt)))
-      .for('update');
-    if (!row?.at) return null;
-    let byName: string | null = null;
-    if (row.by) {
-      const [actor] = await tx.select({ name: userTable.name }).from(userTable).where(eq(userTable.id, row.by));
-      byName = actor?.name ?? null;
-    }
-    await tx.update(userTable).set({ passwordResetAt: null, passwordResetBy: null }).where(eq(userTable.id, user.id));
-    return { at: row.at.toISOString(), by: byName };
   });
 }

@@ -39,6 +39,8 @@ test('without --email: the first owner gets a link the reset page accepts, sessi
   const [{ n }] = await sql<{ n: number }[]>`select count(*)::int n from auth.session where user_id = ${owner.id}`;
   expect(n).toBe(0);
 
+  // The old password no longer works; only the link does.
+  await expect(signIn(owner.email)).rejects.toThrow();
   await auth.api.resetPassword({ body: { token, newPassword: 'operator reset pw' } });
   await signIn(owner.email, 'operator reset pw');
   expect((await getSessionUser())?.id).toBe(owner.id);
@@ -48,4 +50,25 @@ test('with an unknown --email it fails without changing anything', async () => {
   await expect(
     resetOwner(process.env.DATABASE_URL!, 'http://localhost:3000', { email: 'nobody@example.com', reset2fa: false })
   ).rejects.toThrow('No user with that email');
+});
+
+test('with --email it resets that user and replaces any earlier link', async () => {
+  const owner = await makeUser('Owner');
+  const orgId = await makeOrg(owner);
+  const admin = await makeUser('Admin');
+  await addMember(orgId, admin, 'ADMIN');
+  const url = process.env.DATABASE_URL!;
+  const first = await resetOwner(url, 'http://localhost:3000', { email: admin.email, reset2fa: false });
+  const second = await resetOwner(url, 'http://localhost:3000', {
+    email: admin.email.toUpperCase().toLowerCase(),
+    reset2fa: false,
+  });
+  expect(first.email).toBe(admin.email);
+  const tokenOf = (l: string) => new URL(l).searchParams.get('token')!;
+  await expect(
+    auth.api.resetPassword({ body: { token: tokenOf(first.link), newPassword: 'nope nope nope' } })
+  ).rejects.toThrow();
+  await auth.api.resetPassword({ body: { token: tokenOf(second.link), newPassword: 'admin new password' } });
+  await signIn(admin.email, 'admin new password');
+  expect((await getSessionUser())?.id).toBe(admin.id);
 });

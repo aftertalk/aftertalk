@@ -25,6 +25,12 @@ jest.mock('next-intl/server', () => jest.requireActual('@/test/intl-server'));
 afterAll(() => sql.end());
 beforeEach(resetDb);
 
+async function openInvitations(orgId: string) {
+  const r = await listInvitations(orgId);
+  if (!r.ok) throw new Error(r.error);
+  return r.data;
+}
+
 const tokenOf = (link: string) => new URL(link).searchParams.get('token')!;
 
 async function adminWithOrg() {
@@ -85,7 +91,7 @@ test('a revoked, expired or replaced link is refused', async () => {
   const { orgId } = await adminWithOrg();
 
   const revoked = await invite(orgId, 'a@example.com');
-  const [{ id }] = await listInvitations(orgId);
+  const [{ id }] = await openInvitations(orgId);
   expect((await revokeInvitation(id)).ok).toBe(true);
   expect(await getInvitationByToken(tokenOf(revoked))).toBeNull();
 
@@ -97,7 +103,7 @@ test('a revoked, expired or replaced link is refused', async () => {
   expect(await getInvitationByToken(tokenOf(expired))).toBeNull();
 
   const first = await invite(orgId, 'c@example.com');
-  const [open] = (await listInvitations(orgId)).filter((i) => i.email === 'c@example.com');
+  const [open] = (await openInvitations(orgId)).filter((i) => i.email === 'c@example.com');
   const resent = await resendInvitation(open.id);
   expect(resent.ok).toBe(true);
   expect(await getInvitationByToken(tokenOf(first))).toBeNull();
@@ -145,4 +151,28 @@ test('someone with an account joins a second organisation while signed in with t
   expect(await acceptInvitation(tokenOf(link))).toEqual({ ok: true, data: { organizationId: orgId } });
   const rows = await db.select().from(organizationMembers).where(eq(organizationMembers.userId, other.id));
   expect(rows).toHaveLength(2);
+});
+
+test('activation refuses a short password with a message, and #64 blocks inviting without 2FA', async () => {
+  const { orgId } = await adminWithOrg();
+  const link = await invite(orgId, 'short@example.com');
+  testCookies.clear();
+  expect(await acceptInvitationAsNewUser(tokenOf(link), 'Short', 'abc')).toEqual({
+    ok: false,
+    error: 'The password must have 8 to 128 characters',
+  });
+  // Malformed arguments from a hand-made request are refused, not a server error.
+  expect((await acceptInvitationAsNewUser(tokenOf(link), { length: 1 } as unknown as string, PASSWORD)).ok).toBe(false);
+  expect(await revokeInvitation('not-a-uuid')).toEqual({ ok: false, error: 'Unauthorized' });
+  await signIn((await makeUser('Signed')).email);
+  expect(await revokeInvitation('not-a-uuid')).toEqual({ ok: false, error: 'Not found' });
+  expect(await inviteMembers('not-a-uuid', [])).toEqual({ ok: false, error: 'Not found' });
+
+  const strict = await makeUser('Strict');
+  const strictOrg = await makeOrg(strict, { twoFaRequired: true });
+  await signIn(strict.email);
+  expect(await inviteMembers(strictOrg, [{ email: 'z@example.com', role: 'MEMBER' }])).toEqual({
+    ok: false,
+    error: 'Two-factor authentication is required in this organization',
+  });
 });

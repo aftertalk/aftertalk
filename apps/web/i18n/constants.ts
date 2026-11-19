@@ -1496,6 +1496,9 @@ export const i18n = {
     title: 'noOrganization.title',
     description: 'noOrganization.description',
     signOut: 'noOrganization.signOut',
+    noProjectTitle: 'noOrganization.noProjectTitle',
+    noProjectDescription: 'noOrganization.noProjectDescription',
+    noProjectAdmin: 'noOrganization.noProjectAdmin',
   },
   home: {
     placeholder: 'home.placeholder',

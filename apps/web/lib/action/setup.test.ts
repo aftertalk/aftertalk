@@ -20,6 +20,11 @@ test('wrong token is refused; the right one creates owner, organisation, project
   const token = (await ensureSetupToken())!;
   const input = { name: 'Ada Owner', email: 'Ada@Example.com', password: PASSWORD };
 
+  // A password the browser should have refused is a 400 with a message, not a server error.
+  expect(await completeSetup({ ...input, password: 'short', token })).toEqual({
+    ok: false,
+    error: 'The password must have 8 to 128 characters',
+  });
   const wrong = await completeSetup({ ...input, token: 'nope' });
   expect(wrong).toEqual({ ok: false, error: en.setup.invalidToken });
 
@@ -32,7 +37,7 @@ test('wrong token is refused; the right one creates owner, organisation, project
   const [membership] = await db.select().from(organizationMembers).where(eq(organizationMembers.userId, me!.id));
   expect(membership.role).toBe('OWNER');
   const [project] = await db.select().from(projects).where(eq(projects.id, projectId));
-  expect(project).toMatchObject({ name: 'First project', visibility: 'ORG', allowedLanguages: ['en'] });
+  expect(project).toMatchObject({ name: 'First project', visibility: 'ORG', allowedLanguages: ['pl'] });
   expect(await db.select().from(speakerPresets).where(eq(speakerPresets.projectId, projectId))).toHaveLength(1);
   const [template] = await db.select().from(analysisTemplates).where(eq(analysisTemplates.projectId, projectId));
   expect(template).toMatchObject({ name: 'General QA', isActive: true });

@@ -10,9 +10,13 @@ import postgres from 'postgres';
 
 import ee from '../../ee/index';
 
+const MIGRATION_LOCK = 4_251_337; // any fixed number, the same in every container
+
 export async function runMigrations(databaseUrl: string, migrationsDir: string, eeMigrationsDir?: string | null) {
   const sql = postgres(databaseUrl, { max: 1, onnotice: () => {} });
   try {
+    // Two web containers starting together must not both migrate: the second waits here.
+    await sql`select pg_advisory_lock(${MIGRATION_LOCK})`;
     await sql`create schema if not exists auth`;
     await sql`create schema if not exists app`;
     const db = drizzle(sql);

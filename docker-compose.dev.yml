@@ -54,8 +54,9 @@ services:
       SECRETS_KEY: ${SECRETS_KEY:-ZGV2LXNlY3JldHMta2V5LWNoYW5nZS1tZS0wMDAwMDA=}
       ENGINE_URL: http://engine:8000
       ENGINE_CALLBACK_SECRET: ${ENGINE_CALLBACK_SECRET:-dev-callback-secret-change-me}
+    # Dev only, with known default secrets: reachable from this machine alone.
     ports:
-      - '3000:3000'
+      - '127.0.0.1:3000:3000'
     volumes:
       - data:/data
     depends_on:

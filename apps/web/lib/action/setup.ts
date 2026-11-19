@@ -1,11 +1,11 @@
 'use server';
 
 import { headers } from 'next/headers';
-import { getLocale, getTranslations } from 'next-intl/server';
+import { getTranslations } from 'next-intl/server';
 
 import { i18n } from '@/i18n/constants';
 import { auth } from '@/lib/auth/auth';
-import { createUser } from '@/lib/auth/create-user';
+import { createUser, validateNewAccount } from '@/lib/auth/create-user';
 import { checkSetupToken, clearSetupToken, ensureSetupToken, hasAnyUser } from '@/lib/auth/setup-token';
 import { db } from '@/lib/db/client';
 import {
@@ -36,12 +36,12 @@ export async function completeSetup(input: {
 }): Promise<ActionResult<{ projectId: string }>> {
   return runAction(async () => {
     if (await hasAnyUser()) throw new NotFoundError();
-    if (!checkSetupToken(input.token)) {
+    if (!checkSetupToken(input?.token)) {
       const t = await getTranslations();
       throw new BackendError(400, t(i18n.setup.invalidToken));
     }
+    validateNewAccount(input);
     const t = await getTranslations();
-    const locale = (await getLocale()) === 'en' ? 'en' : 'pl';
 
     const created = await createUser({ email: input.email, name: input.name, password: input.password });
     let projectId: string;
@@ -62,7 +62,7 @@ export async function completeSetup(input: {
             name: t(i18n.setup.projectName),
             organizationId: org.id,
             visibility: 'ORG',
-            allowedLanguages: [locale === 'en' ? 'en' : 'pl'],
+            allowedLanguages: ['pl'],
           })
           .returning({ id: projects.id });
 

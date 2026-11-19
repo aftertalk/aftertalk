@@ -24,6 +24,7 @@ const CSP = [
 
 const nextConfig: NextConfig = {
   output: 'standalone',
+  poweredByHeader: false,
   serverExternalPackages: ['postgres'],
   async headers() {
     return [

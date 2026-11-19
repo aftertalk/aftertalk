@@ -6,15 +6,16 @@
 // Plain SQL on purpose: bundled with esbuild into dist/reset-owner.js, it runs without Next or
 // Better Auth. The reset row matches what Better Auth's requestPasswordReset writes, so the normal
 // /reset-password page accepts the link.
-import { randomBytes, randomUUID } from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
 
+import { hashPassword } from 'better-auth/crypto';
 import postgres from 'postgres';
 
 const RESET_LINK_TTL_SECONDS = 60 * 60; // same as lib/auth/auth.ts
 const ALPHANUMERIC = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
 
-/** Better Auth's token shape: 24 alphanumeric characters. */
-function newToken(length = 24): string {
+/** 32 alphanumeric characters, like lib/auth/reset-token.ts. */
+function newToken(length = 32): string {
   let out = '';
   while (out.length < length) {
     for (const b of randomBytes(length * 2)) {
@@ -58,11 +59,19 @@ export async function resetOwner(
       if (!target) throw new Error(opts.email ? 'No user with that email' : 'No organization owner found');
 
       const token = newToken();
+      // Earlier links stop working, and so does the old password: only this link signs them in.
+      await tx`delete from auth.verification where value = ${target.id} and identifier like 'reset-password:%'`;
+      await tx`
+        update auth.account set password = ${await hashPassword(randomBytes(32).toString('base64url'))}
+        where user_id = ${target.id} and provider_id = 'credential'`;
       await tx`
         insert into auth.verification (id, identifier, value, expires_at)
         values (${randomUUID()}, ${`reset-password:${token}`}, ${target.id},
                 now() + make_interval(secs => ${RESET_LINK_TTL_SECONDS}))`;
       await tx`delete from auth.session where user_id = ${target.id}`;
+      // Same key as lib/auth/throttle.ts: a sign-in lockout must not outlive the reset.
+      const throttleKey = `signin-email|${createHash('sha256').update(target.email.toLowerCase()).digest('hex')}`;
+      await tx`delete from auth.rate_limit where key = ${throttleKey}`;
       // passwordResetBy stays null: the notice then names "an admin".
       await tx`update auth."user" set password_reset_at = now(), password_reset_by = null where id = ${target.id}`;
       if (opts.reset2fa) {

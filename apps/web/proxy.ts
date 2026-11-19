@@ -52,5 +52,6 @@ export function proxy(request: NextRequest) {
 
 export const config = {
   // Uploads stream large bodies and check the session themselves; static files need no check.
-  matcher: ['/((?!api/upload|_next/static|_next/image|favicon.ico|robots.txt).*)'],
+  // Anchored, so /api/upload-something or /robots.txtx still go through the check.
+  matcher: ['/((?!api/upload(?:/|$)|_next/static/|_next/image(?:/|$)|fonts/|favicon\\.ico$|robots\\.txt$).*)'],
 };

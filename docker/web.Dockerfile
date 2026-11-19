@@ -20,6 +20,7 @@ ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 HOSTNAME=0.0.0.0 PORT=3000 \
 # The node image's "node" user is UID/GID 1000, the same as the engine's user.
 COPY --from=build --chown=1000:1000 /repo/apps/web/.next/standalone ./
 COPY --from=build --chown=1000:1000 /repo/apps/web/.next/static ./apps/web/.next/static
+COPY --from=build --chown=1000:1000 /repo/apps/web/public ./apps/web/public
 COPY --from=build --chown=1000:1000 /repo/apps/web/dist/migrate.js /repo/apps/web/dist/reset-owner.js ./
 COPY --from=build --chown=1000:1000 /repo/apps/web/lib/db/migrations ./migrations
 COPY --from=build --chown=1000:1000 /repo/apps/web/ee/migrations ./ee-migrations

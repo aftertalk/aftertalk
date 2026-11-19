@@ -2,13 +2,15 @@
 
 import { useEffect } from 'react';
 
-// Same name as LAST_PROJECT_COOKIE in lib/landing.ts (server-only, so not importable here).
-const COOKIE = 'atLastProject';
+import { LAST_ORG_COOKIE, LAST_PROJECT_COOKIE } from '@/lib/last-used-cookies';
 
-/** Remembers the project being viewed, so `/` opens it next time (item 18b). */
-export function SetLastProject({ projectId }: { projectId: string }) {
+const YEAR = 60 * 60 * 24 * 365;
+
+/** Remembers the project (and its organisation) being viewed, so `/` opens it next time (item 18b). */
+export function SetLastProject({ projectId, organizationId }: { projectId: string; organizationId: string }) {
   useEffect(() => {
-    document.cookie = `${COOKIE}=${encodeURIComponent(projectId)}; path=/; max-age=${60 * 60 * 24 * 365}; SameSite=Lax`;
-  }, [projectId]);
+    document.cookie = `${LAST_PROJECT_COOKIE}=${encodeURIComponent(projectId)}; path=/; max-age=${YEAR}; SameSite=Lax`;
+    document.cookie = `${LAST_ORG_COOKIE}=${encodeURIComponent(organizationId)}; path=/; max-age=${YEAR}; SameSite=Lax`;
+  }, [projectId, organizationId]);
   return null;
 }

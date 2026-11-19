@@ -1,27 +1,29 @@
-// Item 18b: where `/` sends a signed-in user. The last project they opened (a cookie the project layout
-// sets), if they can still see it; otherwise the first project they can see, oldest organisation first.
+// Item 18b: where `/` sends a signed-in user. The organisation and project used last (preferLastUsed),
+// if they can still see them; otherwise the first, oldest organisation first.
 import 'server-only';
 
 import { and, asc, eq } from 'drizzle-orm';
-import { cookies } from 'next/headers';
 
-import { effectiveProjectRole } from '@/lib/access';
+import { effectiveProjectRole, type OrgRole, type ProjectRole } from '@/lib/access';
 import { db } from '@/lib/db/client';
 import { organizationMembers, organizations, projectMembers, projects } from '@/lib/db/schema/app';
+import { preferLastUsed } from '@/lib/utils/last-used';
 
-export const LAST_PROJECT_COOKIE = 'atLastProject';
-
-export type Landing = { kind: 'project'; projectId: string } | { kind: 'no-organization' } | { kind: 'no-project' };
+export type Landing =
+  | { kind: 'project'; projectId: string }
+  | { kind: 'no-organization' }
+  /** In an organisation, but no project they can see (none made yet, or all private). */
+  | { kind: 'no-project'; orgRole: OrgRole };
 
 export async function landingFor(userId: string): Promise<Landing> {
   const rows = await db
     .select({
+      organizationId: organizationMembers.organizationId,
+      orgRole: organizationMembers.role,
       projectId: projects.id,
       visibility: projects.visibility,
       defaultRole: projects.defaultRole,
-      orgRole: organizationMembers.role,
       memberRole: projectMembers.role,
-      organizationId: organizationMembers.organizationId,
     })
     .from(organizationMembers)
     .innerJoin(organizations, eq(organizations.id, organizationMembers.organizationId))
@@ -31,20 +33,23 @@ export async function landingFor(userId: string): Promise<Landing> {
     .orderBy(asc(organizations.createdAt), asc(projects.createdAt));
   if (rows.length === 0) return { kind: 'no-organization' };
 
-  const visible = rows
-    .filter(
-      (
-        r
-      ): r is typeof r & {
-        projectId: string;
-        visibility: 'ORG' | 'PRIVATE';
-        defaultRole: 'VIEWER' | 'EDITOR' | 'ADMIN';
-      } => !!r.projectId && !!r.visibility && !!r.defaultRole
-    )
-    .filter((r) => effectiveProjectRole(r) !== null)
-    .map((r) => r.projectId);
-  if (visible.length === 0) return { kind: 'no-project' };
+  const visible: { id: string; organizationId: string }[] = [];
+  for (const r of rows) {
+    if (!r.projectId || !r.visibility || !r.defaultRole) continue;
+    const role = effectiveProjectRole({
+      orgRole: r.orgRole,
+      memberRole: r.memberRole as ProjectRole | null,
+      visibility: r.visibility,
+      defaultRole: r.defaultRole,
+    });
+    if (role) visible.push({ id: r.projectId, organizationId: r.organizationId });
+  }
 
-  const last = (await cookies()).get(LAST_PROJECT_COOKIE)?.value;
-  return { kind: 'project', projectId: last && visible.includes(last) ? last : visible[0] };
+  const prefer = await preferLastUsed();
+  const orgs = [...new Map(rows.map((r) => [r.organizationId, { id: r.organizationId, role: r.orgRole }])).values()];
+  const org = prefer.org(orgs)!;
+  // Last-used project if still visible; else the first in the last-used organisation; else any.
+  const project = prefer.project(visible.filter((p) => p.organizationId === org.id)) ?? prefer.project(visible);
+  if (!project) return { kind: 'no-project', orgRole: org.role };
+  return { kind: 'project', projectId: project.id };
 }

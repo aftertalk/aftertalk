@@ -24,8 +24,10 @@ export async function ensureSetupToken(): Promise<string | null> {
     state.setupToken = null;
     return null;
   }
-  if (!state.setupToken) state.setupToken = randomBytes(18).toString('base64url');
-  // The token is meant for the operator's eyes in the log; it is not personal data.
+  if (state.setupToken) return state.setupToken;
+  state.setupToken = randomBytes(18).toString('base64url');
+  // Logged once per token (at start), so calling setupStatus cannot flood the log. The token is
+  // meant for the operator's eyes; it is not personal data.
   process.stdout.write(
     JSON.stringify({
       ts: new Date().toISOString(),

@@ -1,4 +1,4 @@
-import { getSessionUser } from '@/lib/access';
+import { getSessionUser, UnauthorizedError } from '@/lib/access';
 
 /**
  * The signed-in user's id, for server actions. Throws when signed out.
@@ -6,7 +6,7 @@ import { getSessionUser } from '@/lib/access';
  */
 export async function getSessionUserId(): Promise<string> {
   const user = await getSessionUser();
-  if (!user) throw new Error('Unauthorized');
+  if (!user) throw new UnauthorizedError();
   return user.id;
 }
 

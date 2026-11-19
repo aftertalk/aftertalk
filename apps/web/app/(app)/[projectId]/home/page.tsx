@@ -4,11 +4,12 @@ import { getTranslations } from 'next-intl/server';
 import { SignOutButton } from '@/components/auth/sign-out-button';
 import { Button } from '@/components/ui/button';
 import { i18n } from '@/i18n/constants';
-import { requireUser } from '@/lib/access';
+import { requireProjectPage } from '@/lib/page-access';
 
 // Phase 1 placeholder: proves sign-in, the project check and 2FA. The real home arrives in phase 2.
 export default async function HomePage({ params }: { params: Promise<{ projectId: string }> }) {
-  const [{ projectId }, user, t] = await Promise.all([params, requireUser(), getTranslations()]);
+  const { projectId } = await params;
+  const [{ user }, t] = await Promise.all([requireProjectPage(projectId), getTranslations()]);
   return (
     <main className="mx-auto flex max-w-lg flex-col gap-4 px-6 py-16">
       <h1 className="text-2xl">Aftertalk</h1>

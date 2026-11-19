@@ -1,11 +1,8 @@
-import { notFound, redirect } from 'next/navigation';
-
 import { SetLastProject } from '@/components/shared/set-last-project';
-import { requireProjectAccess, UnauthorizedError } from '@/lib/access';
-import { NotFoundError, TwoFactorRequiredError } from '@/lib/action/result';
+import { requireProjectPage } from '@/lib/page-access';
 
-// Every project page needs at least VIEWER (item 27). An organisation that requires 2FA sends a user
-// without it to set it up first (#64).
+// Every project page needs at least VIEWER (item 27). Each page repeats the check itself
+// (lib/page-access.ts says why); this layout only remembers the project for `/`.
 export default async function ProjectLayout({
   children,
   params,
@@ -14,20 +11,10 @@ export default async function ProjectLayout({
   params: Promise<{ projectId: string }>;
 }) {
   const { projectId } = await params;
-  if (!/^[0-9a-f-]{36}$/i.test(projectId)) notFound();
-  try {
-    await requireProjectAccess(projectId, 'VIEWER');
-  } catch (e) {
-    if (e instanceof UnauthorizedError) redirect('/login');
-    if (e instanceof TwoFactorRequiredError) {
-      redirect(`/setup-2fa?next=${encodeURIComponent(`/${projectId}/home`)}`);
-    }
-    if (e instanceof NotFoundError) notFound();
-    throw e;
-  }
+  const { organizationId } = await requireProjectPage(projectId);
   return (
     <>
-      <SetLastProject projectId={projectId} />
+      <SetLastProject projectId={projectId} organizationId={organizationId} />
       {children}
     </>
   );

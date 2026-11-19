@@ -1576,7 +1576,10 @@
   "noOrganization": {
     "title": "Nie należysz do żadnej organizacji",
     "description": "Poproś administratora organizacji o zaproszenie.",
-    "signOut": "Wyloguj się"
+    "signOut": "Wyloguj się",
+    "noProjectTitle": "Brak projektu do otwarcia",
+    "noProjectDescription": "W Twojej organizacji nie ma projektu, który możesz zobaczyć. Poproś administratora o dodanie do projektu.",
+    "noProjectAdmin": "Utwórz projekt w organizacji, aby zacząć."
   },
   "home": {
     "placeholder": "Strony projektu pojawią się w kolejnym etapie. Jesteś zalogowany jako {email}.",
