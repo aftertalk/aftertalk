@@ -21,6 +21,7 @@ export * from './speechConnectionAudioFormat';
 export * from './speechConnectionExtraHeaders';
 export * from './stepUsage';
 export * from './stepUsageOutputMode';
+export * from './stepUsageSpeechFormat';
 export * from './stepUsageTier';
 export * from './transcript';
 export * from './transcriptTiming';

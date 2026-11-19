@@ -46,6 +46,7 @@ class Word(BaseModel):
     text: str
     start: Seconds | None = None
     end: Seconds | None = None
+    probability: float | None = None
 
     @model_validator(mode="after")
     def _times(self) -> "Word":

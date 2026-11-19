@@ -7,13 +7,16 @@ block, so the result carries no `__cause__` or `__context__`.
 
 import json
 import math
+import time
+from collections.abc import Callable
+from datetime import UTC
+from email.utils import parsedate_to_datetime
 from typing import Any
 
 import httpx2
 
 from aftertalk.models.errors import EngineError, ErrorCode
 from aftertalk.models.usage import StepUsage
-from aftertalk.providers.net import BlockedAddressError
 
 MAX_RETRY_AFTER = 60.0
 
@@ -37,15 +40,22 @@ def error_codes(response: httpx2.Response) -> set[str]:
     return {str(error[key]).lower() for key in ("code", "type") if isinstance(error.get(key), str)}
 
 
-def retry_after(response: httpx2.Response) -> float | None:
-    """Seconds from `Retry-After` (a number of seconds), capped. None when absent or not a number."""
+def retry_after(response: httpx2.Response, now: Callable[[], float] = time.time) -> float | None:
+    """Seconds from `Retry-After` (a number of seconds or an HTTP date), capped. None when absent or unusable."""
     raw = response.headers.get("retry-after")
     if raw is None:
         return None
+    raw = raw.strip()
     try:
-        seconds = float(raw.strip())
+        seconds = float(raw)
     except ValueError:
-        return None
+        try:
+            when = parsedate_to_datetime(raw)
+        except (TypeError, ValueError, IndexError):
+            return None
+        if when.tzinfo is None:
+            when = when.replace(tzinfo=UTC)
+        seconds = when.timestamp() - now()
     return min(max(seconds, 0.0), MAX_RETRY_AFTER) if math.isfinite(seconds) else None
 
 
@@ -71,11 +81,3 @@ def status_code(response: httpx2.Response) -> ErrorCode | None:
 def response_error(response: httpx2.Response, usage: StepUsage | None = None) -> EngineError | None:
     code = status_code(response)
     return None if code is None else EngineError(code, usage)
-
-
-def transport_error(usage: StepUsage | None = None) -> EngineError:
-    """Connection failures, timeouts and the blocked-address guard are all `provider_unreachable`."""
-    return EngineError("provider_unreachable", usage)
-
-
-TRANSPORT_ERRORS = (httpx2.TransportError, BlockedAddressError, TimeoutError)

@@ -176,50 +176,80 @@ async def test_environment_never_reaches_the_wire(fake_speech: FakeSpeech, monke
     assert "sk-env-key" not in json.dumps(seen.headers) and "org-env" not in json.dumps(seen.headers)
 
 
-# ---- fallback to plain json ----
+# ---- the format ladder: all timestamps, segments only, plain json ----
 
 
-@pytest.mark.parametrize("param", [None, "response_format", "timestamp_granularities[]"])
-async def test_fallback_to_json_when_verbose_is_rejected(fake_speech: FakeSpeech, param: str | None) -> None:
+def formats(fake: FakeSpeech) -> list[tuple[list[str], bool]]:
+    return [(s.values("response_format"), bool(s.values("timestamp_granularities[]"))) for s in fake.seen]
+
+
+async def test_first_rung_is_used_when_the_server_accepts_it(fake_speech: FakeSpeech) -> None:
+    _, usage = await run(fake_speech)
+    assert usage.speech_format == "verbose_json" and len(fake_speech.seen) == 1
+
+
+async def test_granularities_rejected_goes_to_verbose_json_without_them(fake_speech: FakeSpeech) -> None:
+    fake_speech.reject_granularities = True
+    transcript, usage = await run(fake_speech)
+    assert formats(fake_speech) == [(["verbose_json"], True), (["verbose_json"], False)]
+    assert transcript.timing == "segment" and usage.speech_format == "verbose_json_segments"
+    assert usage.attempts == 2 and usage.requests == 2
+
+
+@pytest.mark.parametrize("param", ["response_format", "verbose_json"])
+async def test_response_format_rejected_goes_to_plain_json(fake_speech: FakeSpeech, param: str) -> None:
     fake_speech.reject_verbose = True
     fake_speech.reject_param = param
-    result = await OpenAICompatibleSpeechRun(fake_speech)
-    assert [s.values("response_format") for s in fake_speech.seen] == [["verbose_json"], ["json"]]
-    assert not fake_speech.seen[1].values("timestamp_granularities[]")
-    assert result.fallback is True
-    assert result.transcript.timing == "none" and result.transcript.text
-    assert result.usage.attempts == 2 and result.usage.requests == 2
+    transcript, usage = await run(fake_speech)
+    assert formats(fake_speech) == [(["verbose_json"], True), (["json"], False)]
+    assert transcript.timing == "none" and usage.speech_format == "json"
 
 
-async def OpenAICompatibleSpeechRun(fake: FakeSpeech):
-    async with make_client(block_private=False) as client:
-        provider = OpenAICompatibleSpeech(conn(fake), client, sleep=Waits())
-        return await provider.transcribe_detailed(audio(), language=None, prompt=None, deadline=None)
+async def test_all_three_rungs(fake_speech: FakeSpeech) -> None:
+    fake_speech.forced = [
+        Forced(400, error_body("x", param="timestamp_granularities[]")),
+        Forced(422, error_body("verbose_json is not supported")),
+    ]
+    transcript, usage = await run(fake_speech)
+    assert formats(fake_speech) == [(["verbose_json"], True), (["verbose_json"], False), (["json"], False)]
+    assert usage.speech_format == "json" and transcript.timing == "none"
 
 
-async def test_no_fallback_when_the_error_is_about_something_else(fake_speech: FakeSpeech) -> None:
-    fake_speech.reject_verbose = True
-    fake_speech.reject_param = "file"
+@pytest.mark.parametrize(
+    "body",
+    [
+        error_body("nope"),  # no param
+        error_body("nope", param="file"),
+        error_body("nope", param="model"),
+        "<html><body>Bad Request</body></html>",
+        json.dumps({"detail": "Unprocessable: response_format"}),  # FastAPI shape: not read
+        "",
+    ],
+)
+async def test_other_400s_stop_without_a_fallback(fake_speech: FakeSpeech, body: str) -> None:
+    fake_speech.always = Forced(400, body)
     err = await fails(fake_speech)
-    assert err.code == "provider_bad_response"
-    assert len(fake_speech.seen) == 1
+    assert err.code == "provider_bad_response" and len(fake_speech.seen) == 1
 
 
-async def test_no_fallback_on_other_statuses(fake_speech: FakeSpeech) -> None:
-    fake_speech.always = Forced(400, error_body("nope", param="model"))
-    assert (await fails(fake_speech)).code == "provider_bad_response"
-    assert len(fake_speech.seen) == 1
-
-
-async def test_fallback_that_also_fails_reports_the_failure(fake_speech: FakeSpeech) -> None:
-    fake_speech.forced = [Forced(400, error_body("x")), Forced(401, MARKER)]
+async def test_a_failing_last_rung_reports_its_error(fake_speech: FakeSpeech) -> None:
+    fake_speech.forced = [Forced(400, error_body("x", param="response_format")), Forced(401, MARKER)]
     err = await fails(fake_speech)
     assert err.code == "provider_auth"
-    assert err.usage is not None and err.usage.attempts == 2
+    assert err.usage is not None and err.usage.attempts == 2 and err.usage.speech_format == "json"
 
 
-async def test_normal_run_is_not_a_fallback(fake_speech: FakeSpeech) -> None:
-    assert (await OpenAICompatibleSpeechRun(fake_speech)).fallback is False
+async def test_retry_budget_is_shared_between_rungs(fake_speech: FakeSpeech) -> None:
+    fake_speech.forced = [
+        Forced(503, "x"),
+        Forced(400, error_body("x", param="timestamp_granularities")),
+        Forced(503, "x"),
+        Forced(503, "x"),
+    ]
+    waits = Waits()
+    err = await fails(fake_speech, waits=waits)
+    assert err.code == "provider_unreachable"
+    assert len(fake_speech.seen) == 4 and waits.calls == [2.0, 10.0]  # three failures in all, not three per rung
 
 
 # ---- retries ----

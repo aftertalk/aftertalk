@@ -425,6 +425,12 @@
             "title": "Audio Format",
             "type": "string"
           },
+          "max_upload_mb": {
+            "default": 25,
+            "exclusiveMinimum": 0,
+            "title": "Max Upload Mb",
+            "type": "integer"
+          },
           "extra_headers": {
             "additionalProperties": {
               "format": "password",
@@ -570,6 +576,23 @@
             "title": "Attempts",
             "type": "integer"
           },
+          "speech_format": {
+            "anyOf": [
+              {
+                "enum": [
+                  "verbose_json",
+                  "verbose_json_segments",
+                  "json"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Speech Format"
+          },
           "duration_ms": {
             "default": 0,
             "minimum": 0,
@@ -687,6 +710,18 @@
             ],
             "default": null,
             "title": "End"
+          },
+          "probability": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Probability"
           }
         },
         "required": [

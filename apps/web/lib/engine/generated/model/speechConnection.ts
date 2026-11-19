@@ -17,5 +17,7 @@ export interface SpeechConnection {
   /** @minLength 1 */
   model: string;
   audio_format?: SpeechConnectionAudioFormat;
+  /** @exclusiveMinimum 0 */
+  max_upload_mb?: number;
   extra_headers?: SpeechConnectionExtraHeaders;
 }

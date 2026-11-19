@@ -12,7 +12,7 @@ Only what the local fake server proves. `tests/fake_speech.py` imitates these re
 - OpenAI and Groq `verbose_json` (top-level `words` and `segments`), segments only, words without segments;
 - whisper.cpp (`words` nested in segments, with `probability`);
 - text-only `json`, and `languages[]` instead of `language` (gpt-transcribe);
-- a 400 for `verbose_json` followed by the plain `json` fallback;
+- the format ladder: a 400 naming `timestamp_granularities` (segments only) or `response_format` (plain `json`);
 - 429 with and without `Retry-After`, 5xx, 401, 403, 404, 413, a 200 that is not JSON, a redirect.
 
 Nothing below has been run against a real provider.
@@ -25,9 +25,9 @@ step) and did not send a request.
 | Provider | `base_url` | Model | Timestamps | Notes | Status |
 | --- | --- | --- | --- | --- | --- |
 | OpenAI | `https://api.openai.com/v1` | `whisper-1` | words and segments | OpenAI shuts `whisper-1` down on 2027-02-26. | From provider docs, not tested |
-| OpenAI | same | `gpt-4o-transcribe`, `gpt-transcribe` | none | Accept only `json` and return just `text` (gpt-transcribe returns `languages[]`); the fallback handles the 400. `gpt-4o-transcribe` shuts down on 2027-02-26. A text-only transcript cannot become subtitles. | From provider docs, not tested |
+| OpenAI | same | `gpt-4o-transcribe`, `gpt-transcribe` | none | Accept only `json` and return just `text` (gpt-transcribe returns `languages[]`); the format ladder handles the 400. `gpt-4o-transcribe` shuts down on 2027-02-26. A text-only transcript cannot become subtitles. | From provider docs, not tested |
 | Groq | `https://api.groq.com/openai/v1` | `whisper-large-v3`, `whisper-large-v3-turbo` | words and segments | 25 MB upload on the free tier, 100 MB on the dev tier (raise `max_upload_bytes`; no chunking until M2). | From provider docs, not tested |
-| Together | `https://api.together.xyz/v1` | Whisper models | words and segments (unconfirmed) | If it rejects the granularities the fallback gives text only. | From provider docs, not tested |
+| Together | `https://api.together.xyz/v1` | Whisper models | words and segments (unconfirmed) | If it rejects the granularities the ladder gives segments only, then text only. | From provider docs, not tested |
 | OpenRouter | `https://openrouter.ai/api/v1` | vendor-prefixed names | unconfirmed | Check that the model you pick offers transcription; use `providers test --kind speech`. | From provider docs, not tested |
 | Speaches | `http://localhost:8000/v1` | `Systran/faster-whisper-...` | words and segments | Answers 400 when granularities are sent without `verbose_json`; the adapter always sends both together. | From provider docs, not tested |
 | whisper.cpp server | `http://localhost:8080/v1` | any (ignored) | words nested in segments | Start it with `--inference-path /v1/audio/transcriptions`. Without `--convert` it reads WAV only: set `audio_format: wav`. | From provider docs, not tested |
@@ -77,3 +77,9 @@ curl -s https://api.groq.com/openai/v1/audio/transcriptions \
 
 Compare `timing`, the number of words per segment and the word text in the JSON output with the raw response, and
 update the table above.
+
+## Known limits (M1)
+
+- Audio is always mixed down to mono and only the first audio stream is read. Two-channel calls (one speaker per
+  channel) and files with several audio tracks are handled in M2.
+- No chunking: audio over `max_upload_mb` fails with `audio_too_long`.

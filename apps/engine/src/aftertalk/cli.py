@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import os
 import time
 from collections.abc import Coroutine
 from enum import StrEnum
@@ -142,7 +143,9 @@ async def _probe_speech(conn: Any, block_private: bool) -> tuple[int, str]:
 
     started = time.monotonic()
     with resources.as_file(resources.files("aftertalk") / "assets" / "test-2s.wav") as clip:
-        with encode_for_speech(clip, fmt=conn.audio_format) as audio:
+        with await asyncio.to_thread(
+            encode_for_speech, clip, fmt=conn.audio_format, max_bytes=conn.max_upload_mb * 1024 * 1024
+        ) as audio:
             async with open_speech(conn, block_private=block_private) as provider:
                 transcript, _ = await provider.transcribe(audio, language=None, prompt=None, deadline=None)
     return int((time.monotonic() - started) * 1000), transcript.timing
@@ -235,11 +238,21 @@ def providers_test(
         typer.echo(f"ok: llm {tier} answered in {latency_ms} ms (output mode: {mode})")
 
 
-async def _transcribe(conn: Any, audio: Any, language: str | None, prompt: str | None, block_private: bool) -> Any:
+async def _transcribe(
+    conn: Any, path: Path, language: str | None, prompt: str | None, block_private: bool
+) -> tuple[Any, Any]:
+    from aftertalk.audio.encode import encode_for_speech
     from aftertalk.providers.speech.openai_compatible import open_speech
 
-    async with open_speech(conn, block_private=block_private) as provider:
-        return await provider.transcribe_detailed(audio, language=language, prompt=prompt, deadline=None)
+    typer.echo("decoding audio", err=True)
+    audio = await asyncio.to_thread(
+        encode_for_speech, path, fmt=conn.audio_format, max_bytes=conn.max_upload_mb * 1024 * 1024
+    )
+    with audio:
+        typer.echo(f"uploading {audio.size_bytes / 1_000_000:.1f} MB ({audio.duration_seconds:.0f} s)", err=True)
+        typer.echo("transcribing", err=True)
+        async with open_speech(conn, block_private=block_private) as provider:
+            return await provider.transcribe(audio, language=language, prompt=prompt, deadline=None)
 
 
 @app.command()
@@ -262,21 +275,22 @@ def transcribe(
 
     Progress goes to stderr. `--format json` writes {"transcript": ..., "usage": ...}.
     """
-    from aftertalk.audio.encode import encode_for_speech
     from aftertalk.models.errors import EngineError
+    from aftertalk.providers.speech.languages import normalize_language
     from aftertalk.render import RenderError, render_srt, render_text, render_vtt
     from aftertalk.settings import get_cli_settings
 
     as_json = bool((ctx.obj or {}).get("json"))
+    if language is not None and normalize_language(language) is None:
+        typer.echo(f"unknown language {language!r}; use a code such as pl or en, or a name such as polish", err=True)
+        raise typer.Exit(2)
     conn = _speech_connection(connections)
     failure: EngineError | None = None
     result: Any = None
     try:
-        typer.echo("decoding audio", err=True)
-        with encode_for_speech(audio_file, fmt=conn.audio_format) as audio:
-            typer.echo(f"uploading {audio.size_bytes / 1_000_000:.1f} MB ({audio.duration_seconds:.0f} s)", err=True)
-            typer.echo("transcribing", err=True)
-            result = asyncio.run(_transcribe(conn, audio, language, prompt, get_cli_settings().block_private_addresses))
+        result = asyncio.run(
+            _transcribe(conn, audio_file, language, prompt, get_cli_settings().block_private_addresses)
+        )
     except Exception as exc:
         failure = _failure(exc)
     if failure is not None:
@@ -286,9 +300,12 @@ def transcribe(
         else:
             typer.echo(f"failed: {failure}", err=True)
         raise typer.Exit(1)
-    if result.fallback:
-        typer.echo("the provider rejected timestamps, so this transcript has none", err=True)
-    transcript = result.transcript
+    transcript, usage = result
+    if usage.speech_format != "verbose_json":
+        typer.echo(
+            f"the provider did not accept word timestamps (used {usage.speech_format}); timestamps are limited",
+            err=True,
+        )
     text: str | None = None
     problem: str | None = None
     try:
@@ -296,7 +313,7 @@ def transcribe(
             case OutputFormat.json:
                 payload = {
                     "transcript": transcript.model_dump(mode="json"),
-                    "usage": result.usage.model_dump(mode="json"),
+                    "usage": usage.model_dump(mode="json"),
                 }
                 text = json.dumps(payload, indent=2, ensure_ascii=False) + "\n"
             case OutputFormat.text:
@@ -314,7 +331,9 @@ def transcribe(
         typer.echo(text, nl=False)
         return
     try:
-        output.write_text(text, encoding="utf-8")
+        # Created private (0600): a transcript is personal data. An existing file keeps its permissions.
+        with os.fdopen(os.open(output, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600), "w", encoding="utf-8") as handle:
+            handle.write(text)
     except OSError as exc:
         typer.echo(f"cannot write {output}: {exc.strerror}", err=True)
         raise typer.Exit(1)
