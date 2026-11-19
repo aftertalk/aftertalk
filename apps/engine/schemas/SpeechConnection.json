@@ -1,0 +1,53 @@
+{
+  "additionalProperties": false,
+  "description": "A speech-to-text endpoint (OpenAI-compatible transcription API).",
+  "properties": {
+    "adapter": {
+      "const": "openai-compatible",
+      "default": "openai-compatible",
+      "title": "Adapter",
+      "type": "string"
+    },
+    "base_url": {
+      "format": "uri",
+      "maxLength": 2083,
+      "minLength": 1,
+      "title": "Base Url",
+      "type": "string"
+    },
+    "api_key": {
+      "anyOf": [
+        {
+          "format": "password",
+          "type": "string",
+          "writeOnly": true
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Api Key"
+    },
+    "model": {
+      "minLength": 1,
+      "title": "Model",
+      "type": "string"
+    },
+    "audio_format": {
+      "default": "flac",
+      "enum": [
+        "flac",
+        "wav"
+      ],
+      "title": "Audio Format",
+      "type": "string"
+    }
+  },
+  "required": [
+    "base_url",
+    "model"
+  ],
+  "title": "SpeechConnection",
+  "type": "object"
+}

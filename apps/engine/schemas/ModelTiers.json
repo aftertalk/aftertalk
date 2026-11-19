@@ -1,0 +1,158 @@
+{
+  "$defs": {
+    "LLMConnection": {
+      "additionalProperties": false,
+      "description": "One LLM endpoint. `api_key` None means a keyless own server.",
+      "properties": {
+        "adapter": {
+          "enum": [
+            "openai-compatible",
+            "anthropic",
+            "google"
+          ],
+          "title": "Adapter",
+          "type": "string"
+        },
+        "preset": {
+          "anyOf": [
+            {
+              "enum": [
+                "openai",
+                "ollama",
+                "vllm",
+                "openrouter",
+                "groq",
+                "azure",
+                "litellm"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Preset"
+        },
+        "base_url": {
+          "anyOf": [
+            {
+              "format": "uri",
+              "maxLength": 2083,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Base Url"
+        },
+        "api_key": {
+          "anyOf": [
+            {
+              "format": "password",
+              "type": "string",
+              "writeOnly": true
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Api Key"
+        },
+        "model": {
+          "minLength": 1,
+          "title": "Model",
+          "type": "string"
+        },
+        "api_version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Api Version"
+        },
+        "extra_headers": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {},
+          "title": "Extra Headers",
+          "type": "object"
+        },
+        "output_mode": {
+          "default": "auto",
+          "enum": [
+            "auto",
+            "tool",
+            "native",
+            "prompted"
+          ],
+          "title": "Output Mode",
+          "type": "string"
+        },
+        "context_window": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Context Window"
+        }
+      },
+      "required": [
+        "adapter",
+        "model"
+      ],
+      "title": "LLMConnection",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "LLM connections by tier; unset tiers fall back to `default`.",
+  "properties": {
+    "default": {
+      "$ref": "#/$defs/LLMConnection"
+    },
+    "fast": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/LLMConnection"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "smart": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/LLMConnection"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    }
+  },
+  "required": [
+    "default"
+  ],
+  "title": "ModelTiers",
+  "type": "object"
+}

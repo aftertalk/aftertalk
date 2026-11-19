@@ -49,6 +49,8 @@ Each folder's README says what goes in it and which spec items describe it.
 - **Contract changes**: edit `api/contract.py`, run
   `uv run --project apps/engine python apps/engine/scripts/export_openapi.py`,
   commit `openapi.json` in the same PR. CI fails if they differ.
+- **Model changes**: edit `models/`, run `uv run --project apps/engine python apps/engine/scripts/export_schemas.py`,
+  commit `schemas/` in the same PR.
 - **Logging**: only through `aftertalk.logging.log`, which accepts only
   `job_id`, `call_id`, `project_id`, `user_id`, `attempt`, `step`,
   `error_code`, `duration_ms`. Never log provider responses, transcript text

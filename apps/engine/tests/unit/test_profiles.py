@@ -1,0 +1,107 @@
+from pathlib import Path
+
+import pytest
+
+from aftertalk.config.profiles import Profile, ProfileError, default_path, load_profile
+
+SECRET = "gsk_topsecretvalue"
+
+YAML = """
+llm:
+  default:
+    adapter: openai-compatible
+    preset: groq
+    base_url: https://api.groq.com/openai/v1
+    api_key: ${GROQ_API_KEY}
+    model: llama
+speech:
+  base_url: https://api.groq.com/openai/v1
+  api_key: ${GROQ_API_KEY}
+  model: whisper-large-v3
+"""
+
+
+def write(tmp_path: Path, text: str) -> Path:
+    p = tmp_path / "connections.yaml"
+    p.write_text(text, encoding="utf-8")
+    return p
+
+
+def test_loads_and_interpolates(tmp_path: Path) -> None:
+    prof = load_profile(write(tmp_path, YAML), env={"GROQ_API_KEY": SECRET})
+    assert prof.llm.default.api_key.get_secret_value() == SECRET
+    assert prof.speech.api_key.get_secret_value() == SECRET
+    assert SECRET not in repr(prof)
+
+
+def test_embedded_and_escape(tmp_path: Path) -> None:
+    text = """
+llm:
+  default:
+    adapter: anthropic
+    model: pre-${M}-post
+    extra_headers: {X-Lit: "$${NOT_A_VAR}"}
+"""
+    prof = load_profile(write(tmp_path, text), env={"M": "mid"})
+    assert prof.llm.default.model == "pre-mid-post"
+    assert prof.llm.default.extra_headers == {"X-Lit": "${NOT_A_VAR}"}
+
+
+def test_missing_var_names_var_and_path(tmp_path: Path) -> None:
+    with pytest.raises(ProfileError) as e:
+        load_profile(write(tmp_path, YAML), env={})
+    msg = str(e.value)
+    assert "GROQ_API_KEY" in msg and "llm.default.api_key" in msg
+
+
+def test_validation_error_has_no_secret(tmp_path: Path) -> None:
+    text = f"""
+llm:
+  default:
+    adapter: openai-compatible
+    api_key: {SECRET}
+    base_url: not a url
+    model: m
+    bogus: {SECRET}
+"""
+    with pytest.raises(ProfileError) as e:
+        load_profile(write(tmp_path, text), env={})
+    msg = str(e.value)
+    assert SECRET not in msg
+    assert "llm.default" in msg
+
+
+def test_bad_key_neighbour_no_secret(tmp_path: Path) -> None:
+    text = f"""
+speech:
+  base_url: https://x.test/v1/chat/completions
+  api_key: {SECRET}
+  model: m
+"""
+    with pytest.raises(ProfileError) as e:
+        load_profile(write(tmp_path, text), env={})
+    assert SECRET not in str(e.value) and "speech.base_url" in str(e.value)
+
+
+def test_invalid_yaml(tmp_path: Path) -> None:
+    with pytest.raises(ProfileError):
+        load_profile(write(tmp_path, "a: [unclosed"), env={})
+    with pytest.raises(ProfileError):
+        load_profile(write(tmp_path, "- just\n- a list\n"), env={})
+
+
+def test_missing_file_is_empty(tmp_path: Path) -> None:
+    assert load_profile(tmp_path / "nope.yaml", env={}) == Profile()
+
+
+def test_empty_file_is_empty(tmp_path: Path) -> None:
+    assert load_profile(write(tmp_path, ""), env={}) == Profile()
+
+
+def test_aftertalk_home(tmp_path: Path) -> None:
+    (tmp_path / "connections.yaml").write_text("speech: {base_url: 'http://w:8000/v1', model: m}\n")
+    assert default_path({"AFTERTALK_HOME": str(tmp_path)}) == tmp_path / "connections.yaml"
+    prof = load_profile(env={"AFTERTALK_HOME": str(tmp_path)})
+    assert prof.speech.model == "m"
+    assert default_path({"HOME": "/h"}).name == "connections.yaml"
+    assert default_path({}).parent.name == ".aftertalk"
