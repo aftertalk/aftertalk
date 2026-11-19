@@ -44,7 +44,7 @@ llm:
 """
     prof = load_profile(write(tmp_path, text), env={"M": "mid"})
     assert prof.llm.default.model == "pre-mid-post"
-    assert prof.llm.default.extra_headers == {"X-Lit": "${NOT_A_VAR}"}
+    assert prof.llm.default.extra_headers["X-Lit"].get_secret_value() == "${NOT_A_VAR}"
 
 
 def test_missing_var_names_var_and_path(tmp_path: Path) -> None:
@@ -105,3 +105,29 @@ def test_aftertalk_home(tmp_path: Path) -> None:
     assert prof.speech.model == "m"
     assert default_path({"HOME": "/h"}).name == "connections.yaml"
     assert default_path({}).parent.name == ".aftertalk"
+
+
+def test_invalid_reference_no_echo(tmp_path: Path) -> None:
+    text = "llm:\n  default: {adapter: anthropic, model: 'a-${bad name!}'}\n"
+    with pytest.raises(ProfileError) as e:
+        load_profile(write(tmp_path, text), env={})
+    assert "llm.default.model" in str(e.value) and "bad name" not in str(e.value) and "${NAME}" in str(e.value)
+
+
+def test_not_utf8(tmp_path: Path) -> None:
+    p = tmp_path / "connections.yaml"
+    p.write_bytes(b"llm: \xff\xfe\x00")
+    with pytest.raises(ProfileError, match="not UTF-8"):
+        load_profile(p, env={})
+
+
+def test_empty_interpolated_key_names_path(tmp_path: Path) -> None:
+    with pytest.raises(ProfileError) as e:
+        load_profile(write(tmp_path, YAML), env={"GROQ_API_KEY": ""})
+    assert "llm.default.api_key" in str(e.value) and "api_key is empty" in str(e.value)
+
+
+def test_azure_profile_needs_version(tmp_path: Path) -> None:
+    text = "llm:\n  default: {adapter: openai-compatible, preset: azure, base_url: 'https://a.test/openai', model: m}\n"
+    with pytest.raises(ProfileError, match="api_version"):
+        load_profile(write(tmp_path, text), env={})

@@ -34,3 +34,29 @@ def test_times_ordered_and_non_negative() -> None:
         Segment(text="x", start=-1, end=1)
     with pytest.raises(ValidationError):
         Word(text="x", start=3, end=2)
+
+
+def test_nan_inf_rejected() -> None:
+    for bad in (float("nan"), float("inf")):
+        with pytest.raises(ValidationError):
+            Word(text="x", start=0, end=bad)
+        with pytest.raises(ValidationError):
+            Transcript(text="", timing="none", duration_seconds=bad)
+    with pytest.raises(ValidationError):
+        Transcript(text="", timing="none", duration_seconds=-1)
+
+
+def test_word_timing_requires_segment_times_and_words() -> None:
+    with pytest.raises(ValidationError):
+        Transcript(text="hi", timing="word", segments=[Segment(text="hi", words=[Word(text="hi", start=0, end=1)])])
+    with pytest.raises(ValidationError):
+        Transcript(text="hi", timing="word", segments=[Segment(text="hi", start=0, end=1)])
+    Transcript(text="", timing="word", segments=[Segment(text=" ", start=0, end=1)])
+
+
+def test_text_requires_segments_unless_none() -> None:
+    for timing in ("word", "segment"):
+        with pytest.raises(ValidationError):
+            Transcript(text="hello", timing=timing)
+    Transcript(text="hello", timing="none")
+    Transcript(text="  ", timing="segment")

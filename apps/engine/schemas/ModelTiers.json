@@ -38,8 +38,6 @@
           "anyOf": [
             {
               "format": "uri",
-              "maxLength": 2083,
-              "minLength": 1,
               "type": "string"
             },
             {
@@ -82,7 +80,9 @@
         },
         "extra_headers": {
           "additionalProperties": {
-            "type": "string"
+            "format": "password",
+            "type": "string",
+            "writeOnly": true
           },
           "default": {},
           "title": "Extra Headers",
@@ -154,5 +154,6 @@
     "default"
   ],
   "title": "ModelTiers",
-  "type": "object"
+  "type": "object",
+  "x-aftertalk-schema-version": 1
 }

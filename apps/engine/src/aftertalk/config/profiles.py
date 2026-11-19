@@ -17,13 +17,13 @@ class ProfileError(Exception):
 
 
 class Profile(BaseModel):
-    model_config = ConfigDict(extra="forbid", frozen=True)
+    model_config = ConfigDict(extra="forbid", frozen=True, hide_input_in_errors=True)
 
     llm: ModelTiers | None = None
     speech: SpeechConnection | None = None
 
 
-_VAR = re.compile(r"\$\$\{|\$\{([^}]*)\}")
+_VAR = re.compile(r"\$\$\{|\$\{([A-Za-z_][A-Za-z0-9_]*)\}|\$\{")
 
 
 def default_path(env: Mapping[str, str] | None = None) -> Path:
@@ -38,6 +38,8 @@ def _interpolate_string(text: str, env: Mapping[str, str], where: str) -> str:
         if match.group(0) == "$${":
             return "${"
         name = match.group(1)
+        if name is None:
+            raise ProfileError(f"invalid variable reference at {where}; use ${{NAME}}")
         if name not in env:
             raise ProfileError(f"environment variable {name} (used at {where}) is not set")
         return env[name]
@@ -62,6 +64,8 @@ def load_profile(path: Path | None = None, env: Mapping[str, str] | None = None)
         text = path.read_text(encoding="utf-8")
     except FileNotFoundError:
         return Profile()
+    except UnicodeDecodeError:
+        raise ProfileError(f"{path} is not UTF-8 text") from None
     except OSError as exc:
         raise ProfileError(f"cannot read {path}: {exc.strerror}") from None
     try:

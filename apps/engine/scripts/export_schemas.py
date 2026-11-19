@@ -13,13 +13,19 @@ from aftertalk.models import JobLimits, LLMConnection, ModelTiers, SpeechConnect
 OUT = Path(__file__).resolve().parent.parent / "schemas"
 
 MODELS = [LLMConnection, SpeechConnection, ModelTiers, StepUsage, JobLimits, Transcript, Profile]
+# Models the engine produces are exported as they serialize; the rest as they validate.
+OUTPUTS = {StepUsage, Transcript}
+SCHEMA_VERSION = 1
+
+
+def _schema(model: type) -> dict:
+    mode = "serialization" if model in OUTPUTS else "validation"
+    return {**model.model_json_schema(mode=mode), "x-aftertalk-schema-version": SCHEMA_VERSION}
 
 
 def render() -> dict[str, str]:
     return {
-        f"{model.__name__}.json": json.dumps(model.model_json_schema(mode="validation"), indent=2, ensure_ascii=False)
-        + "\n"
-        for model in MODELS
+        f"{model.__name__}.json": json.dumps(_schema(model), indent=2, ensure_ascii=False) + "\n" for model in MODELS
     }
 
 

@@ -10,8 +10,6 @@
     },
     "base_url": {
       "format": "uri",
-      "maxLength": 2083,
-      "minLength": 1,
       "title": "Base Url",
       "type": "string"
     },
@@ -49,5 +47,6 @@
     "model"
   ],
   "title": "SpeechConnection",
-  "type": "object"
+  "type": "object",
+  "x-aftertalk-schema-version": 1
 }

@@ -23,7 +23,7 @@ def _profile_home(tmp_path, text: str) -> dict[str, str]:
 
 GOOD = """
 llm:
-  default: {adapter: anthropic, model: m, api_key: "${K}"}
+  default: {adapter: anthropic, model: m, api_key: "${K}", extra_headers: {X-Org: org-secret}}
 speech: {base_url: "http://w:8000/v1", model: w}
 """
 
@@ -46,6 +46,8 @@ def test_config_show_json_masks(tmp_path) -> None:
     data = json.loads(result.stdout)
     assert data["llm"]["default"]["api_key"] == "***"
     assert data["speech"]["api_key"] is None
+    assert data["llm"]["default"]["extra_headers"]["X-Org"] == "***"
+    assert "org-secret" not in result.output
     assert "sk-cli-secret" not in result.output
 
 
@@ -54,3 +56,11 @@ def test_config_show_bad_file_exits_2(tmp_path) -> None:
     result = CliRunner().invoke(app, ["config", "show"], env=env)
     assert result.exit_code == 2
     assert result.output.strip()
+
+
+def test_serve_default_host_is_loopback() -> None:
+    import inspect
+
+    from aftertalk.cli import serve
+
+    assert inspect.signature(serve).parameters["host"].default == "127.0.0.1"

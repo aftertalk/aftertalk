@@ -18,6 +18,18 @@
       "default": null,
       "title": "Provider"
     },
+    "connection": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Connection"
+    },
     "model": {
       "anyOf": [
         {
@@ -46,6 +58,23 @@
       ],
       "default": null,
       "title": "Tier"
+    },
+    "output_mode": {
+      "anyOf": [
+        {
+          "enum": [
+            "tool",
+            "native",
+            "prompted"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Output Mode"
     },
     "input_tokens": {
       "default": 0,
@@ -105,10 +134,8 @@
     "cost_usd": {
       "anyOf": [
         {
+          "minimum": 0,
           "type": "number"
-        },
-        {
-          "type": "string"
         },
         {
           "type": "null"
@@ -122,5 +149,6 @@
     "step"
   ],
   "title": "StepUsage",
-  "type": "object"
+  "type": "object",
+  "x-aftertalk-schema-version": 1
 }

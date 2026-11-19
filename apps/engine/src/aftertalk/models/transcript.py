@@ -1,15 +1,17 @@
 """Transcript model (what M1 needs)."""
 
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 TimingLevel = Literal["word", "segment", "none"]
 
-_CONFIG = ConfigDict(extra="forbid", frozen=True)
+_CONFIG = ConfigDict(extra="forbid", frozen=True, hide_input_in_errors=True)
+
+Seconds = Annotated[float, Field(ge=0, allow_inf_nan=False)]
 
 
-def _check_times(start: float | None, end: float | None) -> None:
+def _check_times(start: Seconds | None, end: Seconds | None) -> None:
     if start is not None and start < 0:
         raise ValueError("start must be >= 0")
     if end is not None and end < 0:
@@ -22,8 +24,8 @@ class Word(BaseModel):
     model_config = _CONFIG
 
     text: str
-    start: float | None = None
-    end: float | None = None
+    start: Seconds | None = None
+    end: Seconds | None = None
 
     @model_validator(mode="after")
     def _times(self) -> "Word":
@@ -35,8 +37,8 @@ class Segment(BaseModel):
     model_config = _CONFIG
 
     text: str
-    start: float | None = None
-    end: float | None = None
+    start: Seconds | None = None
+    end: Seconds | None = None
     words: list[Word] = []
     avg_logprob: float | None = None
     compression_ratio: float | None = None
@@ -49,21 +51,28 @@ class Segment(BaseModel):
 
 
 class Transcript(BaseModel):
+    """A transcript. The adapter sets `timing` from what the provider actually returned."""
+
     model_config = _CONFIG
 
     text: str
     language: str | None = None
-    duration_seconds: float | None = None
+    duration_seconds: Seconds | None = None
     timing: TimingLevel
     segments: list[Segment] = []
 
     @model_validator(mode="after")
     def _timing(self) -> "Transcript":
+        if self.timing == "none":
+            return self
+        if self.text.strip() and not self.segments:
+            raise ValueError(f"timing {self.timing!r} requires at least one segment when text is not blank")
+        if any(seg.start is None or seg.end is None for seg in self.segments):
+            raise ValueError(f"timing {self.timing!r} requires start and end on every segment")
         if self.timing == "word":
             for seg in self.segments:
+                if seg.text.strip() and not seg.words:
+                    raise ValueError("timing 'word' requires words on every segment with text")
                 if any(w.start is None or w.end is None for w in seg.words):
                     raise ValueError("timing 'word' requires start and end on every word")
-        elif self.timing == "segment":
-            if any(seg.start is None or seg.end is None for seg in self.segments):
-                raise ValueError("timing 'segment' requires start and end on every segment")
         return self
