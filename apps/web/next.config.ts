@@ -1,4 +1,5 @@
 import { NextConfig } from 'next';
+import createNextIntlPlugin from 'next-intl/plugin';
 
 import eeRoutes from './ee/routes';
 
@@ -39,5 +40,5 @@ const nextConfig: NextConfig = {
   },
 };
 
-// next-intl's plugin is added with i18n/request.ts in phase 1.
-export default nextConfig;
+const withNextIntl = createNextIntlPlugin();
+export default withNextIntl(nextConfig);

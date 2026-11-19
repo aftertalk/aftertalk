@@ -11,4 +11,4 @@ RUN --mount=type=cache,target=/root/.cache/uv uv sync --frozen --no-dev
 RUN groupadd -g 1000 aftertalk && useradd -u 1000 -g 1000 -M aftertalk && mkdir -p /data && chown 1000:1000 /data
 USER 1000:1000
 EXPOSE 8000
-CMD ["/opt/venv/bin/uvicorn", "aftertalk_engine.api.app:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["/opt/venv/bin/python", "-m", "aftertalk_engine"]
