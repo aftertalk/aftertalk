@@ -5,6 +5,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { SpeechConnectionAudioFormat } from './speechConnectionAudioFormat';
+import type { SpeechConnectionExtraHeaders } from './speechConnectionExtraHeaders';
 
 /**
  * A speech-to-text endpoint (OpenAI-compatible transcription API).
@@ -16,4 +17,7 @@ export interface SpeechConnection {
   /** @minLength 1 */
   model: string;
   audio_format?: SpeechConnectionAudioFormat;
+  /** @exclusiveMinimum 0 */
+  max_upload_mb?: number;
+  extra_headers?: SpeechConnectionExtraHeaders;
 }

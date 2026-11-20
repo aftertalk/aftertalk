@@ -45,6 +45,9 @@
               "provider_output_invalid",
               "provider_refused",
               "provider_config_invalid",
+              "audio_unreadable",
+              "audio_too_long",
+              "language_not_allowed",
               "limit_exceeded",
               "internal"
             ],
@@ -416,6 +419,22 @@
             ],
             "title": "Audio Format",
             "type": "string"
+          },
+          "max_upload_mb": {
+            "default": 25,
+            "exclusiveMinimum": 0,
+            "title": "Max Upload Mb",
+            "type": "integer"
+          },
+          "extra_headers": {
+            "additionalProperties": {
+              "format": "password",
+              "type": "string",
+              "writeOnly": true
+            },
+            "default": {},
+            "title": "Extra Headers",
+            "type": "object"
           }
         },
         "required": [
@@ -552,6 +571,23 @@
             "title": "Attempts",
             "type": "integer"
           },
+          "speech_format": {
+            "anyOf": [
+              {
+                "enum": [
+                  "verbose_json",
+                  "verbose_json_segments",
+                  "json"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Speech Format"
+          },
           "duration_ms": {
             "default": 0,
             "minimum": 0,
@@ -580,7 +616,7 @@
       },
       "Transcript": {
         "additionalProperties": false,
-        "description": "A transcript. The adapter sets `timing` from what the provider actually returned.",
+        "description": "A transcript. The adapter sets `timing` from what the provider actually returned.\n\n`timing` is the level the transcript can be relied on for. `segment`: at least 90% of the segments with text have a\nstart and end. `word`: that too, and at least 90% of those segments have timed words. A segment that has no usable\ntime keeps its text and has `start` and `end` both `None`: times are never estimated, so a consumer must treat\n`None` as \"no playback for this segment\". Words are kept wherever the provider gave them and always have times.\n`none` is text only (or too few segment times to use).",
         "properties": {
           "text": {
             "title": "Text",
@@ -668,6 +704,18 @@
             ],
             "default": null,
             "title": "End"
+          },
+          "probability": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Probability"
           }
         },
         "required": [

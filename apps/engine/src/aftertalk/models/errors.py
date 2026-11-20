@@ -17,6 +17,9 @@ ErrorCode = Literal[
     "provider_output_invalid",
     "provider_refused",
     "provider_config_invalid",
+    "audio_unreadable",
+    "audio_too_long",
+    "language_not_allowed",
     "limit_exceeded",
     "internal",
 ]
@@ -32,6 +35,9 @@ _SENTENCES: dict[ErrorCode, str] = {
     "provider_output_invalid": "The model did not produce output in the requested format.",
     "provider_refused": "The provider refused to answer this request.",
     "provider_config_invalid": "The connection settings are not valid for this provider.",
+    "audio_unreadable": "The file could not be read as audio, or it has no audio stream.",
+    "audio_too_long": "The audio is larger than the provider accepts in one upload.",
+    "language_not_allowed": "The spoken language is not one of the allowed languages.",
     "limit_exceeded": "A limit set for this job was reached.",
     "internal": "An internal error occurred.",
 }

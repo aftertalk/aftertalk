@@ -5,6 +5,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { StepUsageOutputMode } from './stepUsageOutputMode';
+import type { StepUsageSpeechFormat } from './stepUsageSpeechFormat';
 import type { StepUsageTier } from './stepUsageTier';
 
 /**
@@ -30,6 +31,7 @@ export interface StepUsage {
   audio_seconds?: number | null;
   /** @minimum 0 */
   attempts?: number;
+  speech_format?: StepUsageSpeechFormat;
   /** @minimum 0 */
   duration_ms?: number;
   cost_usd?: number | null;

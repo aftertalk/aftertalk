@@ -17,6 +17,7 @@ import httpx2
 from pydantic_ai.models import create_async_httpx2_client
 
 from aftertalk.logging import log
+from aftertalk.models.errors import EngineError
 
 Resolver = Callable[[str, int], Awaitable[list[str]]]
 
@@ -137,13 +138,27 @@ def make_client(
     connect_timeout: float = 5,
     resolver: Resolver | None = None,
     inner: httpx2.AsyncBaseTransport | None = None,
+    proxy: str | None = None,
 ) -> httpx2.AsyncClient:
-    """A client for provider calls. `resolver` and `inner` exist for tests."""
-    transport: httpx2.AsyncBaseTransport | None = inner
-    if block_private:
-        transport = _GuardedTransport(
-            inner or httpx2.AsyncHTTPTransport(limits=_LIMITS), resolver or _resolve, connect_timeout
+    """A client for provider calls. `resolver` and `inner` exist for tests.
+
+    The environment is never trusted: `HTTP_PROXY`, `ALL_PROXY`, `.netrc` and `SSL_CERT_FILE` are ignored. The only
+    proxy is the explicit `proxy` (setting `PROVIDER_PROXY`), and it is refused together with the private-address
+    guard, because a proxy would resolve and connect to the host itself and so get around the guard.
+    """
+    if block_private and proxy:
+        log(
+            "error",
+            "a provider proxy cannot be used with BLOCK_PRIVATE_ADDRESSES",
+            error_code="provider_config_invalid",
         )
+        raise EngineError("provider_config_invalid")
+    transport: httpx2.AsyncBaseTransport | None = inner
+    if transport is None:
+        transport = httpx2.AsyncHTTPTransport(limits=_LIMITS, trust_env=False, proxy=proxy)
+    if block_private:
+        transport = _GuardedTransport(transport, resolver or _resolve, connect_timeout)
     client = create_async_httpx2_client(timeout=httpx2.Timeout(timeout, connect=connect_timeout), transport=transport)
+    client._trust_env = False  # no netrc credentials from the environment either
     client.follow_redirects = False
     return client
