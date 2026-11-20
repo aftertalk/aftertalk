@@ -26,7 +26,7 @@ Or the whole stack: `docker compose -f docker-compose.dev.yml up -d --build`.
 ```
 src/aftertalk/
   cli.py       the `aftertalk` command (Typer)
-  models/      data models shared with web; JSON Schema in schemas/
+  models/      data models shared with web (through openapi.json)
   config/      the CLI connections file (~/.aftertalk/connections.yaml)
   api/         HTTP: app, job contract (OpenAPI), signing and callbacks
   pipeline/    step runner, transcript cache, turns
@@ -35,10 +35,9 @@ src/aftertalk/
   pii/         pattern rules, name detector, redaction
   logging.py   JSON logs with a fixed set of fields
   settings.py  environment variables (pydantic-settings)
-scripts/       export_openapi.py, export_schemas.py
-schemas/       generated JSON Schema of models/, for web
+scripts/       export_openapi.py
 tests/unit/    one test file per module
-tests/contract/ committed openapi.json and schemas/ must match the code
+tests/contract/ committed openapi.json must match the code
 openapi.json   generated; web's client is built from it
 ```
 
@@ -49,8 +48,9 @@ Each folder's README says what goes in it and which spec items describe it.
 - **Contract changes**: edit `api/contract.py`, run
   `uv run --project apps/engine python apps/engine/scripts/export_openapi.py`,
   commit `openapi.json` in the same PR. CI fails if they differ.
-- **Model changes**: edit `models/`, run `uv run --project apps/engine python apps/engine/scripts/export_schemas.py`,
-  commit `schemas/` in the same PR.
+- **Model changes**: models web needs before an endpoint uses them are listed in
+  `api/shared_models.py`. After changing `models/` or `api/`, run `export_openapi.py`
+  and `pnpm --filter web generate`, and commit `openapi.json` and `apps/web/lib/engine/generated/`.
 - **Logging**: only through `aftertalk.logging.log`, which accepts only
   `job_id`, `call_id`, `project_id`, `user_id`, `attempt`, `step`,
   `error_code`, `duration_ms`. Never log provider responses, transcript text

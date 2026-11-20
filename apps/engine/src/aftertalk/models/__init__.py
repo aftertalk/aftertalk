@@ -1,4 +1,4 @@
-"""Data models shared with web; their JSON Schema is committed in schemas/."""
+"""Data models shared with web, which gets them through openapi.json."""
 
 from aftertalk.models.connections import (
     LLMAdapter,
