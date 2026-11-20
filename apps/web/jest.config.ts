@@ -11,13 +11,31 @@ const config: Config = {
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/$1',
     '^@ee/(.*)$': '<rootDir>/ee/$1',
+    // No request scope in tests: a cookie jar stands in for the browser (test/next-headers.ts).
+    '^next/headers(\.js)?$': '<rootDir>/test/next-headers.ts',
   },
   globalSetup: '<rootDir>/test/global-setup.ts',
   setupFiles: ['<rootDir>/test/setup-env.ts'],
 };
 
 // next/jest sets transformIgnorePatterns itself, so the ES-module-only packages are let through afterwards.
-const esmOnly = ['better-auth', '@better-auth', 'next-intl', 'use-intl', '@t3-oss'].join('|');
+const esmOnly = [
+  'better-auth',
+  '@better-auth',
+  'better-call',
+  '@better-fetch',
+  '@noble',
+  'jose',
+  'nanostores',
+  'rou3',
+  'defu',
+  'kysely',
+  'next-intl',
+  'use-intl',
+  '@t3-oss',
+  '@formatjs',
+  'intl-messageformat',
+].join('|');
 export default async function jestConfig(): Promise<Config> {
   const resolved = await createJestConfig(config)();
   return {

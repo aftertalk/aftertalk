@@ -23,6 +23,22 @@ docker compose up -d
 Open http://localhost:3000. You need Docker and nothing else: the web app
 and the engine run from prebuilt images.
 
+**First start.** The first visit opens `/setup`. It asks for a one-time
+setup token, printed in the web log (`docker compose logs web`), and creates
+the owner account, an organization and a first project. Everyone else joins
+through an invitation link that an owner or admin makes.
+
+**Locked out.** There is no email, so a forgotten password is reset by
+someone above you in the organization, who makes a one-hour link for you.
+If that is nobody (the only owner), the operator runs:
+
+```sh
+docker compose exec web node reset-owner.js [--email you@example.com] [--reset-2fa]
+```
+
+It prints a reset link, signs the user out everywhere and, with
+`--reset-2fa`, turns their two-factor authentication off.
+
 ## Development
 
 Needs Node 22 with corepack, Python 3.13 and uv, and Docker.

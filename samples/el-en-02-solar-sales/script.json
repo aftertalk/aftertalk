@@ -1,0 +1,120 @@
+{
+  "call": "02-solar-sales",
+  "language": "en",
+  "channels": {
+    "left": "agent",
+    "right": "customer"
+  },
+  "turns": [
+    {
+      "turn": 0,
+      "speaker": "agent",
+      "text": "Hi there, it's Ryan Clarke calling from BrightRoof Energy. Am I speaking with the homeowner?"
+    },
+    {
+      "turn": 1,
+      "speaker": "customer",
+      "text": "Er, yes, I suppose. What's this about?"
+    },
+    {
+      "turn": 2,
+      "speaker": "agent",
+      "text": "Great! We're in your area this week offering free solar assessments. Homeowners near you are cutting their energy bills by up to seventy percent."
+    },
+    {
+      "turn": 3,
+      "speaker": "customer",
+      "text": "Seventy percent? That sounds a bit much. Where did you get my number?"
+    },
+    {
+      "turn": 4,
+      "speaker": "agent",
+      "text": "We work from local area lists. Now, how much is your electricity bill each month, roughly?"
+    },
+    {
+      "turn": 5,
+      "speaker": "customer",
+      "text": "I'd rather not say. I wasn't expecting a sales call."
+    },
+    {
+      "turn": 6,
+      "speaker": "agent",
+      "text": "Totally understand. Most people pay around a hundred and fifty. With our panels that could drop to almost nothing, and there's no upfront cost at all."
+    },
+    {
+      "turn": 7,
+      "speaker": "customer",
+      "text": "Nothing upfront means a loan, doesn't it?"
+    },
+    {
+      "turn": 8,
+      "speaker": "agent",
+      "text": "It's a simple finance plan, and the savings cover the payments. But this offer is only open until Friday, so I'd love to book the assessment today."
+    },
+    {
+      "turn": 9,
+      "speaker": "customer",
+      "text": "I don't make decisions like that on the phone. Can you send me something in writing?"
+    },
+    {
+      "turn": 10,
+      "speaker": "agent",
+      "text": "Of course, but the price is only guaranteed if we lock in a visit now. What's your full name, so I can reserve it?"
+    },
+    {
+      "turn": 11,
+      "speaker": "customer",
+      "text": "Margaret Ellis. But I'm not agreeing to anything."
+    },
+    {
+      "turn": 12,
+      "speaker": "agent",
+      "text": "No commitment at all. And the address, so the surveyor knows where to go?"
+    },
+    {
+      "turn": 13,
+      "speaker": "customer",
+      "text": "I'm not giving you my address. Just email me the details."
+    },
+    {
+      "turn": 14,
+      "speaker": "agent",
+      "text": "Our system needs an address for the booking. Your neighbours have already signed up. You don't want to miss out."
+    },
+    {
+      "turn": 15,
+      "speaker": "customer",
+      "text": "I said no. How much would it actually cost in total, with the interest?"
+    },
+    {
+      "turn": 16,
+      "speaker": "agent",
+      "text": "That depends on the roof. The surveyor explains all of that on the visit."
+    },
+    {
+      "turn": 17,
+      "speaker": "customer",
+      "text": "So you can't tell me. Then I'm not interested."
+    },
+    {
+      "turn": 18,
+      "speaker": "agent",
+      "text": "Can I at least call you back next week when you've had time to think?"
+    },
+    {
+      "turn": 19,
+      "speaker": "customer",
+      "text": "No. Please take my number off your list."
+    },
+    {
+      "turn": 20,
+      "speaker": "agent",
+      "text": "Right. I'll make a note. Thanks for your time."
+    },
+    {
+      "turn": 21,
+      "speaker": "customer",
+      "text": "Goodbye."
+    }
+  ]
+}

@@ -25,6 +25,16 @@ export const env = createEnv({
           .map((h) => h.trim().toLowerCase())
           .filter(Boolean)
       ),
+    // Comma-separated IPs or CIDR ranges of the reverse proxy in front of web, if any.
+    TRUSTED_PROXIES: z
+      .string()
+      .optional()
+      .transform((v) =>
+        (v ?? '')
+          .split(',')
+          .map((h) => h.trim())
+          .filter(Boolean)
+      ),
     ...eeEnv,
   },
   client: {},

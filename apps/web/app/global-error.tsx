@@ -5,19 +5,19 @@ import { useSyncExternalStore } from 'react';
 // Replaces the root layout when it crashes, so no i18n/theme providers are available here — plain markup only.
 // The language: the locale cookie, falling back to the browser's language.
 const COPY = {
-  pl: { title: 'Coś poszło nie tak', reload: 'Odśwież' },
   en: { title: 'Something went wrong', reload: 'Reload' },
+  pl: { title: 'Coś poszło nie tak', reload: 'Odśwież' },
 };
 
 function clientLocale(): keyof typeof COPY {
   const cookie = document.cookie.match(/(?:^|; )NEXT_LOCALE=(\w+)/)?.[1];
-  return (cookie ?? navigator.language).startsWith('en') ? 'en' : 'pl';
+  return (cookie ?? navigator.language).startsWith('pl') ? 'pl' : 'en';
 }
 
 const subscribe = () => () => {};
 
 export default function GlobalError() {
-  const locale = useSyncExternalStore(subscribe, clientLocale, () => 'pl' as const);
+  const locale = useSyncExternalStore(subscribe, clientLocale, () => 'en' as const);
 
   return (
     <html lang={locale}>
