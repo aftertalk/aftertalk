@@ -43,6 +43,8 @@ test/             Jest database setup
   referenced through `i18n/constants.ts`.
 - **Logging** only through `lib/log.ts`; never log transcript text, provider
   responses or keys.
-- **The engine client** in `lib/engine/` is generated with Orval from
-  `apps/engine/openapi.json` (phase 3); never edit it by hand.
+- **The engine client** in `lib/engine/generated/` is generated with Orval from
+  `apps/engine/openapi.json` (`pnpm --filter web generate`, config in
+  `orval.config.ts`); never edit it by hand. It includes the engine's provider
+  connection, usage and transcript types. CI fails when it is out of date.
 - **Commercial code** goes only in the private fork, under `ee/` and `app/(ee)/`.

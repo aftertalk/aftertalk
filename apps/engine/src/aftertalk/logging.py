@@ -16,7 +16,7 @@ ALLOWED_FIELDS = frozenset(
 
 Level = Literal["debug", "info", "warning", "error"]
 
-_logger = logging.getLogger("aftertalk_engine")
+_logger = logging.getLogger("aftertalk")
 
 
 class JsonFormatter(logging.Formatter):

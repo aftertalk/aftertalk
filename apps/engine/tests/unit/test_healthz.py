@@ -1,6 +1,6 @@
 from fastapi.testclient import TestClient
 
-from aftertalk_engine.api.app import app
+from aftertalk.api.app import app
 
 
 def test_healthz() -> None:
