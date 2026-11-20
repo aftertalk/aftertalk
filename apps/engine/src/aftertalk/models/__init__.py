@@ -10,10 +10,13 @@ from aftertalk.models.connections import (
     SpeechAdapter,
     SpeechConnection,
 )
+from aftertalk.models.errors import EngineError, ErrorCode
 from aftertalk.models.transcript import Segment, TimingLevel, Transcript, Word
 from aftertalk.models.usage import JobLimits, StepUsage
 
 __all__ = [
+    "EngineError",
+    "ErrorCode",
     "JobLimits",
     "LLMAdapter",
     "LLMConnection",

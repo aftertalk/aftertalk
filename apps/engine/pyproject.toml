@@ -8,7 +8,7 @@ requires-python = ">=3.13,<3.14"
 dependencies = [
     "pydantic>=2.14.3,<3.0.0",
     "pydantic-settings>=2.16.3,<3.0.0",
-    "pydantic-ai-slim[openai]==2.70.0",
+    "pydantic-ai-slim[openai]==2.71.0",
     "pyyaml>=6.0.2,<7.0.0",
     "httpx>=0.28.1,<1.0.0",
     "av>=19.0.2",
@@ -38,8 +38,8 @@ pii = [
     "protobuf>=7.36.2",
 ]
 # Native Anthropic and Google Gemini LLM connections.
-anthropic = ["pydantic-ai-slim[anthropic]==2.70.0"]
-google = ["pydantic-ai-slim[google]==2.70.0"]
+anthropic = ["pydantic-ai-slim[anthropic]==2.71.0"]
+google = ["pydantic-ai-slim[google]==2.71.0"]
 # Local transcription (faster-whisper); packages added in M2.
 local = []
 # YouTube audio fallback (yt-dlp); packages added in M7.
@@ -54,6 +54,8 @@ dev = [
     # The server extra, so tests of the HTTP app run with a plain `uv run`.
     "fastapi>=0.165.0,<1.0.0",
     "uvicorn>=0.54.0,<1.0.0",
+    # The anthropic and google extras, so tests of those adapters run with a plain `uv run`.
+    "pydantic-ai-slim[anthropic,google]==2.71.0",
     "pytest>=9.0.2,<10.0.0",
     "pytest-asyncio>=1.0.0,<2.0.0",
     "ruff>=0.14.0,<1.0.0",
