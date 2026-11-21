@@ -42,7 +42,6 @@ const oneOf = (name: string, column: string, values: readonly string[]) =>
 export const ORG_ROLES = ['OWNER', 'ADMIN', 'MEMBER'] as const;
 export const PROJECT_ROLES = ['VIEWER', 'EDITOR', 'ADMIN'] as const;
 export const PROJECT_VISIBILITIES = ['ORG', 'PRIVATE'] as const;
-export const INVITABLE_ROLES = ['ADMIN', 'MEMBER'] as const;
 export const PII_ACCESS = ['strict', 'full'] as const;
 export const LANGUAGES = ['pl', 'en', 'uk', 'de'] as const;
 export const ANSWER_TYPES = ['TEXT', 'BOOLEAN', 'CHOICE', 'NUMERIC'] as const;
@@ -95,7 +94,7 @@ export const organizations = appSchema.table(
   (t) => [index('organizations_created_by_idx').on(t.createdBy)]
 );
 
-/** Flyway V1_006. A row is created when an invitation is accepted, not when it is sent. */
+/** Flyway V1_006. /setup creates the only row here; the commercial fork adds more people. */
 export const organizationMembers = appSchema.table(
   'organization_members',
   {
@@ -113,32 +112,6 @@ export const organizationMembers = appSchema.table(
     primaryKey({ columns: [t.organizationId, t.userId] }),
     index('org_members_user_idx').on(t.userId),
     oneOf('organization_members_role_check', 'role', ORG_ROLES),
-  ]
-);
-
-export const invitations = appSchema.table(
-  'invitations',
-  {
-    id: id(),
-    organizationId: uuid('organization_id')
-      .notNull()
-      .references(() => organizations.id, { onDelete: 'cascade' }),
-    /** Stored lower-case. */
-    email: text('email').notNull(),
-    role: text('role', { enum: INVITABLE_ROLES }).notNull(),
-    /** SHA-256 (hex) of the link token; the token itself is never stored. */
-    tokenHash: text('token_hash').notNull().unique(),
-    invitedBy: text('invited_by').references(() => user.id, { onDelete: 'set null' }),
-    expiresAt: tz('expires_at').notNull(),
-    acceptedAt: tz('accepted_at'),
-    revokedAt: tz('revoked_at'),
-    createdAt: createdAt(),
-  },
-  (t) => [
-    uniqueIndex('invitations_open_per_email')
-      .on(t.organizationId, t.email)
-      .where(sql`accepted_at is null and revoked_at is null`),
-    oneOf('invitations_role_check', 'role', INVITABLE_ROLES),
   ]
 );
 

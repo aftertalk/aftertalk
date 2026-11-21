@@ -166,21 +166,6 @@ CREATE TABLE "app"."categories" (
 	CONSTRAINT "categories_unique_name_per_parent" UNIQUE NULLS NOT DISTINCT("taxonomy_id","parent_id","name")
 );
 --> statement-breakpoint
-CREATE TABLE "app"."invitations" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"organization_id" uuid NOT NULL,
-	"email" text NOT NULL,
-	"role" text NOT NULL,
-	"token_hash" text NOT NULL,
-	"invited_by" text,
-	"expires_at" timestamp with time zone NOT NULL,
-	"accepted_at" timestamp with time zone,
-	"revoked_at" timestamp with time zone,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "invitations_token_hash_unique" UNIQUE("token_hash"),
-	CONSTRAINT "invitations_role_check" CHECK (role in ('ADMIN', 'MEMBER'))
-);
---> statement-breakpoint
 CREATE TABLE "app"."jobs" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"call_id" uuid NOT NULL,
@@ -359,8 +344,6 @@ ALTER TABLE "app"."calls" ADD CONSTRAINT "calls_uploaded_by_user_id_fk" FOREIGN 
 ALTER TABLE "app"."calls" ADD CONSTRAINT "calls_manual_category_id_categories_id_fk" FOREIGN KEY ("manual_category_id") REFERENCES "app"."categories"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "app"."categories" ADD CONSTRAINT "categories_taxonomy_id_taxonomies_id_fk" FOREIGN KEY ("taxonomy_id") REFERENCES "app"."taxonomies"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "app"."categories" ADD CONSTRAINT "categories_parent_id_categories_id_fk" FOREIGN KEY ("parent_id") REFERENCES "app"."categories"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "app"."invitations" ADD CONSTRAINT "invitations_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "app"."organizations"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "app"."invitations" ADD CONSTRAINT "invitations_invited_by_user_id_fk" FOREIGN KEY ("invited_by") REFERENCES "auth"."user"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "app"."jobs" ADD CONSTRAINT "jobs_call_id_calls_id_fk" FOREIGN KEY ("call_id") REFERENCES "app"."calls"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "app"."organization_members" ADD CONSTRAINT "organization_members_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "app"."organizations"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "app"."organization_members" ADD CONSTRAINT "organization_members_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "auth"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -399,7 +382,6 @@ CREATE UNIQUE INDEX "analysis_templates_active_per_project" ON "app"."analysis_t
 CREATE INDEX "calls_project_created_idx" ON "app"."calls" USING btree ("project_id","created_at" DESC NULLS LAST);--> statement-breakpoint
 CREATE INDEX "calls_audio_sha256_idx" ON "app"."calls" USING btree ("audio_sha256");--> statement-breakpoint
 CREATE INDEX "categories_taxonomy_parent_idx" ON "app"."categories" USING btree ("taxonomy_id","parent_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "invitations_open_per_email" ON "app"."invitations" USING btree ("organization_id","email") WHERE accepted_at is null and revoked_at is null;--> statement-breakpoint
 CREATE INDEX "jobs_call_created_idx" ON "app"."jobs" USING btree ("call_id","created_at" DESC NULLS LAST);--> statement-breakpoint
 CREATE UNIQUE INDEX "jobs_one_active_per_call" ON "app"."jobs" USING btree ("call_id") WHERE status in ('queued', 'sent');--> statement-breakpoint
 CREATE INDEX "org_members_user_idx" ON "app"."organization_members" USING btree ("user_id");--> statement-breakpoint

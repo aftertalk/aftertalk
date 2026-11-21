@@ -1560,9 +1560,9 @@
     "backupCode": "Kod zapasowy"
   },
   "recovery": {
-    "askAdmin": "Nie pamiętasz hasła? Poproś administratora organizacji o nowy link.",
+    "askAdmin": "Nie pamiętasz hasła? Osoba, która prowadzi serwer, może utworzyć link do resetu poleceniem reset-owner.js.",
     "resetNotice": "Hasło do Twojego konta zostało zresetowane {date} przez {by}.",
-    "someone": "administratora"
+    "someone": "operatora serwera"
   },
   "invitation": {
     "joinTitle": "Dołącz do {organization}",
@@ -1575,7 +1575,7 @@
   },
   "noOrganization": {
     "title": "Nie należysz do żadnej organizacji",
-    "description": "Poproś administratora organizacji o zaproszenie.",
+    "description": "To konto nie należy do żadnej organizacji.",
     "signOut": "Wyloguj się",
     "noProjectTitle": "Brak projektu do otwarcia",
     "noProjectDescription": "W Twojej organizacji nie ma projektu, który możesz zobaczyć. Poproś administratora o dodanie do projektu.",

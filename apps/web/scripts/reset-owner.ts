@@ -1,4 +1,4 @@
-// Operator recovery (#73, item 30): for when nobody above a user can help, usually the only owner.
+// Operator recovery (#73, item 30): the only way to reset a password in the open edition.
 // Run inside the web container:
 //   docker compose exec web node reset-owner.js [--email someone@example.com] [--reset-2fa]
 // Without --email it picks the first owner of the oldest organisation. Prints a one-hour password
@@ -14,7 +14,7 @@ import postgres from 'postgres';
 const RESET_LINK_TTL_SECONDS = 60 * 60; // same as lib/auth/auth.ts
 const ALPHANUMERIC = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
 
-/** 32 alphanumeric characters, like lib/auth/reset-token.ts. */
+/** 32 alphanumeric characters, unbiased. */
 function newToken(length = 32): string {
   let out = '';
   while (out.length < length) {
@@ -72,7 +72,7 @@ export async function resetOwner(
       // Same key as lib/auth/throttle.ts: a sign-in lockout must not outlive the reset.
       const throttleKey = `signin-email|${createHash('sha256').update(target.email.toLowerCase()).digest('hex')}`;
       await tx`delete from auth.rate_limit where key = ${throttleKey}`;
-      // passwordResetBy stays null: the notice then names "an admin".
+      // passwordResetBy stays null: the notice then names the server operator.
       await tx`update auth."user" set password_reset_at = now(), password_reset_by = null where id = ${target.id}`;
       if (opts.reset2fa) {
         await tx`delete from auth.two_factor where user_id = ${target.id}`;

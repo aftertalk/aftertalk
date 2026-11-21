@@ -2,6 +2,7 @@ import { eq } from 'drizzle-orm';
 
 import { getSessionUser } from '@/lib/access';
 import { auth } from '@/lib/auth/auth';
+import { takePasswordResetNotice } from '@/lib/auth/reset-notice';
 import { db, sql } from '@/lib/db/client';
 import { user as userTable } from '@/lib/db/schema/auth';
 import { addMember, makeOrg, makeUser, resetDb, signIn } from '@/test/fixtures';
@@ -44,6 +45,10 @@ test('without --email: the first owner gets a link the reset page accepts, sessi
   await auth.api.resetPassword({ body: { token, newPassword: 'operator reset pw' } });
   await signIn(owner.email, 'operator reset pw');
   expect((await getSessionUser())?.id).toBe(owner.id);
+
+  // The notice is shown once and names nobody, because the operator made the link.
+  expect(await takePasswordResetNotice(owner.id)).toMatchObject({ by: null });
+  expect(await takePasswordResetNotice(owner.id)).toBeNull();
 });
 
 test('with an unknown --email it fails without changing anything', async () => {

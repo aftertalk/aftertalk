@@ -2,7 +2,7 @@ import { safeNext } from './safe-next';
 
 test.each([
   ['/abc/home', '/abc/home'],
-  ['/activate?token=x', '/activate?token=x'],
+  ['/reset-password?token=x', '/reset-password?token=x'],
   [null, '/'],
   ['', '/'],
   ['https://evil.example', '/'],

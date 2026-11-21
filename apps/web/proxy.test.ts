@@ -8,7 +8,7 @@ const req = (path: string, cookie?: string) =>
   });
 
 test('public paths, exactly or as a folder, not as a prefix', () => {
-  for (const p of ['/login', '/setup', '/activate', '/reset-password', '/api/auth/sign-in/email', '/api/health']) {
+  for (const p of ['/login', '/setup', '/reset-password', '/api/auth/sign-in/email', '/api/health']) {
     expect(isPublicPath(p)).toBe(true);
   }
   for (const p of ['/loginx', '/api/authx', '/setup-2fa', '/api/healthcheck', '/']) expect(isPublicPath(p)).toBe(false);

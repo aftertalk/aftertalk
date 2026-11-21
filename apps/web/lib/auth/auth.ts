@@ -1,7 +1,7 @@
 // Better Auth (item 25): email and password with the twoFactor plugin. Open sign-up is off: accounts
-// come from /setup or an invitation (lib/auth/create-user.ts). No mailer: a reset link is handed back
-// as a link the caller shows (lib/auth/reset-token.ts). Cookie cache off, so every request reads the session from the
-// database and a removed user is signed out at once.
+// come only from /setup (lib/auth/create-user.ts). No mailer: a reset link is printed by
+// scripts/reset-owner.ts. Cookie cache off, so every request reads the session from the database
+// and a session ended by a reset stops working at once.
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { APIError, createAuthMiddleware } from 'better-auth/api';
@@ -32,8 +32,8 @@ export const auth = betterAuth({
     resetPasswordTokenExpiresIn: RESET_LINK_TTL_SECONDS,
     revokeSessionsOnPasswordReset: true,
   },
-  // No mailer, so nobody may ask for a reset by email: links are made by an admin
-  // (lib/action/organizations.ts) or the operator (scripts/reset-owner.ts). Changing the email or
+  // No mailer, so nobody may ask for a reset by email: links are made by
+  // the operator (scripts/reset-owner.ts). Changing the email or
   // deleting the account through Better Auth is off too; phase 2 adds its own actions.
   disabledPaths: [
     '/request-password-reset',

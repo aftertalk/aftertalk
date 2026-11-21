@@ -31,7 +31,7 @@ export function validateNewAccount(input: { email: unknown; name: unknown; passw
 /**
  * Creates a user with an email+password account while open sign-up is off (spike Q3): Better Auth's
  * public sign-up refuses, and the admin plugin's createUser needs an admin session, so this uses the
- * internal adapter and Better Auth's own password hashing. Called only from /setup and the activate page.
+ * internal adapter and Better Auth's own password hashing. Called only from /setup.
  */
 export async function createUser(input: { email: string; name: string; password: string }): Promise<{ id: string }> {
   const ctx = await auth.$context;

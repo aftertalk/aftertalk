@@ -1560,9 +1560,9 @@
     "backupCode": "Backup code"
   },
   "recovery": {
-    "askAdmin": "Forgot your password? Ask an organization admin for a new link.",
+    "askAdmin": "Forgot your password? The person who runs the server can make a reset link with reset-owner.js.",
     "resetNotice": "Your password was reset on {date} by {by}.",
-    "someone": "an admin"
+    "someone": "the server operator"
   },
   "invitation": {
     "joinTitle": "Join {organization}",
@@ -1575,7 +1575,7 @@
   },
   "noOrganization": {
     "title": "You are not in any organization",
-    "description": "Ask an organization admin to invite you.",
+    "description": "This account does not belong to an organization.",
     "signOut": "Sign out",
     "noProjectTitle": "No project to open yet",
     "noProjectDescription": "There is no project in your organization that you can see. Ask an admin to add you to one.",
