@@ -14,6 +14,7 @@ this code.
 3. Run the checks listed in `CLAUDE.md` before pushing; CI runs the same ones
    plus a full `docker compose` start.
 4. Open a PR that names the spec items it builds ("items 59, 60").
-5. CI must be green. Merge only after an explicit yes from a maintainer;
-   squash-merge, delete the branch.
+5. CI must be green and the other maintainer must approve (branch
+   protection enforces both, for admins too). Squash-merge, delete the
+   branch.
 6. No AI co-author lines or "Generated with" footers in commits or PRs.

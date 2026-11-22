@@ -23,6 +23,22 @@ docker compose up -d
 Open http://localhost:3000. You need Docker and nothing else: the web app
 and the engine run from prebuilt images.
 
+**First start.** The first visit opens `/setup`. It asks for a one-time
+setup token, printed in the web log (`docker compose logs web`), and creates
+the owner account, an organization and a first project. The open-source
+edition has one organization with one owner; more users, roles and
+invitations are part of the commercial edition.
+
+**Locked out.** There is no email, so a forgotten password is reset on the
+server. The operator runs:
+
+```sh
+docker compose exec web node reset-owner.js [--email you@example.com] [--reset-2fa]
+```
+
+It prints a reset link, signs the user out everywhere and, with
+`--reset-2fa`, turns their two-factor authentication off.
+
 ## Development
 
 Needs Node 22 with corepack, Python 3.13 and uv, and Docker.
@@ -37,9 +53,11 @@ uv run --project apps/engine pytest apps/engine
 ## Open source and commercial
 
 Everything needed to process and review calls is here: upload, transcription,
-redaction of personal data, summaries, call reasons, scorecards, users and
-projects. The commercial version adds a public API, webhooks, phone-system
-integrations and cross-call insights.
+redaction of personal data, summaries, call reasons, scorecards and projects,
+for one organization with one owner. The commercial version adds more
+organizations and users with roles and invitations, SSO, an audit log, a
+public API, webhooks, phone-system integrations, cross-call insights and
+hosting.
 
 Self-hosting, provider and privacy guides will live in `docs/` (not written
 yet).
@@ -79,8 +97,9 @@ engine has no database and keeps nothing it cannot rebuild.
 Everything a user sees and everything that is stored.
 
 - **UI**: all pages, in Polish and English.
-- **Accounts and access**: Better Auth (password, 2FA, sessions); organisations,
-  projects, roles and the personal-data access level. Every server action
+- **Accounts and access**: Better Auth (password, 2FA, sessions); one organisation
+  with one owner, and projects. The role checks stay in the code for the
+  commercial version. Every server action
   and route checks access in `lib/access.ts`.
 - **Database**: the only reader and writer of Postgres (Drizzle). Calls,
   transcripts, analyses, quotes, templates, taxonomies and the log of who

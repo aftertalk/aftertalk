@@ -1,0 +1,135 @@
+{
+  "call": "03-szkoda-komunikacyjna",
+  "language": "pl",
+  "channels": {
+    "left": "agent",
+    "right": "customer"
+  },
+  "turns": [
+    {
+      "turn": 0,
+      "speaker": "agent",
+      "text": "Dzień dobry, Pewna Polisa, centrum likwidacji szkód, mówi Piotr Zieliński. Rozmowa jest nagrywana. W czym mogę pomóc?"
+    },
+    {
+      "turn": 1,
+      "speaker": "customer",
+      "text": "Dzień dobry, chciałabym zgłosić szkodę. Ktoś wjechał mi w tył samochodu na parkingu pod sklepem."
+    },
+    {
+      "turn": 2,
+      "speaker": "agent",
+      "text": "Przykro mi to słyszeć. Najważniejsze pytanie na początek: czy nikomu nic się nie stało?"
+    },
+    {
+      "turn": 3,
+      "speaker": "customer",
+      "text": "Nie, nie, nikt nie ucierpiał, tylko zderzak jest wgnieciony i lampa pęknięta."
+    },
+    {
+      "turn": 4,
+      "speaker": "agent",
+      "text": "Całe szczęście. W takim razie przyjmę zgłoszenie. Czy zgłasza pani szkodę z własnego autocasco, czy z OC sprawcy?"
+    },
+    {
+      "turn": 5,
+      "speaker": "customer",
+      "text": "Sprawca był na miejscu, spisaliśmy oświadczenie. On ma polisę w innej firmie, ale ja mam u państwa autocasco."
+    },
+    {
+      "turn": 6,
+      "speaker": "agent",
+      "text": "Rozumiem. Może pani zgłosić z OC sprawcy w jego firmie albo z naszego autocasco. Z autocasco będzie szybciej, ale może wpłynąć na pani zniżki przy odnowieniu. Z OC sprawcy zniżki pozostają bez zmian. Którą opcję pani wybiera?"
+    },
+    {
+      "turn": 7,
+      "speaker": "customer",
+      "text": "To w takim razie z OC sprawcy, ale czy państwo mogą mi pomóc?"
+    },
+    {
+      "turn": 8,
+      "speaker": "agent",
+      "text": "Oczywiście. W ramach naszej usługi bezpośredniej likwidacji zajmiemy się wszystkim i rozliczymy się z ubezpieczycielem sprawcy. Poproszę o dane. Imię i nazwisko?"
+    },
+    {
+      "turn": 9,
+      "speaker": "customer",
+      "text": "Katarzyna Nowak."
+    },
+    {
+      "turn": 10,
+      "speaker": "agent",
+      "text": "Numer polisy?"
+    },
+    {
+      "turn": 11,
+      "speaker": "customer",
+      "text": "P L dwa zero dwa sześć, zero zero osiem jeden pięć dwa."
+    },
+    {
+      "turn": 12,
+      "speaker": "agent",
+      "text": "Dziękuję, widzę polisę. Samochód to Toyota Corolla, numer rejestracyjny K R jeden dwa trzy A B, zgadza się?"
+    },
+    {
+      "turn": 13,
+      "speaker": "customer",
+      "text": "Tak, zgadza się."
+    },
+    {
+      "turn": 14,
+      "speaker": "agent",
+      "text": "Kiedy i gdzie doszło do zdarzenia?"
+    },
+    {
+      "turn": 15,
+      "speaker": "customer",
+      "text": "Wczoraj, około osiemnastej, na parkingu przy ulicy Zakopiańskiej w Krakowie."
+    },
+    {
+      "turn": 16,
+      "speaker": "agent",
+      "text": "A dane sprawcy z oświadczenia? Nazwisko, numer rejestracyjny i nazwa ubezpieczyciela."
+    },
+    {
+      "turn": 17,
+      "speaker": "customer",
+      "text": "Jan Malinowski, rejestracja K R K siedem siedem dwa pięć, ubezpieczony w Bezpiecznej Drodze."
+    },
+    {
+      "turn": 18,
+      "speaker": "agent",
+      "text": "Dziękuję, wszystko zapisane. Teraz kolejne kroki. Wyślę pani SMS-em link, przez który prześle pani zdjęcia uszkodzeń, skan oświadczenia i zdjęcie dowodu rejestracyjnego. Rzeczoznawca skontaktuje się w ciągu dwóch dni roboczych."
+    },
+    {
+      "turn": 19,
+      "speaker": "customer",
+      "text": "A czy przysługuje mi samochód zastępczy? Bez auta nie dojadę do pracy."
+    },
+    {
+      "turn": 20,
+      "speaker": "agent",
+      "text": "Tak, przy szkodzie z OC sprawcy przysługuje pani auto zastępcze na czas naprawy w warsztacie partnerskim. Mogę od razu zarezerwować, odbiór od jutra."
+    },
+    {
+      "turn": 21,
+      "speaker": "customer",
+      "text": "Super, poproszę."
+    },
+    {
+      "turn": 22,
+      "speaker": "agent",
+      "text": "Zarezerwowane. Numer szkody to S Z dwa sześć, dziewięć cztery trzy jeden. Podsumowując: link do zdjęć wyślę SMS-em, rzeczoznawca zadzwoni w ciągu dwóch dni, a auto zastępcze będzie gotowe od jutra. Czy coś jeszcze mogę wyjaśnić?"
+    },
+    {
+      "turn": 23,
+      "speaker": "customer",
+      "text": "Nie, wszystko jasne. Bardzo dziękuję."
+    },
+    {
+      "turn": 24,
+      "speaker": "agent",
+      "text": "Dziękuję, pani Katarzyno. Życzę miłego dnia, do usłyszenia."
+    }
+  ]
+}

@@ -1,0 +1,120 @@
+{
+  "call": "01-internet-awaria",
+  "language": "pl",
+  "channels": {
+    "left": "agent",
+    "right": "customer"
+  },
+  "turns": [
+    {
+      "turn": 0,
+      "speaker": "agent",
+      "text": "Dzień dobry, Netfala, nazywam się Anna Wiśniewska. Rozmowa jest nagrywana w celu poprawy jakości obsługi. W czym mogę pomóc?"
+    },
+    {
+      "turn": 1,
+      "speaker": "customer",
+      "text": "Dzień dobry. No, dzwonię już drugi raz w tym tygodniu, bo znowu nie mam internetu. Od wczoraj wieczorem nic nie działa, a ja pracuję z domu."
+    },
+    {
+      "turn": 2,
+      "speaker": "agent",
+      "text": "Rozumiem, to bardzo uciążliwe, zwłaszcza przy pracy zdalnej. Przepraszam za te problemy. Żeby sprawdzić łącze, muszę najpierw potwierdzić tożsamość. Czy może pan podać imię, nazwisko i numer klienta?"
+    },
+    {
+      "turn": 3,
+      "speaker": "customer",
+      "text": "Tomasz Kowalczyk, numer klienta to cztery osiem dwa jeden siedem trzy."
+    },
+    {
+      "turn": 4,
+      "speaker": "agent",
+      "text": "Dziękuję. A jeszcze dla weryfikacji, adres instalacji?"
+    },
+    {
+      "turn": 5,
+      "speaker": "customer",
+      "text": "Ulica Lipowa dwanaście, mieszkanie cztery, Poznań."
+    },
+    {
+      "turn": 6,
+      "speaker": "agent",
+      "text": "Zgadza się, dziękuję panu. Widzę zgłoszenie z poniedziałku. Teraz sprawdzam stan modemu... Widzę, że modem jest online, ale sygnał na linii jest bardzo słaby. Czy na routerze świeci się jakaś dioda na czerwono?"
+    },
+    {
+      "turn": 7,
+      "speaker": "customer",
+      "text": "Chwileczkę... Tak, ta dioda z napisem L O S miga na czerwono."
+    },
+    {
+      "turn": 8,
+      "speaker": "agent",
+      "text": "Dobrze, to bardzo pomocna informacja. To oznacza, że problem jest najprawdopodobniej na światłowodzie, a nie po pana stronie. Proszę jeszcze sprawdzić, czy kabel światłowodowy z tyłu urządzenia nie jest zgięty albo wypięty."
+    },
+    {
+      "turn": 9,
+      "speaker": "customer",
+      "text": "Wygląda normalnie, nic nie ruszałem. Kot czasem tam chodzi, ale kabel jest wpięty."
+    },
+    {
+      "turn": 10,
+      "speaker": "agent",
+      "text": "Rozumiem. W takim razie zgłaszam awarię do działu technicznego z priorytetem. Technik odezwie się do pana najpóźniej jutro do godziny dwunastej i umówi wizytę. Czy numer kontaktowy kończący się na trzysta czterdzieści pięć jest aktualny?"
+    },
+    {
+      "turn": 11,
+      "speaker": "customer",
+      "text": "Tak, aktualny. Ale jutro? Ja mam jutro ważne spotkanie online o dziesiątej. Nie da się szybciej?"
+    },
+    {
+      "turn": 12,
+      "speaker": "agent",
+      "text": "Doskonale rozumiem. Najszybszy wolny termin technika to jutro rano, ale mogę panu od razu aktywować bezpłatny pakiet pięćdziesięciu gigabajtów internetu mobilnego na kartę z pana umowy. Wtedy spotkanie odbędzie pan przez telefon jako hotspot."
+    },
+    {
+      "turn": 13,
+      "speaker": "customer",
+      "text": "O, to by pomogło. Ile to kosztuje?"
+    },
+    {
+      "turn": 14,
+      "speaker": "agent",
+      "text": "Nic pana nie kosztuje, pakiet jest bezpłatny na czas usunięcia awarii. Dodatkowo, ponieważ to druga awaria w tym miesiącu, przysługuje panu rabat. Naliczę obniżkę abonamentu o piętnaście złotych na najbliższej fakturze."
+    },
+    {
+      "turn": 15,
+      "speaker": "customer",
+      "text": "No dobrze, to już brzmi lepiej. Dziękuję. A jak technik nie zadzwoni?"
+    },
+    {
+      "turn": 16,
+      "speaker": "agent",
+      "text": "Wtedy proszę zadzwonić do nas i podać numer zgłoszenia. Numer to A W cztery siedem dziewięć jeden. Wyślę go też panu SMS-em razem z potwierdzeniem pakietu."
+    },
+    {
+      "turn": 17,
+      "speaker": "customer",
+      "text": "Dobrze, zapisuję. A W cztery siedem dziewięć jeden."
+    },
+    {
+      "turn": 18,
+      "speaker": "agent",
+      "text": "Zgadza się. Podsumowując: zgłosiłam awarię z priorytetem, technik zadzwoni jutro do dwunastej, pakiet mobilny jest aktywny od teraz, a rabat piętnaście złotych pojawi się na następnej fakturze. Czy mogę jeszcze w czymś pomóc?"
+    },
+    {
+      "turn": 19,
+      "speaker": "customer",
+      "text": "Nie, to wszystko. Dziękuję, pani była bardzo pomocna."
+    },
+    {
+      "turn": 20,
+      "speaker": "agent",
+      "text": "Dziękuję za cierpliwość i jeszcze raz przepraszam za kłopot. Życzę udanego spotkania jutro. Do widzenia!"
+    },
+    {
+      "turn": 21,
+      "speaker": "customer",
+      "text": "Do widzenia."
+    }
+  ]
+}

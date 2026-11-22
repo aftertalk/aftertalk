@@ -48,7 +48,9 @@
     },
     "transcriptionLanguages": {
       "pl": "Polish",
-      "en": "English"
+      "en": "English",
+      "uk": "Ukrainian",
+      "de": "German"
     },
     "languages": {
       "polish": "Polish (Polski)",
@@ -1513,5 +1515,77 @@
     "title": "No access",
     "orgManagersOnly": "Only the organization's owner and admins can see this page. Ask them for the admin role if you need it.",
     "backToProjects": "Back to projects"
+  },
+  "setup": {
+    "title": "First start",
+    "description": "Create the owner account. The setup token is in the web container's log (docker compose logs web).",
+    "token": "Setup token",
+    "name": "Full name",
+    "submit": "Create account",
+    "submitting": "Creating…",
+    "invalidToken": "Wrong setup token. Check the web container's log.",
+    "alreadyDone": "Setup has already been done.",
+    "orgName": "My organization",
+    "projectName": "First project",
+    "templateName": "General QA",
+    "presetName": "Customer / Agent",
+    "customer": "Customer",
+    "agent": "Agent",
+    "categories": {
+      "question": {
+        "name": "Questions",
+        "description": "Questions about a product, service or account"
+      },
+      "order": {
+        "name": "Orders",
+        "description": "New orders, changes and order status"
+      },
+      "cancellation": {
+        "name": "Cancellations",
+        "description": "Contract terminations and cancelled services"
+      },
+      "other": {
+        "name": "Other",
+        "description": "Calls that fit no other category"
+      }
+    }
+  },
+  "twoFactorExtra": {
+    "confirmPassword": "Confirm your password to turn on two-factor authentication.",
+    "start": "Continue",
+    "skip": "Skip for now",
+    "required": "Your organization requires two-factor authentication.",
+    "backupCodes": "Backup codes. Keep them somewhere safe: each works once when you don't have your phone.",
+    "useBackupCode": "Use a backup code",
+    "backupCode": "Backup code"
+  },
+  "recovery": {
+    "askAdmin": "Forgot your password? The person who runs the server can make a reset link with reset-owner.js.",
+    "resetNotice": "Your password was reset on {date} by {by}.",
+    "someone": "the server operator"
+  },
+  "invitation": {
+    "joinTitle": "Join {organization}",
+    "joinDescription": "You already have an account with {email}. Sign in to join.",
+    "join": "Join",
+    "signInToJoin": "Sign in to join",
+    "wrongAccount": "This invitation is for {email}. Sign out and sign in with that account.",
+    "invalid": "This invitation has expired, was revoked or was already used. Ask for a new one.",
+    "emailLabel": "Email"
+  },
+  "noOrganization": {
+    "title": "You are not in any organization",
+    "description": "This account does not belong to an organization.",
+    "signOut": "Sign out",
+    "noProjectTitle": "No project to open yet",
+    "noProjectDescription": "There is no project in your organization that you can see. Ask an admin to add you to one.",
+    "noProjectAdmin": "Create a project in your organization to start."
+  },
+  "home": {
+    "placeholder": "Project pages arrive in the next phase. You are signed in as {email}.",
+    "twoFactorOn": "Two-factor authentication: on",
+    "twoFactorOff": "Two-factor authentication: off",
+    "setUpTwoFactor": "Turn on two-factor authentication",
+    "signOut": "Sign out"
   }
 }
