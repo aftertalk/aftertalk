@@ -23,7 +23,24 @@ def _check_times(start: Seconds | None, end: Seconds | None) -> None:
         raise ValueError("start must be <= end")
 
 
+def _letters(text: str) -> str:
+    return "".join(ch for ch in text.lower() if ch.isalnum())
+
+
+def spells(words: "list[Word]", text: str) -> bool:
+    """Whether the words spell the text, compared on letters and digits, lower-cased."""
+    return _letters("".join(w.text for w in words)) == _letters(text)
+
+
+def split_words(text: str) -> "list[Word]":
+    """The text split on whitespace into untimed words: what a segment gets when the provider gave no usable words."""
+    return [Word(text=part) for part in text.split()]
+
+
 class Word(BaseModel):
+    """A word. It has `start` and `end`, or neither: a provider may give no usable time for it, and times are never
+    estimated or copied from the segment."""
+
     model_config = _CONFIG
 
     text: str
@@ -33,10 +50,15 @@ class Word(BaseModel):
     @model_validator(mode="after")
     def _times(self) -> "Word":
         _check_times(self.start, self.end)
+        if (self.start is None) != (self.end is None):
+            raise ValueError("a word has both start and end, or neither")
         return self
 
 
 class Segment(BaseModel):
+    """A segment. When it has text it has words that spell that text: the provider's, or the text split on whitespace
+    into untimed words."""
+
     model_config = _CONFIG
 
     text: str
@@ -54,7 +76,14 @@ class Segment(BaseModel):
 
 
 class Transcript(BaseModel):
-    """A transcript. The adapter sets `timing` from what the provider actually returned."""
+    """A transcript. The adapter sets `timing` from what the provider actually returned.
+
+    At every timing level: non-blank text is in segments, every segment with text has words, and the words spell the
+    segment's text (letters and digits, lower-cased). A word may have no times; a timed word lies within its timed
+    segment, up to 0.5 seconds outside it. `segment` timing also needs start and end on every segment, and `word` timing
+    needs, on top of that, times on every word of a segment with text. A consumer that needs a time for a word uses
+    the word's time, else its segment's time, else there is none.
+    """
 
     model_config = _CONFIG
 
@@ -66,19 +95,26 @@ class Transcript(BaseModel):
 
     @model_validator(mode="after")
     def _timing(self) -> "Transcript":
-        if self.timing == "none":
-            return self
         if self.text.strip() and not self.segments:
-            raise ValueError(f"timing {self.timing!r} requires at least one segment when text is not blank")
-        if any(seg.start is None or seg.end is None for seg in self.segments):
-            raise ValueError(f"timing {self.timing!r} requires start and end on every segment")
+            raise ValueError("a transcript with text needs at least one segment")
         for seg in self.segments:
-            if self.timing == "word" and seg.text.strip() and not seg.words:
-                raise ValueError("timing 'word' requires words on every segment with text")
+            if seg.text.strip() and not seg.words:
+                raise ValueError("every segment with text needs words")
+            if not spells(seg.words, seg.text):
+                raise ValueError("the words of a segment must spell its text")
+            if seg.start is None or seg.end is None:
+                continue
             for w in seg.words:
                 if w.start is None or w.end is None:
-                    raise ValueError(f"timing {self.timing!r} requires start and end on every word")
-                assert seg.start is not None and seg.end is not None
+                    continue
                 if w.start < seg.start - WORD_SLACK_SECONDS or w.end > seg.end + WORD_SLACK_SECONDS:
                     raise ValueError("a word lies outside its segment")
+        if self.timing == "none":
+            return self
+        if any(seg.start is None or seg.end is None for seg in self.segments):
+            raise ValueError(f"timing {self.timing!r} requires start and end on every segment")
+        if self.timing == "word" and any(
+            w.start is None for seg in self.segments if seg.text.strip() for w in seg.words
+        ):
+            raise ValueError("timing 'word' requires start and end on every word")
         return self

@@ -6,6 +6,10 @@
  */
 import type { Word } from './word';
 
+/**
+ * A segment. When it has text it has words that spell that text: the provider's, or the text split on whitespace
+ * into untimed words.
+ */
 export interface Segment {
   text: string;
   start?: number | null;

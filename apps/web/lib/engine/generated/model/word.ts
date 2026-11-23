@@ -5,6 +5,10 @@
  * OpenAPI spec version: 0.1.0
  */
 
+/**
+ * A word. It has `start` and `end`, or neither: a provider may give no usable time for it, and times are never
+ * estimated or copied from the segment.
+ */
 export interface Word {
   text: string;
   start?: number | null;

@@ -251,6 +251,7 @@
       },
       "Segment": {
         "additionalProperties": false,
+        "description": "A segment. When it has text it has words that spell that text: the provider's, or the text split on whitespace\ninto untimed words.",
         "properties": {
           "text": {
             "title": "Text",
@@ -539,7 +540,7 @@
       },
       "Transcript": {
         "additionalProperties": false,
-        "description": "A transcript. The adapter sets `timing` from what the provider actually returned.",
+        "description": "A transcript. The adapter sets `timing` from what the provider actually returned.\n\nAt every timing level: non-blank text is in segments, every segment with text has words, and the words spell the\nsegment's text (letters and digits, lower-cased). A word may have no times; a timed word lies within its timed\nsegment, up to 0.5 seconds outside it. `segment` timing also needs start and end on every segment, and `word` timing\nneeds, on top of that, times on every word of a segment with text. A consumer that needs a time for a word uses\nthe word's time, else its segment's time, else there is none.",
         "properties": {
           "text": {
             "title": "Text",
@@ -597,6 +598,7 @@
       },
       "Word": {
         "additionalProperties": false,
+        "description": "A word. It has `start` and `end`, or neither: a provider may give no usable time for it, and times are never\nestimated or copied from the segment.",
         "properties": {
           "text": {
             "title": "Text",
