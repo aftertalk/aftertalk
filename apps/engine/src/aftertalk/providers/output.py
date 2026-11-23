@@ -11,9 +11,10 @@ import asyncio
 import time
 from typing import Any, Literal, TypeVar
 
-from pydantic_ai import Agent, NativeOutput, PromptedOutput, ToolOutput, UsageLimits
+from pydantic_ai import Agent, NativeOutput, PromptedOutput, ToolOutput, UsageLimits, capture_run_messages
 from pydantic_ai.capabilities import TRANSIENT_MODEL_ERRORS, RetryOnModelErrors
 from pydantic_ai.exceptions import ModelHTTPError, UnexpectedModelBehavior, UserError
+from pydantic_ai.messages import ModelMessage, ModelResponse
 from pydantic_ai.models import Model
 from pydantic_ai.settings import ModelSettings
 from pydantic_ai.usage import RunUsage
@@ -21,7 +22,7 @@ from pydantic_ai.usage import RunUsage
 from aftertalk.models.connections import LLMConnection, ModelTier
 from aftertalk.models.errors import EngineError
 from aftertalk.models.usage import JobLimits, StepUsage
-from aftertalk.providers.errors import provider_codes, to_engine_error
+from aftertalk.providers.errors import _UNSUPPORTED_MODE_MESSAGES, provider_codes, to_engine_error
 from aftertalk.providers.net import BlockedAddressError
 
 T = TypeVar("T")
@@ -34,13 +35,6 @@ MAX_RETRY_DELAY = 60.0
 REQUEST_TIMEOUT = 600.0  # seconds for one request; shortened to what is left of the job's deadline
 DEFAULT_REQUEST_LIMIT = 30  # LLM requests per step when the job sets no limit: a backstop against loops
 
-# PydanticAI raises these before sending anything when the model profile cannot do the mode.
-_UNSUPPORTED_MODE_MESSAGES = frozenset(
-    {
-        "Native structured output is not supported by this model.",
-        "Tool output is not supported by this model.",
-    }
-)
 _PARAMETER_CODES = frozenset({"unsupported_parameter", "invalid_parameter", "unsupported_value", "invalid_value"})
 # Request parameters that belong to the output modes (a parameter error about them means "try the next mode").
 _OUTPUT_PARAMETERS = frozenset(
@@ -88,8 +82,8 @@ def _mode_unsupported(exc: Exception) -> bool:
             return parameter is None or parameter in _OUTPUT_PARAMETERS  # cannot tell: try the next mode
         return True
     if isinstance(exc, UnexpectedModelBehavior):
-        # Output still invalid after PydanticAI's own re-prompts. Refusals, truncation and malformed
-        # provider responses map to other codes and stop the ladder.
+        # Output still invalid after PydanticAI's own re-prompts. Refusals and malformed provider responses map
+        # to other codes and stop the ladder; truncation is caught in `run_structured` before this is asked.
         return to_engine_error(exc).code == "provider_output_invalid"
     return False
 
@@ -105,10 +99,19 @@ def _output_spec(mode: Mode, output_type: type[T]) -> ToolOutput[T] | NativeOutp
 
 
 def usage_limits(limits: JobLimits | None) -> UsageLimits:
+    # `max_llm_requests` counts requests that got an answer. A request that fails with a retryable error is sent up
+    # to 3 times, and those tries are not counted, also not in `usage.requests`. The worst case is 3 HTTP calls per
+    # counted request.
     return UsageLimits(
         request_limit=(limits.max_llm_requests if limits else None) or DEFAULT_REQUEST_LIMIT,
         total_tokens_limit=limits.max_total_tokens if limits else None,
     )
+
+
+def _cut_off(messages: list[ModelMessage]) -> bool:
+    """True when the last answer stopped at the output token limit."""
+    answers = [m for m in messages if isinstance(m, ModelResponse)]
+    return bool(answers) and answers[-1].finish_reason == "length"
 
 
 def _plan(model: Model, conn: LLMConnection) -> list[Mode]:
@@ -176,13 +179,18 @@ async def run_structured(
                     retries=OUTPUT_RETRIES,
                     model_settings=settings,
                 )
-                try:
-                    result = await agent.run(prompt, usage=usage, usage_limits=usage_limits(limits))
-                except Exception as exc:
-                    error = to_engine_error(exc)
-                    if _mode_unsupported(exc):
-                        continue
-                    break
+                with capture_run_messages() as messages:
+                    try:
+                        result = await agent.run(prompt, usage=usage, usage_limits=usage_limits(limits))
+                    except Exception as exc:
+                        error = to_engine_error(exc)
+                        # A cut-off text answer in tool mode is re-prompted and ends as plain invalid output.
+                        if error.code == "provider_output_invalid" and _cut_off(messages):
+                            error = EngineError("provider_output_truncated")
+                        # Truncation stops the ladder: another mode would be cut off at the same limit.
+                        if error.code != "provider_output_truncated" and _mode_unsupported(exc):
+                            continue
+                        break
                 output, worked, error = result.output, mode, None
                 break
     except TimeoutError as exc:

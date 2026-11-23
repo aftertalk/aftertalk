@@ -11,6 +11,7 @@ from pydantic_ai import (
 )
 from pydantic_ai.exceptions import (
     ContentFilterError,
+    IncompleteToolCall,
     ModelAPIError,
     ModelAuthenticationError,
     ModelConnectionError,
@@ -78,7 +79,8 @@ CASES = [
     (ModelAPIError("m", BODY), "provider_bad_response"),
     (ContentFilterError(BODY, body=BODY), "provider_refused"),
     (UnexpectedModelBehavior(BODY, body=BODY), "provider_output_invalid"),
-    (OutputTokenLimitExceeded(BODY, body=BODY), "provider_output_invalid"),
+    (OutputTokenLimitExceeded(BODY, body=BODY), "provider_output_truncated"),
+    (IncompleteToolCall(BODY, body=BODY), "provider_output_truncated"),
     (UsageLimitExceeded(BODY), "limit_exceeded"),
     (BlockedAddressError(), "provider_unreachable"),
     (httpx2.ConnectError(BODY), "provider_unreachable"),

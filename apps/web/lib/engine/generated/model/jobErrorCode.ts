@@ -17,6 +17,7 @@ export const JobErrorCode = {
   provider_context_too_long: 'provider_context_too_long',
   provider_bad_response: 'provider_bad_response',
   provider_output_invalid: 'provider_output_invalid',
+  provider_output_truncated: 'provider_output_truncated',
   provider_refused: 'provider_refused',
   provider_config_invalid: 'provider_config_invalid',
   limit_exceeded: 'limit_exceeded',

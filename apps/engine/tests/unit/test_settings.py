@@ -21,3 +21,27 @@ def test_cli_settings_do_not_require_the_callback_secret(monkeypatch: pytest.Mon
     CliSettings()
     with pytest.raises(ValidationError):
         Settings()  # type: ignore[call-arg]
+
+
+def test_prefixed_setting_is_refused(monkeypatch: pytest.MonkeyPatch) -> None:
+    from aftertalk.settings import SettingsError, get_settings
+
+    monkeypatch.setenv("AFTERTALK_BLOCK_PRIVATE_ADDRESSES", "1")
+    with pytest.raises(
+        SettingsError, match="AFTERTALK_BLOCK_PRIVATE_ADDRESSES is not read; set BLOCK_PRIVATE_ADDRESSES"
+    ):
+        get_cli_settings()
+    get_settings.cache_clear()
+    with pytest.raises(SettingsError, match="set BLOCK_PRIVATE_ADDRESSES instead"):
+        get_settings()
+    get_settings.cache_clear()
+
+
+def test_aftertalk_home_is_not_a_setting(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+    from aftertalk.settings import get_settings
+
+    monkeypatch.setenv("AFTERTALK_HOME", str(tmp_path))
+    get_cli_settings()
+    get_settings.cache_clear()
+    get_settings()
+    get_settings.cache_clear()

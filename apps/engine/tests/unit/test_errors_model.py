@@ -26,6 +26,7 @@ def test_codes_are_the_agreed_set() -> None:
         "provider_context_too_long",
         "provider_bad_response",
         "provider_output_invalid",
+        "provider_output_truncated",
         "provider_refused",
         "provider_config_invalid",
         "limit_exceeded",

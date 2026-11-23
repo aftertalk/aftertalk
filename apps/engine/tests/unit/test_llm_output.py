@@ -234,3 +234,94 @@ def test_only_transient_errors_are_retried() -> None:
     blocked = ModelConnectionError("m", "Connection error.")
     blocked.__cause__ = BlockedAddressError()
     assert not _should_retry(blocked)
+
+
+# Truncation: the answer stopped at the output token limit.
+
+
+def cut_off(calls: list[str], *, text: bool = False) -> FunctionModel:
+    """A model whose every answer ends with finish_reason "length"."""
+
+    def respond(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+        mode = info.model_request_parameters.output_mode
+        calls.append(mode)
+        if mode == "tool" and not text:
+            part: TextPart | ToolCallPart = ToolCallPart(info.output_tools[0].name, '{"answer": "o')
+        else:
+            part = TextPart('{"answer": "o' if not text else "The answer is")
+        return ModelResponse(parts=[part], finish_reason="length")
+
+    return FunctionModel(respond, profile=ModelProfile(supports_json_schema_output=True))
+
+
+async def test_cut_off_tool_call_stops_the_ladder() -> None:
+    calls: list[str] = []
+    with pytest.raises(EngineError) as info:
+        await run(cut_off(calls), conn())
+    assert info.value.code == "provider_output_truncated"
+    assert info.value.retryable is False
+    assert calls == ["tool"]
+    assert info.value.usage is not None and info.value.usage.attempts == 1
+
+
+async def test_cut_off_text_in_tool_mode_stops_the_ladder() -> None:
+    calls: list[str] = []
+    with pytest.raises(EngineError) as info:
+        await run(cut_off(calls, text=True), conn())  # PydanticAI re-prompts, then reports invalid output
+    assert info.value.code == "provider_output_truncated"
+    assert info.value.retryable is False
+    assert calls == ["tool", "tool", "tool"]  # the tool rung and its two re-prompts, never native or prompted
+    assert info.value.usage is not None and info.value.usage.attempts == 1
+
+
+@pytest.mark.parametrize("mode", ["native", "prompted"])
+async def test_cut_off_json_in_a_fixed_mode_is_truncated(mode: str) -> None:
+    calls: list[str] = []
+    with pytest.raises(EngineError) as info:
+        await run(cut_off(calls), conn(mode))
+    assert info.value.code == "provider_output_truncated"
+    assert calls == [mode]
+
+
+# A fixed output mode the model profile cannot do.
+
+
+async def test_fixed_mode_the_profile_cannot_do_is_a_config_error(fake_llm: Any) -> None:
+    from aftertalk.providers.llm import open_model
+
+    c = LLMConnection(
+        adapter="openai-compatible",
+        preset="openrouter",
+        base_url=fake_llm.base_url,
+        api_key="k",
+        model="vendor/m",
+        output_mode="native",
+    )
+    async with open_model(c, block_private=False) as model:
+        with pytest.raises(EngineError) as info:
+            await run(model, c)  # type: ignore[arg-type]
+    assert info.value.code == "provider_config_invalid"
+    assert info.value.retryable is False
+    assert info.value.usage is not None and info.value.usage.requests == 0
+    assert fake_llm.seen == []  # refused before anything was sent
+
+
+def test_other_user_errors_stay_internal() -> None:
+    from pydantic_ai.exceptions import UserError
+
+    from aftertalk.providers.errors import to_engine_error
+
+    assert to_engine_error(UserError("something else")).code == "internal"
+
+
+async def test_retried_tries_are_not_counted_against_the_request_limit(fake_llm: Any) -> None:
+    from fake_llm import Forced
+
+    fake_llm.always = Forced(429, json.dumps({"error": {"message": "slow down"}}), {"Retry-After": "0"})
+    c = conn("tool").model_copy(update={"base_url": fake_llm.base_url})
+    async with httpx2.AsyncClient() as client:
+        with pytest.raises(EngineError) as info:
+            await run(build_model(c, http_client=client), c, JobLimits(max_llm_requests=1))  # type: ignore[arg-type]
+    assert info.value.code == "provider_rate_limited"
+    assert len(fake_llm.seen) == 3  # REQUEST_ATTEMPTS tries for one counted request
+    assert info.value.usage is not None and info.value.usage.requests == 0

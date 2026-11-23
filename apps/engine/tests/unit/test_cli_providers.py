@@ -153,3 +153,30 @@ def test_speech_kind_is_accepted_but_not_built_yet(tmp_path: Path) -> None:
 
 def test_unknown_kind_is_rejected(tmp_path: Path) -> None:
     assert invoke({"AFTERTALK_HOME": str(tmp_path)}, "providers", "test", "--kind", "dns").exit_code == 2
+
+
+def test_prefixed_setting_is_a_config_error(fake_llm: FakeLLM, tmp_path: Path) -> None:
+    env = {**profile(tmp_path, fake_llm.base_url), "AFTERTALK_BLOCK_PRIVATE_ADDRESSES": "true"}
+    result = invoke(env, "--json", "providers", "test", "--kind", "llm")
+    assert result.exit_code == 2
+    assert "AFTERTALK_BLOCK_PRIVATE_ADDRESSES is not read; set BLOCK_PRIVATE_ADDRESSES instead" in result.output
+    assert fake_llm.seen == []
+
+
+def test_probe_has_a_time_limit(tmp_path: Path, allow_requests: None, monkeypatch: pytest.MonkeyPatch) -> None:
+    import socket
+    import time
+
+    import aftertalk.cli
+
+    monkeypatch.setattr(aftertalk.cli, "PROBE_TIMEOUT_SECONDS", 0.2)
+    with socket.socket() as silent:  # accepts connections (backlog) and never answers
+        silent.bind(("127.0.0.1", 0))
+        silent.listen(8)
+        env = profile(tmp_path, f"http://127.0.0.1:{silent.getsockname()[1]}/v1")
+        started = time.monotonic()
+        result = invoke(env, "--json", "providers", "test", "--kind", "llm")
+        elapsed = time.monotonic() - started
+    assert result.exit_code == 1, result.output
+    assert json.loads(result.stdout) == {"ok": False, "code": "provider_unreachable"}
+    assert elapsed < 10  # far below the 600 s request timeout

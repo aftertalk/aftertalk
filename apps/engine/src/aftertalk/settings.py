@@ -1,7 +1,12 @@
+import os
 from functools import lru_cache
 from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class SettingsError(Exception):
+    """A setting is spelled in a form the engine does not read."""
 
 
 class CliSettings(BaseSettings):
@@ -23,11 +28,21 @@ class Settings(CliSettings):
     log_level: Literal["debug", "info", "warning", "error"] = "info"
 
 
+def _check_prefixed(cls: type[CliSettings]) -> None:
+    """Engine settings have no prefix. A prefixed spelling would be ignored silently, so refuse it."""
+    for field in cls.model_fields:
+        name = field.upper()
+        if f"AFTERTALK_{name}" in os.environ:
+            raise SettingsError(f"AFTERTALK_{name} is not read; set {name} instead")
+
+
 @lru_cache
 def get_settings() -> Settings:
+    _check_prefixed(Settings)
     return Settings()  # type: ignore[call-arg]
 
 
 def get_cli_settings() -> CliSettings:
     """Read on every call (not cached): the command runs once, and tests change the environment."""
+    _check_prefixed(CliSettings)
     return CliSettings()

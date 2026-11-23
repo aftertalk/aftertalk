@@ -70,3 +70,49 @@ async def test_slow_name_resolution_times_out() -> None:
     async with make_client(block_private=True, connect_timeout=0.05, resolver=slow, inner=ok_transport([])) as client:
         with pytest.raises(httpx2.ConnectTimeout):
             await client.get("https://slow.example.com/")
+
+
+V6A = "2606:2800:220:1:248:1893:25c8:1946"
+V6B = "2606:2800:220:1:248:1893:25c8:1947"
+V4 = "93.184.216.34"
+
+
+def timing_out(tried: list[str], dead: set[str]) -> httpx2.MockTransport:
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        tried.append(request.url.host)
+        if request.url.host in dead:
+            raise httpx2.ConnectTimeout("timed out")
+        return httpx2.Response(200)
+
+    return httpx2.MockTransport(handler)
+
+
+async def test_next_address_is_tried_after_a_connect_timeout() -> None:
+    tried: list[str] = []
+    resolver = resolver_for({"dual.example.com": [V6A, V4]})
+    inner = timing_out(tried, {V6A})
+    async with make_client(block_private=True, resolver=resolver, inner=inner) as client:
+        assert (await client.get("http://dual.example.com/")).status_code == 200
+    assert tried == [V6A, V4]
+
+
+async def test_the_other_family_is_tried_second() -> None:
+    tried: list[str] = []
+    resolver = resolver_for({"dual.example.com": [V6A, V6B, V4]})
+    inner = timing_out(tried, {V6A, V6B})
+    async with make_client(block_private=True, resolver=resolver, inner=inner) as client:
+        assert (await client.get("http://dual.example.com/")).status_code == 200
+    assert tried == [V6A, V4]  # one dead family costs one timeout
+
+
+async def test_every_address_timing_out_raises_connect_timeout() -> None:
+    from aftertalk.providers.errors import to_engine_error
+
+    tried: list[str] = []
+    resolver = resolver_for({"dual.example.com": [V6A, V6B, V4]})
+    inner = timing_out(tried, {V6A, V6B, V4})
+    async with make_client(block_private=True, resolver=resolver, inner=inner) as client:
+        with pytest.raises(httpx2.ConnectTimeout) as info:
+            await client.get("http://dual.example.com/")
+    assert tried == [V6A, V4, V6B]
+    assert to_engine_error(info.value).code == "provider_unreachable"

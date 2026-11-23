@@ -18,6 +18,8 @@ from pydantic_ai.exceptions import (
     ModelRequestTimeout,
     ModelServerError,
     ModelUnavailableError,
+    OutputTokenLimitExceeded,
+    UserError,
 )
 
 from aftertalk.models.errors import EngineError, ErrorCode
@@ -42,6 +44,14 @@ _REFUSAL_CODES = frozenset({"content_filter", "content_policy_violation", "respo
 # base URL (a missing /v1), so it stays `provider_bad_response`.
 _MODEL_NOT_FOUND_CODES = frozenset(
     {"model_not_found", "model_not_available", "deploymentnotfound", "not_found_error", "not_found"}
+)
+# PydanticAI raises these before sending anything when the model profile cannot do the output mode. In `auto`
+# the ladder moves on; with a fixed `output_mode` it is the user's setting that is wrong.
+_UNSUPPORTED_MODE_MESSAGES = frozenset(
+    {
+        "Native structured output is not supported by this model.",
+        "Tool output is not supported by this model.",
+    }
 )
 
 
@@ -86,11 +96,15 @@ def _code_for(exc: BaseException) -> ErrorCode:
         return "provider_bad_response"
     if isinstance(exc, ContentFilterError):
         return "provider_refused"
+    if isinstance(exc, OutputTokenLimitExceeded):  # includes IncompleteToolCall
+        return "provider_output_truncated"
     if isinstance(exc, UnexpectedModelBehavior) and exc.message.startswith("Invalid response from"):
         # PydanticAI's wording when the provider's HTTP 200 body is not a valid completion (no choices, wrong shape).
         return "provider_bad_response"
-    if isinstance(exc, UnexpectedModelBehavior):  # includes OutputTokenLimitExceeded
+    if isinstance(exc, UnexpectedModelBehavior):  # output still invalid after PydanticAI's re-prompts
         return "provider_output_invalid"
+    if isinstance(exc, UserError) and exc.message in _UNSUPPORTED_MODE_MESSAGES:
+        return "provider_config_invalid"
     if isinstance(exc, httpx2.TransportError | httpx.TransportError | TimeoutError):
         return "provider_unreachable"
     return "internal"

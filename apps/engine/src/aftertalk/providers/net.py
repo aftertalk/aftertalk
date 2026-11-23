@@ -64,6 +64,17 @@ async def _resolve(host: str, port: int) -> list[str]:
     return [str(info[4][0]) for info in infos]
 
 
+def _interleave(addresses: list[str]) -> list[str]:
+    """The first address, then the first of the other family, then the rest: a dead family costs one timeout."""
+    if not addresses:
+        return addresses
+    first_v6 = ":" in addresses[0]
+    other = next((a for a in addresses[1:] if (":" in a) != first_v6), None)
+    if other is None:
+        return addresses
+    return [addresses[0], other, *(a for a in addresses[1:] if a != other)]
+
+
 class _GuardedTransport(httpx2.AsyncBaseTransport):
     """Resolves the host, validates every answer, then connects to a validated address, not to the name."""
 
@@ -74,8 +85,8 @@ class _GuardedTransport(httpx2.AsyncBaseTransport):
 
     async def handle_async_request(self, request: httpx2.Request) -> httpx2.Response:
         host = request.url.host
-        addresses = await self._validated_addresses(request.url)
-        last: httpx2.ConnectError | None = None
+        addresses = _interleave(await self._validated_addresses(request.url))
+        last: httpx2.ConnectError | httpx2.ConnectTimeout | None = None
         for address in addresses:
             # The inner transport connects to the IP we validated, so a second DNS answer cannot redirect it.
             # `Host` stays the original name, and `sni_hostname` makes TLS check the certificate against the
@@ -89,7 +100,8 @@ class _GuardedTransport(httpx2.AsyncBaseTransport):
             )
             try:
                 return await self._inner.handle_async_request(pinned)
-            except httpx2.ConnectError as exc:
+            except (httpx2.ConnectError, httpx2.ConnectTimeout) as exc:
+                # Both happen before any body byte is sent, so the request stream is still unread.
                 last = exc
         assert last is not None
         raise last

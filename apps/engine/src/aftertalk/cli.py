@@ -3,6 +3,7 @@
 import asyncio
 import json
 import time
+from collections.abc import Coroutine
 from enum import StrEnum
 from importlib.metadata import version
 from pathlib import Path
@@ -67,6 +68,21 @@ def config_show(ctx: typer.Context) -> None:
         typer.echo(yaml.safe_dump(data, sort_keys=False, allow_unicode=True).rstrip())
 
 
+PROBE_TIMEOUT_SECONDS = 120  # one `providers test` run, all tries and modes included
+
+
+async def _probe[T](coro: Coroutine[Any, Any, T]) -> T:
+    """Run a provider probe under a time limit. Running out is `provider_unreachable`: it did not answer in time."""
+    from aftertalk.models.errors import EngineError
+
+    try:
+        async with asyncio.timeout(PROBE_TIMEOUT_SECONDS):
+            return await coro
+    except TimeoutError:
+        pass
+    raise EngineError("provider_unreachable")
+
+
 class Kind(StrEnum):
     llm = "llm"
     speech = "speech"
@@ -121,7 +137,7 @@ def providers_test(
     from aftertalk.config.profiles import ProfileError, load_profile
     from aftertalk.models.connections import ModelTier
     from aftertalk.models.errors import EngineError
-    from aftertalk.settings import get_cli_settings
+    from aftertalk.settings import SettingsError, get_cli_settings
 
     as_json = bool((ctx.obj or {}).get("json"))
     if kind is Kind.speech:
@@ -138,10 +154,15 @@ def providers_test(
     if profile.llm is None:
         typer.echo("no llm connection is configured; add llm.default to the connections file", err=True)
         raise typer.Exit(2)
+    try:
+        settings = get_cli_settings()
+    except SettingsError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(2)
     conn = profile.llm.resolve(tier)  # type: ignore[arg-type]
     failure: EngineError | None = None
     try:
-        latency_ms, mode = asyncio.run(_probe_llm(conn, get_cli_settings().block_private_addresses))
+        latency_ms, mode = asyncio.run(_probe(_probe_llm(conn, settings.block_private_addresses)))
     except EngineError as err:
         failure = err
     except Exception:
