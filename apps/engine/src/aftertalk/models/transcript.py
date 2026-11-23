@@ -8,6 +8,9 @@ TimingLevel = Literal["word", "segment", "none"]
 
 _CONFIG = ConfigDict(extra="forbid", frozen=True, hide_input_in_errors=True)
 
+# Providers align words separately from segments, so a word may spill a little past a segment edge.
+WORD_SLACK_SECONDS = 0.5
+
 Seconds = Annotated[float, Field(ge=0, allow_inf_nan=False)]
 
 
@@ -69,10 +72,13 @@ class Transcript(BaseModel):
             raise ValueError(f"timing {self.timing!r} requires at least one segment when text is not blank")
         if any(seg.start is None or seg.end is None for seg in self.segments):
             raise ValueError(f"timing {self.timing!r} requires start and end on every segment")
-        if self.timing == "word":
-            for seg in self.segments:
-                if seg.text.strip() and not seg.words:
-                    raise ValueError("timing 'word' requires words on every segment with text")
-                if any(w.start is None or w.end is None for w in seg.words):
-                    raise ValueError("timing 'word' requires start and end on every word")
+        for seg in self.segments:
+            if self.timing == "word" and seg.text.strip() and not seg.words:
+                raise ValueError("timing 'word' requires words on every segment with text")
+            for w in seg.words:
+                if w.start is None or w.end is None:
+                    raise ValueError(f"timing {self.timing!r} requires start and end on every word")
+                assert seg.start is not None and seg.end is not None
+                if w.start < seg.start - WORD_SLACK_SECONDS or w.end > seg.end + WORD_SLACK_SECONDS:
+                    raise ValueError("a word lies outside its segment")
         return self

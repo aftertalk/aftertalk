@@ -60,3 +60,24 @@ def test_text_requires_segments_unless_none() -> None:
             Transcript(text="hello", timing=timing)
     Transcript(text="hello", timing="none")
     Transcript(text="  ", timing="segment")
+
+
+def test_segment_timing_requires_word_times() -> None:
+    seg = Segment(text="hi", start=0, end=1, words=[Word(text="hi")])
+    with pytest.raises(ValidationError, match="every word"):
+        Transcript(text="hi", timing="segment", segments=[seg])
+
+
+def test_word_outside_segment_rejected() -> None:
+    seg = Segment(text="hi", start=0, end=1, words=[Word(text="hi", start=5, end=6)])
+    with pytest.raises(ValidationError, match="outside its segment"):
+        Transcript(text="hi", timing="word", segments=[seg])
+
+
+def test_word_may_spill_a_little() -> None:
+    seg = Segment(text="hi", start=0, end=1, words=[Word(text="hi", start=0.9, end=1.3)])
+    Transcript(text="hi", timing="word", segments=[seg])
+
+
+def test_none_timing_allows_untimed_words() -> None:
+    Transcript(text="hi", timing="none", segments=[Segment(text="hi", words=[Word(text="hi")])])

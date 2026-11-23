@@ -39,6 +39,7 @@ def test_embedded_and_escape(tmp_path: Path) -> None:
 llm:
   default:
     adapter: anthropic
+    api_key: k
     model: pre-${M}-post
     extra_headers: {X-Lit: "$${NOT_A_VAR}"}
 """
@@ -131,3 +132,69 @@ def test_azure_profile_needs_version(tmp_path: Path) -> None:
     text = "llm:\n  default: {adapter: openai-compatible, preset: azure, base_url: 'https://a.test/openai', model: m}\n"
     with pytest.raises(ProfileError, match="api_version"):
         load_profile(write(tmp_path, text), env={})
+
+
+def test_recursive_alias(tmp_path: Path) -> None:
+    with pytest.raises(ProfileError, match="nested too deeply"):
+        load_profile(write(tmp_path, "a: &x [*x]\n"), env={})
+
+
+def test_alias_bomb_fails_fast(tmp_path: Path) -> None:
+    import time
+
+    lines = ["l0: &l0 [x, x, x, x, x, x, x, x, x]"]
+    for i in range(1, 9):
+        refs = ", ".join([f"*l{i - 1}"] * 9)
+        lines.append(f"l{i}: &l{i} [{refs}]")
+    started = time.monotonic()
+    with pytest.raises(ProfileError, match="too large"):
+        load_profile(write(tmp_path, "\n".join(lines) + "\n"), env={})
+    assert time.monotonic() - started < 2
+
+
+def test_alias_reuse_allowed(tmp_path: Path) -> None:
+    text = """
+llm:
+  default: &d {adapter: openai-compatible, base_url: "http://o:11434/v1", model: m}
+  fast: *d
+"""
+    prof = load_profile(write(tmp_path, text), env={})
+    assert prof.llm.fast == prof.llm.default
+
+
+def test_deep_flow_sequence_is_invalid_yaml(tmp_path: Path) -> None:
+    with pytest.raises(ProfileError, match="nested too deeply|not valid YAML"):
+        load_profile(write(tmp_path, "a: " + "[" * 5000 + "]" * 5000 + "\n"), env={})
+
+
+def test_unknown_key_not_echoed(tmp_path: Path) -> None:
+    text = """
+llm:
+  default:
+    adapter: openai-compatible
+    base_url: "http://o:11434/v1"
+    model: m
+    sk-SECRET123: 1
+"""
+    with pytest.raises(ProfileError) as e:
+        load_profile(write(tmp_path, text), env={})
+    assert "llm.default: unknown key" in str(e.value) and "sk-SECRET123" not in str(e.value)
+
+
+def test_unknown_key_suggests_field(tmp_path: Path) -> None:
+    text = """
+llm:
+  default:
+    adapter: openai-compatible
+    base_url: "http://o:11434/v1"
+    modle: x
+"""
+    with pytest.raises(ProfileError) as e:
+        load_profile(write(tmp_path, text), env={})
+    assert "did you mean model?" in str(e.value) and "modle" not in str(e.value)
+
+
+def test_unknown_top_level_key(tmp_path: Path) -> None:
+    with pytest.raises(ProfileError) as e:
+        load_profile(write(tmp_path, "sk-TOP: 1\n"), env={})
+    assert "top level: unknown key" in str(e.value) and "sk-TOP" not in str(e.value)

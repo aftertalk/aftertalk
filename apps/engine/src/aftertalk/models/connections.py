@@ -1,5 +1,6 @@
 """Connections to LLM and speech-to-text services. Keys are `SecretStr` and never printed."""
 
+import re
 from typing import Annotated, Any, Literal
 from urllib.parse import urlsplit
 
@@ -71,6 +72,10 @@ def _validate_base_url(value: str) -> str:
 
 BaseUrl = Annotated[str, AfterValidator(_validate_base_url), WithJsonSchema({"type": "string", "format": "uri"})]
 ModelName = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
+ApiVersion = Annotated[
+    str,
+    StringConstraints(strip_whitespace=True, min_length=1, max_length=64, pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]*$"),
+]
 
 
 def _secret_cleaner(empty_message: str):
@@ -109,6 +114,30 @@ def reveal(model: BaseModel) -> dict[str, Any]:
     return model.model_dump(mode="json", context={"reveal_secrets": True})
 
 
+_HEADER_NAME = re.compile(r"^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$")
+# The client sets these itself; overriding them would break the request or smuggle one.
+_RESERVED_HEADERS = frozenset({"host", "content-type", "content-length", "transfer-encoding"})
+
+
+def _check_extra_headers(cls: Any, value: dict[str, SecretStr]) -> dict[str, SecretStr]:
+    for name, secret in value.items():
+        lowered = name.strip().lower()
+        if lowered in _AUTH_HEADERS:
+            raise ValueError(f"header {name!r} is not allowed in extra_headers; put the key in api_key")
+        if lowered in _RESERVED_HEADERS:
+            raise ValueError(f"header {name!r} is set by Aftertalk and cannot be overridden")
+        if not _HEADER_NAME.match(name):
+            raise ValueError("header names may only contain letters, digits and !#$%&'*+-.^_`|~")
+        text = secret.get_secret_value()
+        if "\r" in text or "\n" in text or "\x00" in text:
+            raise ValueError(f"header {name!r} has a line break in its value")
+        try:
+            text.encode("latin-1")
+        except UnicodeEncodeError:
+            raise ValueError(f"header {name!r} has characters outside latin-1 in its value") from None
+    return value
+
+
 class LLMConnection(BaseModel):
     """One LLM endpoint. `api_key` None means a keyless own server."""
 
@@ -119,18 +148,12 @@ class LLMConnection(BaseModel):
     base_url: BaseUrl | None = None
     api_key: ApiKey | None = None
     model: ModelName
-    api_version: str | None = None
+    api_version: ApiVersion | None = None
     extra_headers: dict[str, HeaderValue] = {}
     output_mode: OutputMode = "auto"
     context_window: PositiveInt | None = None
 
-    @field_validator("extra_headers")
-    @classmethod
-    def _no_auth_headers(cls, value: dict[str, SecretStr]) -> dict[str, SecretStr]:
-        for name in value:
-            if name.strip().lower() in _AUTH_HEADERS:
-                raise ValueError(f"header {name!r} is not allowed in extra_headers; put the key in api_key")
-        return value
+    _no_auth_headers = field_validator("extra_headers")(_check_extra_headers)
 
     @model_validator(mode="after")
     def _check_adapter(self) -> "LLMConnection":
@@ -138,6 +161,10 @@ class LLMConnection(BaseModel):
             raise ValueError("preset is only valid with adapter openai-compatible")
         if self.adapter == "openai-compatible" and self.base_url is None:
             raise ValueError("base_url is required for adapter openai-compatible")
+        if self.adapter in ("anthropic", "google") and self.api_key is None and self.base_url is None:
+            raise ValueError(
+                "api_key is required for adapter anthropic and google unless base_url points at your own gateway"
+            )
         if self.api_version is not None and self.preset != "azure":
             raise ValueError("api_version is only valid with preset azure")
         if self.preset == "azure" and self.api_version is None:

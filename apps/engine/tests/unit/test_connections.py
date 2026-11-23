@@ -28,8 +28,8 @@ def test_trailing_slash_stripped() -> None:
 def test_base_url_required_for_openai_compatible() -> None:
     with pytest.raises(ValidationError, match="base_url"):
         LLMConnection(adapter="openai-compatible", model="m")
-    assert LLMConnection(adapter="anthropic", model="m").base_url is None
-    assert LLMConnection(adapter="google", model="m").base_url is None
+    assert LLMConnection(adapter="anthropic", model="m", api_key=KEY).base_url is None
+    assert LLMConnection(adapter="google", model="m", api_key=KEY).base_url is None
 
 
 def test_base_url_kept_verbatim_without_slash() -> None:
@@ -165,3 +165,48 @@ def test_azure_api_version() -> None:
 def test_resolve_unknown_tier() -> None:
     with pytest.raises(ValueError, match="tier"):
         ModelTiers(default=llm()).resolve("huge")  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize("adapter", ["anthropic", "google"])
+def test_hosted_adapter_needs_key_without_base_url(adapter: str) -> None:
+    with pytest.raises(ValidationError, match="api_key is required for adapter anthropic and google"):
+        LLMConnection(adapter=adapter, model="m")
+    assert LLMConnection(adapter=adapter, model="m", api_key=KEY).api_key is not None
+
+
+def test_anthropic_keyless_behind_own_gateway() -> None:
+    c = LLMConnection(adapter="anthropic", model="m", base_url="https://gateway.internal/anthropic")
+    assert c.api_key is None
+
+
+@pytest.mark.parametrize(
+    "headers",
+    [
+        {"X-A\r\nB": "v"},
+        {"X A": "v"},
+        {"": "v"},
+        {"X-Org": "a\r\nInjected: b"},
+        {"X-Org": "a\x00b"},
+        {"X-Org": "caf\u0119 \u2603"},
+        {"Host": "evil.test"},
+        {"Content-Length": "0"},
+    ],
+)
+def test_bad_extra_headers(headers: dict[str, str]) -> None:
+    with pytest.raises(ValidationError):
+        llm(extra_headers=headers)
+
+
+def test_normal_extra_header_passes() -> None:
+    assert llm(extra_headers={"X-Org": "org-1"}).extra_headers["X-Org"].get_secret_value() == "org-1"
+
+
+@pytest.mark.parametrize("version", ["", "  ", "2024 10"])
+def test_api_version_rejected(version: str) -> None:
+    with pytest.raises(ValidationError, match="api_version"):
+        llm(preset="azure", api_version=version)
+
+
+@pytest.mark.parametrize("version", ["2024-10-21", "2025-01-01-preview", "v1"])
+def test_api_version_accepted(version: str) -> None:
+    assert llm(preset="azure", api_version=version).api_version == version

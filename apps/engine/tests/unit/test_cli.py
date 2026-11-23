@@ -64,3 +64,10 @@ def test_serve_default_host_is_loopback() -> None:
     from aftertalk.cli import serve
 
     assert inspect.signature(serve).parameters["host"].default == "127.0.0.1"
+
+
+def test_config_show_recursive_alias_exits_2(tmp_path) -> None:
+    env = _profile_home(tmp_path, "a: &x [*x]\n")
+    result = CliRunner().invoke(app, ["config", "show"], env=env)
+    assert result.exit_code == 2
+    assert "Traceback" not in result.output and "nested too deeply" in result.output
