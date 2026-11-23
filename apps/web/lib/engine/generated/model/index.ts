@@ -6,6 +6,8 @@
  */
 
 export * from './healthzHealthzGet200';
+export * from './jobError';
+export * from './jobErrorCode';
 export * from './jobLimits';
 export * from './lLMConnection';
 export * from './lLMConnectionAdapter';

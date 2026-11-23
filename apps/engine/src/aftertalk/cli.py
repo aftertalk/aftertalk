@@ -1,8 +1,13 @@
 """The `aftertalk` command."""
 
+import asyncio
 import json
+import time
+from collections.abc import Coroutine
+from enum import StrEnum
 from importlib.metadata import version
-from typing import Annotated, Any
+from pathlib import Path
+from typing import Annotated, Any, get_args
 
 import typer
 import yaml
@@ -10,6 +15,8 @@ import yaml
 app = typer.Typer(name="aftertalk", no_args_is_help=True, add_completion=False)
 config_app = typer.Typer(name="config", no_args_is_help=True, help="Inspect the connections file.")
 app.add_typer(config_app)
+providers_app = typer.Typer(name="providers", no_args_is_help=True, help="Check the providers you configured.")
+app.add_typer(providers_app)
 
 
 def _print_version(value: bool) -> None:
@@ -59,6 +66,115 @@ def config_show(ctx: typer.Context) -> None:
         typer.echo(json.dumps(data, indent=2, ensure_ascii=False))
     else:
         typer.echo(yaml.safe_dump(data, sort_keys=False, allow_unicode=True).rstrip())
+
+
+PROBE_TIMEOUT_SECONDS = 120  # one `providers test` run, all tries and modes included
+
+
+async def _probe[T](coro: Coroutine[Any, Any, T]) -> T:
+    """Run a provider probe under a time limit. Running out is `provider_unreachable`: it did not answer in time."""
+    from aftertalk.models.errors import EngineError
+
+    try:
+        async with asyncio.timeout(PROBE_TIMEOUT_SECONDS):
+            return await coro
+    except TimeoutError:
+        pass
+    raise EngineError("provider_unreachable")
+
+
+class Kind(StrEnum):
+    llm = "llm"
+    speech = "speech"
+
+
+async def _probe_llm(conn: Any, block_private: bool) -> tuple[int, str]:
+    """Plain text first, then the structured-output ladder. Returns the latency and the output mode that worked."""
+    from typing import Literal
+
+    from pydantic import BaseModel
+    from pydantic_ai import Agent
+
+    from aftertalk.models.errors import EngineError
+    from aftertalk.providers.errors import to_engine_error
+    from aftertalk.providers.llm import open_model
+    from aftertalk.providers.output import retry_capability, run_structured
+
+    class Probe(BaseModel):
+        answer: Literal["ok"]
+
+    started = time.monotonic()
+    async with open_model(conn, block_private=block_private) as model:
+        error: EngineError | None = None
+        try:
+            reply = await Agent(model, capabilities=[retry_capability()]).run("Reply with the word ok")
+            if "ok" not in reply.output.lower():
+                error = EngineError("provider_bad_response")
+        except Exception as exc:
+            error = to_engine_error(exc)
+        if error is not None:
+            raise error  # raised outside the except block: nothing from the provider is chained to it
+        _, usage = await run_structured(
+            model,
+            conn=conn,
+            output_type=Probe,
+            instructions="Answer with the single word ok.",
+            prompt="Reply with the word ok",
+            limits=None,
+            step="providers_test",
+        )
+    return int((time.monotonic() - started) * 1000), usage.output_mode or conn.output_mode
+
+
+@providers_app.command("test")
+def providers_test(
+    ctx: typer.Context,
+    kind: Annotated[Kind, typer.Option(help="What to test.")],
+    tier: Annotated[str, typer.Option(help="Which LLM tier: default, fast or smart.")] = "default",
+    file: Annotated[Path | None, typer.Option(help="Connections file (default ~/.aftertalk/connections.yaml).")] = None,
+) -> None:
+    """Send a tiny request to a configured provider. Exit 0 ok, 1 provider failure, 2 configuration error."""
+    from aftertalk.config.profiles import ProfileError, load_profile
+    from aftertalk.models.connections import ModelTier
+    from aftertalk.models.errors import EngineError
+    from aftertalk.settings import SettingsError, get_cli_settings
+
+    as_json = bool((ctx.obj or {}).get("json"))
+    if kind is Kind.speech:
+        typer.echo("speech test arrives in the next PR", err=True)
+        raise typer.Exit(2)
+    if tier not in get_args(ModelTier):
+        typer.echo(f"unknown tier {tier!r}; use one of {', '.join(get_args(ModelTier))}", err=True)
+        raise typer.Exit(2)
+    try:
+        profile = load_profile(file)
+    except ProfileError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(2)
+    if profile.llm is None:
+        typer.echo("no llm connection is configured; add llm.default to the connections file", err=True)
+        raise typer.Exit(2)
+    try:
+        settings = get_cli_settings()
+    except SettingsError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(2)
+    conn = profile.llm.resolve(tier)  # type: ignore[arg-type]
+    failure: EngineError | None = None
+    try:
+        latency_ms, mode = asyncio.run(_probe(_probe_llm(conn, settings.block_private_addresses)))
+    except EngineError as err:
+        failure = err
+    except Exception:
+        failure = EngineError("internal")  # no traceback: it could quote what the provider sent
+    if failure is not None:
+        # Only the code and its fixed sentence are printed, never what the provider sent.
+        typer.echo(json.dumps({"ok": False, "code": failure.code}) if as_json else f"failed: {failure}")
+        raise typer.Exit(1)
+    if as_json:
+        typer.echo(json.dumps({"ok": True, "latency_ms": latency_ms, "output_mode": mode}))
+    else:
+        typer.echo(f"ok: llm {tier} answered in {latency_ms} ms (output mode: {mode})")
 
 
 @app.command()
