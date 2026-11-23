@@ -20,6 +20,7 @@ from aftertalk.logging import log
 from aftertalk.models.connections import LLMConnection, reveal
 from aftertalk.models.errors import EngineError
 from aftertalk.providers.net import make_client
+from aftertalk.settings import get_cli_settings
 
 # The OpenAI SDK refuses to start without a key and, when none is given, reads OPENAI_API_KEY from the
 # environment, which would send the operator's real OpenAI key to whatever server the connection points at.
@@ -197,7 +198,7 @@ def fingerprint(conn: LLMConnection) -> str:
 @asynccontextmanager
 async def open_model(conn: LLMConnection, *, block_private: bool) -> AsyncIterator[Model]:
     """Build the model with its own HTTP client and always close the client."""
-    client = make_client(block_private=block_private)
+    client = make_client(block_private=block_private, proxy=get_cli_settings().provider_proxy)
     try:
         yield build_model(conn, http_client=client)
     finally:

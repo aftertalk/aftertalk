@@ -25,6 +25,8 @@ class StepUsage(BaseModel):
     requests: NonNegativeInt = 0
     audio_seconds: NonNegativeFloat | None = None
     attempts: NonNegativeInt = 0
+    # Transcription request form that worked: all timestamps, segments only, or plain text.
+    speech_format: Literal["verbose_json", "verbose_json_segments", "json"] | None = None
     duration_ms: NonNegativeInt = 0
     cost_usd: Annotated[float, Field(ge=0)] | None = None
 

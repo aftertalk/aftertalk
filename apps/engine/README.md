@@ -26,6 +26,9 @@ Or the whole stack: `docker compose -f docker-compose.dev.yml up -d --build`.
 ```
 src/aftertalk/
   cli.py       the `aftertalk` command (Typer)
+  audio/       decode and re-encode audio for providers (PyAV)
+  assets/      bundled test clip (test-2s.wav)
+  render.py    a transcript as text, WebVTT or SRT
   models/      data models and error codes shared with web (through openapi.json)
   config/      the CLI connections file (~/.aftertalk/connections.yaml)
   api/         HTTP: app, job contract (OpenAPI), signing and callbacks
@@ -35,7 +38,8 @@ src/aftertalk/
   pii/         pattern rules, name detector, redaction
   logging.py   JSON logs with a fixed set of fields
   settings.py  environment variables (pydantic-settings)
-scripts/       export_openapi.py
+scripts/       export_openapi.py, make_test_audio.py
+docs/          providers.md: which speech and LLM servers work
 tests/unit/    one test file per module
 tests/contract/ committed openapi.json must match the code
 openapi.json   generated; web's client is built from it

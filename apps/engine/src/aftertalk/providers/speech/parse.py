@@ -1,0 +1,270 @@
+"""Turn a transcription response into a `Transcript`.
+
+Providers differ: OpenAI and Groq put `words` at the top level, whisper.cpp nests them in the segments, some
+servers return only `text`. The transcript's `timing` is set from what survived parsing, so a malformed time
+downgrades the level instead of failing the job, and no segment text is ever dropped (except blank segments).
+
+Rules:
+- Times may be numbers or numeric strings; anything else, negative, infinite or reversed is "no time".
+- A word without a usable time keeps its text and has no times; only a word without text is dropped. A segment
+  without a usable time keeps its text too. Times are never estimated or copied from the segment.
+- A word further than `WORD_SLACK_SECONDS` outside its (timed) segment keeps its text and loses its times, nested or
+  top-level.
+- Every segment has words that spell its text (letters and digits, lower-cased). Words that already spell it are kept.
+  Otherwise the text is split on whitespace and lined up with the provider's words: a piece that matches a word (or
+  several words that together spell it) takes their times, the others stay untimed. One wrong word ("ten" for "10")
+  costs only that word its times. Top-level words are lined up against all timed segments at once, so a word the
+  provider timed just past a segment edge still lands in the right segment. A top-level word without times cannot be
+  placed, so it never reaches a segment.
+- A text-only answer becomes one segment without times, with the split words, and `none` timing.
+- `segment` timing needs usable times on at least 90% of the segments. The others stay untimed (`start` and `end`
+  are None), and consumers treat None as "no playback for this segment".
+- `word` timing needs, on top of that, at least 90% of the segments to have times on all their words.
+"""
+
+import bisect
+import math
+from difflib import SequenceMatcher
+from typing import Any
+
+from aftertalk.models.errors import EngineError
+from aftertalk.models.transcript import (
+    WORD_SLACK_SECONDS,
+    Segment,
+    TimingLevel,
+    Transcript,
+    Word,
+    spells,
+    split_words,
+    word_timed,
+)
+from aftertalk.providers.speech.languages import normalize_language
+
+COVERAGE = 0.9
+
+
+def _time(value: Any) -> float | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, str):
+        try:
+            value = float(value.strip())
+        except ValueError:
+            return None
+    if not isinstance(value, int | float):
+        return None
+    return float(value) if math.isfinite(value) and value >= 0 else None
+
+
+def _span(raw: dict[str, Any]) -> tuple[float | None, float | None]:
+    start, end = _time(raw.get("start")), _time(raw.get("end"))
+    if start is None or end is None or end < start:
+        return None, None
+    return start, end
+
+
+def _word(raw: Any) -> Word | None:
+    if not isinstance(raw, dict):
+        return None
+    text = raw.get("word", raw.get("text"))
+    if not isinstance(text, str) or not text.strip():
+        return None
+    start, end = _span(raw)
+    return Word(text=text.strip(), start=start, end=end, probability=_number(raw.get("probability")))
+
+
+def _words(raw: Any) -> list[Word]:
+    if not isinstance(raw, list):
+        return []
+    return [word for item in raw if (word := _word(item)) is not None]
+
+
+def _number(value: Any) -> float | None:
+    if isinstance(value, bool) or not isinstance(value, int | float) or not math.isfinite(value):
+        return None
+    return float(value)
+
+
+def _duration(value: Any) -> float | None:
+    return _time(value)
+
+
+def reported_language(data: Any) -> Any:
+    """What the provider says the language is: `language`, else the first of `languages`; None when it says nothing."""
+    if not isinstance(data, dict):
+        return None
+    language = data.get("language")
+    if isinstance(language, str) and language.strip():
+        return language
+    languages = data.get("languages")
+    if isinstance(languages, list) and languages and isinstance(languages[0], str) and languages[0].strip():
+        return languages[0]
+    return None
+
+
+def _language(data: dict[str, Any], forced: str | None) -> str | None:
+    return normalize_language(reported_language(data)) or normalize_language(forced)
+
+
+def _assign(words: list[Word], segments: list[Segment]) -> list[list[Word]]:
+    """Give each top-level word to the segment it overlaps most; a word in a gap goes to the nearest one."""
+    buckets: list[list[Word]] = [[] for _ in segments]
+    order = sorted(
+        (i for i, seg in enumerate(segments) if seg.start is not None),  # untimed segments get no top-level words
+        key=lambda i: (segments[i].start or 0.0, segments[i].end or 0.0),
+    )
+    spans = [(segments[i].start or 0.0, segments[i].end or 0.0) for i in order]
+    starts = [start for start, _ in spans]
+    for word in sorted(words, key=lambda w: (w.start or 0.0, w.end or 0.0)):
+        if word.start is None or word.end is None:
+            continue  # no time, no place: the segment falls back to its split text
+        middle = (word.start + word.end) / 2
+        at = bisect.bisect_right(starts, middle)
+        best, best_score = 0, (-1.0, -math.inf)
+        for position in range(max(at - 3, 0), min(at + 3, len(order))):
+            start, end = spans[position]
+            overlap = max(0.0, min(word.end, end) - max(word.start, start))
+            gap = max(start - middle, middle - end, 0.0)
+            if (overlap, -gap) > best_score:
+                best, best_score = position, (overlap, -gap)
+        buckets[order[best]].append(word)
+    return buckets
+
+
+def _near_words(seg: Segment) -> Segment:
+    """Untime the words that lie more than `WORD_SLACK_SECONDS` outside the segment; untimed segments are kept as is."""
+    if seg.start is None or seg.end is None or not seg.words:
+        return seg
+    lo, hi = seg.start - WORD_SLACK_SECONDS, seg.end + WORD_SLACK_SECONDS
+    far = [w.start is not None and w.end is not None and (w.start < lo or w.end > hi) for w in seg.words]
+    if not any(far):
+        return seg
+    words = [w.model_copy(update={"start": None, "end": None}) if f else w for w, f in zip(seg.words, far, strict=True)]
+    return seg.model_copy(update={"words": words})
+
+
+def _key(text: str) -> str:
+    return "".join(ch for ch in text.lower() if ch.isalnum())
+
+
+def _line_up(pieces: list[str], words: list[Word]) -> list[Word]:
+    """The pieces as words, each with the times of the provider word(s) that spell it, else untimed.
+
+    Pieces without letters or digits (a dash) are left out: they spell nothing, so the result still spells the text.
+    """
+    pieces = [piece for piece in pieces if _key(piece)]
+    out = [Word(text=piece) for piece in pieces]
+    a, b = [_key(piece) for piece in pieces], [_key(w.text) for w in words]
+    for tag, i1, i2, j1, j2 in SequenceMatcher(None, a, b, autojunk=False).get_opcodes():
+        if tag == "equal":
+            for i, j in zip(range(i1, i2), range(j1, j2), strict=True):
+                out[i] = Word(text=pieces[i], start=words[j].start, end=words[j].end, probability=words[j].probability)
+        elif tag == "replace":  # e.g. "e-mail" given as "e" and "mail": walk from the left while the words spell
+            j = j1
+            for i in range(i1, i2):
+                k, joined = j, ""
+                while k < j2 and len(joined) < len(a[i]) and a[i].startswith(joined + b[k]):
+                    joined += b[k]
+                    k += 1
+                if joined != a[i]:
+                    break
+                first, last = words[j], words[k - 1]
+                if first.start is not None and last.end is not None and first.start <= last.end:
+                    out[i] = Word(text=pieces[i], start=first.start, end=last.end)
+                j = k
+    return out
+
+
+def _spelled(seg: Segment) -> Segment:
+    """The segment with words that spell its text: its own when they do, else its text lined up with them."""
+    if seg.words and spells(seg.words, seg.text):
+        return seg
+    return seg.model_copy(update={"words": _line_up(seg.text.split(), seg.words) or split_words(seg.text)})
+
+
+def _line_up_top(words: list[Word], segments: list[Segment]) -> list[Segment]:
+    """Top-level words lined up with the text of all timed segments at once (in time order); untimed ones get none."""
+    order = sorted((i for i, seg in enumerate(segments) if seg.start is not None), key=lambda i: segments[i].start)
+    owner: list[int] = []
+    pieces: list[str] = []
+    for i in order:
+        for piece in segments[i].text.split():
+            if _key(piece):
+                owner.append(i)
+                pieces.append(piece)
+    timed = sorted((w for w in words if w.start is not None), key=lambda w: (w.start, w.end))
+    lined = _line_up(pieces, timed)
+    buckets: list[list[Word]] = [[] for _ in segments]
+    for i, word in zip(owner, lined, strict=True):
+        buckets[i].append(word)
+    return [
+        seg.model_copy(update={"words": bucket or split_words(seg.text)})
+        for seg, bucket in zip(segments, buckets, strict=True)
+    ]
+
+
+def parse_transcription(data: Any, *, audio_seconds: float | None, forced_language: str | None) -> Transcript:
+    """Raises `provider_bad_response` when the response has no usable `text`."""
+    text = data.get("text") if isinstance(data, dict) else None
+    segments_raw = data.get("segments") if isinstance(data, dict) else None
+    if not isinstance(text, str) or not (segments_raw is None or isinstance(segments_raw, list)):
+        raise EngineError("provider_bad_response")
+    assert isinstance(data, dict)
+
+    segments: list[Segment] = []
+    nested = False
+    for raw in segments_raw or []:
+        if not isinstance(raw, dict) or not isinstance(raw.get("text"), str) or not raw["text"].strip():
+            continue
+        start, end = _span(raw)
+        words = _words(raw.get("words"))
+        nested = nested or bool(words)
+        segments.append(
+            Segment(
+                text=raw["text"].strip(),
+                start=start,
+                end=end,
+                words=words,
+                avg_logprob=_number(raw.get("avg_logprob")),
+                compression_ratio=_number(raw.get("compression_ratio")),
+                no_speech_prob=_number(raw.get("no_speech_prob")),
+            )
+        )
+
+    top_words = [] if nested else _words(data.get("words"))
+    if not segments and text.strip():
+        # No segments: one segment that spans the timed top-level words (some servers), else one without times.
+        timed_words = [w for w in top_words if w.start is not None and w.end is not None]
+        first = min((w.start for w in timed_words if w.start is not None), default=None)
+        last = max((w.end for w in timed_words if w.end is not None), default=None)
+        segments = [Segment(text=text.strip(), start=first, end=last, words=top_words)]
+        top_words = []
+
+    timing: TimingLevel = "none"
+    if segments:
+        timed = sum(1 for seg in segments if seg.start is not None)
+        if timed / len(segments) >= COVERAGE:
+            timing = "segment"
+            if top_words:
+                buckets = _assign(top_words, segments)
+                assigned = [
+                    seg.model_copy(update={"words": words}) for seg, words in zip(segments, buckets, strict=True)
+                ]
+                if not all(spells(seg.words, seg.text) for seg in assigned):
+                    assigned = _line_up_top(top_words, segments)
+                segments = assigned
+        segments = [_spelled(_near_words(seg)) for seg in segments]  # before counting: untimed words do not count
+        word_timed_count = sum(1 for seg in segments if word_timed(seg))
+        if timing == "segment" and word_timed_count / len(segments) >= COVERAGE:
+            timing = "word"
+    elif segments_raw == [] and not text.strip():
+        timing = "segment"  # silence: the provider answered with segments, and there are none
+
+    duration = _duration(data.get("duration"))
+    return Transcript(
+        text=text.strip(),
+        language=_language(data, forced_language),
+        duration_seconds=duration if duration is not None else audio_seconds,
+        timing=timing,
+        segments=segments,
+    )

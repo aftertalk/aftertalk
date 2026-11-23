@@ -13,4 +13,5 @@ export interface Word {
   text: string;
   start?: number | null;
   end?: number | null;
+  probability?: number | null;
 }

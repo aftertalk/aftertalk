@@ -210,3 +210,13 @@ def test_api_version_rejected(version: str) -> None:
 @pytest.mark.parametrize("version", ["2024-10-21", "2025-01-01-preview", "v1"])
 def test_api_version_accepted(version: str) -> None:
     assert llm(preset="azure", api_version=version).api_version == version
+
+
+def test_speech_extra_headers_are_secret_and_cannot_carry_auth() -> None:
+    s = SpeechConnection(base_url="https://x.test/v1", model="m", extra_headers={"X-Tenant": KEY})
+    assert KEY not in repr(s) and KEY not in s.model_dump_json()
+    assert s.extra_headers["X-Tenant"].get_secret_value() == KEY
+    with pytest.raises(ValidationError, match="not allowed in extra_headers"):
+        SpeechConnection(base_url="https://x.test/v1", model="m", extra_headers={"Authorization": "x"})
+    with pytest.raises(ValidationError, match="not allowed in extra_headers"):
+        llm(extra_headers={"api-key": "x"})

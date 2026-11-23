@@ -145,10 +145,10 @@ def test_bad_file_is_a_config_error(tmp_path: Path) -> None:
     assert result.exit_code == 2
 
 
-def test_speech_kind_is_accepted_but_not_built_yet(tmp_path: Path) -> None:
+def test_speech_kind_without_a_speech_connection_is_a_config_error(tmp_path: Path) -> None:
     result = invoke({"AFTERTALK_HOME": str(tmp_path)}, "providers", "test", "--kind", "speech")
     assert result.exit_code == 2
-    assert "speech test arrives in the next PR" in result.output
+    assert "no speech connection is configured" in result.output
 
 
 def test_unknown_kind_is_rejected(tmp_path: Path) -> None:

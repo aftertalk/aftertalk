@@ -14,4 +14,5 @@ export interface JobError {
   code: JobErrorCode;
   retryable: boolean;
   usage?: StepUsage | null;
+  detected_language?: string | null;
 }

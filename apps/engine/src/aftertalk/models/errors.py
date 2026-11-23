@@ -18,6 +18,9 @@ ErrorCode = Literal[
     "provider_output_truncated",
     "provider_refused",
     "provider_config_invalid",
+    "audio_unreadable",
+    "audio_too_long",
+    "language_not_allowed",
     "limit_exceeded",
     "internal",
 ]
@@ -34,6 +37,9 @@ _SENTENCES: dict[ErrorCode, str] = {
     "provider_output_truncated": "The model's answer was cut off at its output token limit.",
     "provider_refused": "The provider refused to answer this request.",
     "provider_config_invalid": "The connection settings are not valid for this provider.",
+    "audio_unreadable": "The file could not be read as audio, or it has no audio stream.",
+    "audio_too_long": "The audio is larger than the provider accepts in one upload.",
+    "language_not_allowed": "The spoken language is not one of the allowed languages, or the provider did not report it.",
     "limit_exceeded": "A limit set for this job was reached.",
     "internal": "An internal error occurred.",
 }
@@ -48,17 +54,23 @@ class JobError(BaseModel):
     code: ErrorCode
     retryable: bool
     usage: StepUsage | None = None
+    # For `language_not_allowed`: the detected language as a code from the engine's language table (never provider
+    # text); None when the provider reported no language or one that could not be mapped, and for every other code.
+    detected_language: str | None = None
 
 
 class EngineError(Exception):
     """A failure with a stable code. `str()` is the code and a fixed sentence, never provider text."""
 
-    def __init__(self, code: ErrorCode, usage: StepUsage | None = None) -> None:
+    def __init__(
+        self, code: ErrorCode, usage: StepUsage | None = None, *, detected_language: str | None = None
+    ) -> None:
         super().__init__(code)
         self.code: ErrorCode = code
         # What a failed run used before it stopped, so callers can bill and log it.
         self.usage: StepUsage | None = usage
         self.retryable: bool = code in _RETRYABLE
+        self.detected_language: str | None = detected_language
         # Raised from inside `except` blocks that hold provider bodies; do not chain them.
         self.__suppress_context__ = True
 
@@ -66,4 +78,6 @@ class EngineError(Exception):
         return f"{self.code}: {_SENTENCES[self.code]}"
 
     def to_model(self) -> JobError:
-        return JobError(code=self.code, retryable=self.retryable, usage=self.usage)
+        return JobError(
+            code=self.code, retryable=self.retryable, usage=self.usage, detected_language=self.detected_language
+        )

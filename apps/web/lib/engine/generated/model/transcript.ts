@@ -11,10 +11,13 @@ import type { TranscriptTiming } from './transcriptTiming';
  * A transcript. The adapter sets `timing` from what the provider actually returned.
  *
  * At every timing level: non-blank text is in segments, every segment with text has words, and the words spell the
- * segment's text (letters and digits, lower-cased). A word may have no times; a timed word lies within its timed
- * segment, up to 0.5 seconds outside it. `segment` timing also needs start and end on every segment, and `word` timing
- * needs, on top of that, times on every word of a segment with text. A consumer that needs a time for a word uses
- * the word's time, else its segment's time, else there is none.
+ * segment's text (letters and digits, lower-cased). A segment or a word has start and end, or neither: times are
+ * never estimated or copied. A timed word lies within its timed segment, up to 0.5 seconds outside it.
+ *
+ * `timing` is the level the transcript can be relied on for. `segment`: at least 90% of the segments with text have
+ * a start and end. `word`: that too, and at least 90% of the segments with text have times on all their words.
+ * `none` is text only (or too few times to use). A consumer that needs a time for a word uses the word's time, else
+ * its segment's time, else there is none (no playback).
  */
 export interface Transcript {
   text: string;
