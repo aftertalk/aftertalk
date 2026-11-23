@@ -1,30 +1,59 @@
 [project]
-name = "aftertalk-engine"
+name = "aftertalk"
 version = "0.0.0"
-description = "Aftertalk processing engine: stateless call processing over HTTP"
+description = "Aftertalk: coworkers (AI agents) that act on transcripts, with your own keys and models"
 license = "AGPL-3.0-only"
-requires-python = ">=3.13"
+# Torch's TorchScript (used by silero-vad) is not supported on 3.14+.
+requires-python = ">=3.13,<3.14"
 dependencies = [
-    "fastapi>=0.165.0,<1.0.0",
-    "uvicorn>=0.54.0,<1.0.0",
     "pydantic>=2.14.3,<3.0.0",
     "pydantic-settings>=2.16.3,<3.0.0",
     "pydantic-ai-slim[openai]==2.70.0",
+    "pyyaml>=6.0.2,<7.0.0",
     "httpx>=0.28.1,<1.0.0",
     "av>=19.0.2",
     "numpy>=2.5.5",
+    "typer>=0.20.0,<1.0.0",
+]
+
+[project.optional-dependencies]
+# HTTP server for the web app (`aftertalk serve`).
+server = [
+    "fastapi>=0.165.0,<1.0.0",
+    "uvicorn>=0.54.0,<1.0.0",
+]
+# Voice detection for two-channel calls.
+audio = [
     "torch>=2.8.0",
     "torchaudio>=2.8.0",
     "silero-vad>=6.2.3,<7.0.0",
+]
+# Name detection for redaction.
+pii = [
+    "torch>=2.8.0",
     "gliner==0.2.30",
     # gliner's tokenizer cannot be loaded by transformers 5 (spike Q1).
     "transformers>=4.57.6,<5",
     "sentencepiece>=0.2.3",
     "protobuf>=7.36.2",
 ]
+# Native Anthropic and Google Gemini LLM connections.
+anthropic = ["pydantic-ai-slim[anthropic]==2.70.0"]
+google = ["pydantic-ai-slim[google]==2.70.0"]
+# Local transcription (faster-whisper); packages added in M2.
+local = []
+# YouTube audio fallback (yt-dlp); packages added in M7.
+youtube = []
+all = ["aftertalk[server,audio,pii,anthropic,google,local,youtube]"]
+
+[project.scripts]
+aftertalk = "aftertalk.cli:app"
 
 [dependency-groups]
 dev = [
+    # The server extra, so tests of the HTTP app run with a plain `uv run`.
+    "fastapi>=0.165.0,<1.0.0",
+    "uvicorn>=0.54.0,<1.0.0",
     "pytest>=9.0.2,<10.0.0",
     "pytest-asyncio>=1.0.0,<2.0.0",
     "ruff>=0.14.0,<1.0.0",
@@ -35,7 +64,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["aftertalk_engine"]
+packages = ["src/aftertalk"]
 
 [[tool.uv.index]]
 name = "pytorch-cpu"
@@ -52,6 +81,9 @@ line-length = 120
 
 [tool.ruff.lint]
 select = ["F", "I"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["aftertalk"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

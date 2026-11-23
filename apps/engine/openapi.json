@@ -27,5 +27,616 @@
         }
       }
     }
+  },
+  "components": {
+    "schemas": {
+      "JobLimits": {
+        "additionalProperties": false,
+        "description": "Per-job caps. None means no limit.",
+        "properties": {
+          "max_audio_seconds": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Max Audio Seconds"
+          },
+          "max_llm_requests": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Max Llm Requests"
+          },
+          "max_total_tokens": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Max Total Tokens"
+          },
+          "timeout_seconds": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Timeout Seconds"
+          }
+        },
+        "title": "JobLimits",
+        "type": "object"
+      },
+      "LLMConnection": {
+        "additionalProperties": false,
+        "description": "One LLM endpoint. `api_key` None means a keyless own server.",
+        "properties": {
+          "adapter": {
+            "enum": [
+              "openai-compatible",
+              "anthropic",
+              "google"
+            ],
+            "title": "Adapter",
+            "type": "string"
+          },
+          "preset": {
+            "anyOf": [
+              {
+                "enum": [
+                  "openai",
+                  "ollama",
+                  "vllm",
+                  "openrouter",
+                  "groq",
+                  "azure",
+                  "litellm"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Preset"
+          },
+          "base_url": {
+            "anyOf": [
+              {
+                "format": "uri",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Base Url"
+          },
+          "api_key": {
+            "anyOf": [
+              {
+                "format": "password",
+                "type": "string",
+                "writeOnly": true
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Api Key"
+          },
+          "model": {
+            "minLength": 1,
+            "title": "Model",
+            "type": "string"
+          },
+          "api_version": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Api Version"
+          },
+          "extra_headers": {
+            "additionalProperties": {
+              "format": "password",
+              "type": "string",
+              "writeOnly": true
+            },
+            "default": {},
+            "title": "Extra Headers",
+            "type": "object"
+          },
+          "output_mode": {
+            "default": "auto",
+            "enum": [
+              "auto",
+              "tool",
+              "native",
+              "prompted"
+            ],
+            "title": "Output Mode",
+            "type": "string"
+          },
+          "context_window": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Context Window"
+          }
+        },
+        "required": [
+          "adapter",
+          "model"
+        ],
+        "title": "LLMConnection",
+        "type": "object"
+      },
+      "ModelTiers": {
+        "additionalProperties": false,
+        "description": "LLM connections by tier; unset tiers fall back to `default`.",
+        "properties": {
+          "default": {
+            "$ref": "#/components/schemas/LLMConnection"
+          },
+          "fast": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LLMConnection"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "smart": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LLMConnection"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          }
+        },
+        "required": [
+          "default"
+        ],
+        "title": "ModelTiers",
+        "type": "object"
+      },
+      "Segment": {
+        "additionalProperties": false,
+        "description": "A segment. When it has text it has words that spell that text: the provider's, or the text split on whitespace\ninto untimed words.",
+        "properties": {
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "start": {
+            "anyOf": [
+              {
+                "minimum": 0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Start"
+          },
+          "end": {
+            "anyOf": [
+              {
+                "minimum": 0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "End"
+          },
+          "words": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/Word"
+            },
+            "title": "Words",
+            "type": "array"
+          },
+          "avg_logprob": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Avg Logprob"
+          },
+          "compression_ratio": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Compression Ratio"
+          },
+          "no_speech_prob": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "No Speech Prob"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "title": "Segment",
+        "type": "object"
+      },
+      "SpeechConnection": {
+        "additionalProperties": false,
+        "description": "A speech-to-text endpoint (OpenAI-compatible transcription API).",
+        "properties": {
+          "adapter": {
+            "const": "openai-compatible",
+            "default": "openai-compatible",
+            "title": "Adapter",
+            "type": "string"
+          },
+          "base_url": {
+            "format": "uri",
+            "title": "Base Url",
+            "type": "string"
+          },
+          "api_key": {
+            "anyOf": [
+              {
+                "format": "password",
+                "type": "string",
+                "writeOnly": true
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Api Key"
+          },
+          "model": {
+            "minLength": 1,
+            "title": "Model",
+            "type": "string"
+          },
+          "audio_format": {
+            "default": "flac",
+            "enum": [
+              "flac",
+              "wav"
+            ],
+            "title": "Audio Format",
+            "type": "string"
+          }
+        },
+        "required": [
+          "base_url",
+          "model"
+        ],
+        "title": "SpeechConnection",
+        "type": "object"
+      },
+      "StepUsage": {
+        "additionalProperties": false,
+        "description": "What one pipeline step used. Raw units are the source of truth; cost is an estimate.",
+        "properties": {
+          "step": {
+            "title": "Step",
+            "type": "string"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Provider"
+          },
+          "connection": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Connection"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Model"
+          },
+          "tier": {
+            "anyOf": [
+              {
+                "enum": [
+                  "default",
+                  "fast",
+                  "smart"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Tier"
+          },
+          "output_mode": {
+            "anyOf": [
+              {
+                "enum": [
+                  "tool",
+                  "native",
+                  "prompted"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Output Mode"
+          },
+          "input_tokens": {
+            "default": 0,
+            "minimum": 0,
+            "title": "Input Tokens",
+            "type": "integer"
+          },
+          "output_tokens": {
+            "default": 0,
+            "minimum": 0,
+            "title": "Output Tokens",
+            "type": "integer"
+          },
+          "cache_read_tokens": {
+            "default": 0,
+            "minimum": 0,
+            "title": "Cache Read Tokens",
+            "type": "integer"
+          },
+          "cache_write_tokens": {
+            "default": 0,
+            "minimum": 0,
+            "title": "Cache Write Tokens",
+            "type": "integer"
+          },
+          "requests": {
+            "default": 0,
+            "minimum": 0,
+            "title": "Requests",
+            "type": "integer"
+          },
+          "audio_seconds": {
+            "anyOf": [
+              {
+                "minimum": 0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Audio Seconds"
+          },
+          "attempts": {
+            "default": 0,
+            "minimum": 0,
+            "title": "Attempts",
+            "type": "integer"
+          },
+          "duration_ms": {
+            "default": 0,
+            "minimum": 0,
+            "title": "Duration Ms",
+            "type": "integer"
+          },
+          "cost_usd": {
+            "anyOf": [
+              {
+                "minimum": 0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Cost Usd"
+          }
+        },
+        "required": [
+          "step"
+        ],
+        "title": "StepUsage",
+        "type": "object"
+      },
+      "Transcript": {
+        "additionalProperties": false,
+        "description": "A transcript. The adapter sets `timing` from what the provider actually returned.\n\nAt every timing level: non-blank text is in segments, every segment with text has words, and the words spell the\nsegment's text (letters and digits, lower-cased). A word may have no times; a timed word lies within its timed\nsegment, up to 0.5 seconds outside it. `segment` timing also needs start and end on every segment, and `word` timing\nneeds, on top of that, times on every word of a segment with text. A consumer that needs a time for a word uses\nthe word's time, else its segment's time, else there is none.",
+        "properties": {
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "language": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Language"
+          },
+          "duration_seconds": {
+            "anyOf": [
+              {
+                "minimum": 0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Duration Seconds"
+          },
+          "timing": {
+            "enum": [
+              "word",
+              "segment",
+              "none"
+            ],
+            "title": "Timing",
+            "type": "string"
+          },
+          "segments": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/Segment"
+            },
+            "title": "Segments",
+            "type": "array"
+          }
+        },
+        "required": [
+          "text",
+          "timing"
+        ],
+        "title": "Transcript",
+        "type": "object"
+      },
+      "Word": {
+        "additionalProperties": false,
+        "description": "A word. It has `start` and `end`, or neither: a provider may give no usable time for it, and times are never\nestimated or copied from the segment.",
+        "properties": {
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "start": {
+            "anyOf": [
+              {
+                "minimum": 0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Start"
+          },
+          "end": {
+            "anyOf": [
+              {
+                "minimum": 0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "End"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "title": "Word",
+        "type": "object"
+      }
+    }
   }
 }

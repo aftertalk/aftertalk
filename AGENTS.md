@@ -12,7 +12,7 @@ Self-hosted call analysis. Monorepo with two projects:
 
 They talk over signed HTTP (`POST /jobs` to the engine, result and progress
 callbacks to web) and share the `/data` volume. The engine owns the contract:
-`apps/engine/aftertalk_engine/api/contract.py` → `apps/engine/openapi.json`
+`apps/engine/src/aftertalk/api/contract.py` → `apps/engine/openapi.json`
 → Orval client in `apps/web/lib/engine/`. Change all three in one PR.
 
 ## Spec
@@ -43,7 +43,7 @@ Web tests need the dev Postgres (`docker compose -f docker-compose.dev.yml up -d
 - **Commercial code** lives in the private fork `aftertalk/aftertalk-ee`, only
   under `apps/web/ee/` and `apps/web/app/(ee)/`. In this repo the `ee/` stubs
   are never edited after they were created (CI checks it).
-- **Logging**: only `apps/web/lib/log.ts` and `aftertalk_engine/logging.py`,
+- **Logging**: only `apps/web/lib/log.ts` and `apps/engine/src/aftertalk/logging.py`,
   which accept a fixed set of fields. Never log transcript text, provider
   responses, keys or other personal data.
 - **Provider keys** are stored encrypted in web and sent per job; the engine

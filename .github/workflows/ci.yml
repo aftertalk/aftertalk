@@ -36,6 +36,14 @@ jobs:
           package-manager-cache: false
       - run: corepack enable
       - run: pnpm install --frozen-lockfile
+      - name: Check that the engine client matches apps/engine/openapi.json
+        run: |
+          pnpm --filter web generate
+          if [ -n "$(git status --porcelain -- apps/web/lib/engine/generated)" ]; then
+            git status --porcelain -- apps/web/lib/engine/generated
+            echo "Run 'pnpm --filter web generate' and commit apps/web/lib/engine/generated/"
+            exit 1
+          fi
       - run: pnpm --filter web lint
       - run: pnpm --filter web format:check
       - run: pnpm --filter web typecheck
