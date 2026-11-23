@@ -91,9 +91,13 @@ update the table above.
 - Time limits: `providers test --kind speech` gives up after 120 s; `aftertalk transcribe` after `--timeout` seconds
   (default 3600, decoding included). A request that timed out after the upload is not retried, so the audio is never
   billed twice.
-- A provider that reports no language (text-only models such as `gpt-4o-transcribe`) cannot be checked against
-  allowed languages: its transcript is accepted with `language` null. When a language is refused, the error names it
-  (`detected_language`).
+- A provider that reports no language (text-only models such as `gpt-4o-transcribe`) fails with
+  `language_not_allowed` (`detected_language` null) when several languages are allowed and none is forced; process
+  the call again with its language picked. A forced language, a single allowed language or no allowed list (the
+  command line) is accepted. `providers test --kind speech` shows `language_reported` so this is seen before a call is
+  paid for. When a reported language is refused, the error names it (`detected_language`).
+- Without word times a transcript still has words: a segment with no usable word list gets its text split on
+  whitespace into words without `start` and `end`. A word time is never estimated or copied from its segment.
 - Times are never estimated. A segment the provider gave no usable time for keeps its text with `start` and `end`
   `None` (allowed while at least 90% of the segments are timed); treat `None` as "no playback for this segment".
   Subtitle output skips those segments and says how many.

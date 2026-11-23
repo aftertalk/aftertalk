@@ -6,12 +6,17 @@ downgrades the level instead of failing the job, and no segment text is ever dro
 
 Rules:
 - Times may be numbers or numeric strings; anything else, negative, infinite or reversed is "no time".
-- A word without a usable time is dropped; a segment without one keeps its text.
-- A word further than `WORD_SLACK_SECONDS` outside its (timed) segment is dropped too, nested or top-level.
+- A word without a usable time keeps its text and has no times; only a word without text is dropped. A segment
+  without a usable time keeps its text too. Times are never estimated or copied from the segment.
+- A word further than `WORD_SLACK_SECONDS` outside its (timed) segment keeps its text and loses its times, nested or
+  top-level.
+- Every segment has words that spell its text: a segment that got no words, or whose words do not spell its text
+  (letters and digits, lower-cased), gets its text split on whitespace into untimed words instead. A top-level word
+  without times cannot be placed, so it never reaches a segment.
+- A text-only answer becomes one segment without times, with the split words, and `none` timing.
 - `segment` timing needs usable times on at least 90% of the segments. The others stay untimed (`start` and `end`
-  are None): times are never estimated, and consumers treat None as "no playback for this segment".
-- `word` timing needs, on top of that, timed words on at least 90% of the segments. Segments without words keep their
-  segment times. Words are kept wherever they exist.
+  are None), and consumers treat None as "no playback for this segment".
+- `word` timing needs, on top of that, at least 90% of the segments to have times on all their words.
 """
 
 import bisect
@@ -19,7 +24,16 @@ import math
 from typing import Any
 
 from aftertalk.models.errors import EngineError
-from aftertalk.models.transcript import WORD_SLACK_SECONDS, Segment, TimingLevel, Transcript, Word
+from aftertalk.models.transcript import (
+    WORD_SLACK_SECONDS,
+    Segment,
+    TimingLevel,
+    Transcript,
+    Word,
+    spells,
+    split_words,
+    word_timed,
+)
 from aftertalk.providers.speech.languages import normalize_language
 
 COVERAGE = 0.9
@@ -49,9 +63,9 @@ def _word(raw: Any) -> Word | None:
     if not isinstance(raw, dict):
         return None
     text = raw.get("word", raw.get("text"))
-    start, end = _span(raw)
-    if not isinstance(text, str) or not text.strip() or start is None or end is None:
+    if not isinstance(text, str) or not text.strip():
         return None
+    start, end = _span(raw)
     return Word(text=text.strip(), start=start, end=end, probability=_number(raw.get("probability")))
 
 
@@ -98,7 +112,8 @@ def _assign(words: list[Word], segments: list[Segment]) -> list[list[Word]]:
     spans = [(segments[i].start or 0.0, segments[i].end or 0.0) for i in order]
     starts = [start for start, _ in spans]
     for word in sorted(words, key=lambda w: (w.start or 0.0, w.end or 0.0)):
-        assert word.start is not None and word.end is not None
+        if word.start is None or word.end is None:
+            continue  # no time, no place: the segment falls back to its split text
         middle = (word.start + word.end) / 2
         at = bisect.bisect_right(starts, middle)
         best, best_score = 0, (-1.0, -math.inf)
@@ -113,19 +128,22 @@ def _assign(words: list[Word], segments: list[Segment]) -> list[list[Word]]:
 
 
 def _near_words(seg: Segment) -> Segment:
-    """Drop the words that lie more than `WORD_SLACK_SECONDS` outside the segment; untimed segments are kept as is."""
+    """Untime the words that lie more than `WORD_SLACK_SECONDS` outside the segment; untimed segments are kept as is."""
     if seg.start is None or seg.end is None or not seg.words:
         return seg
-    start, end = seg.start, seg.end
-    near = [
-        w
-        for w in seg.words
-        if w.start is not None
-        and w.end is not None
-        and w.start >= start - WORD_SLACK_SECONDS
-        and w.end <= end + WORD_SLACK_SECONDS
-    ]
-    return seg if len(near) == len(seg.words) else seg.model_copy(update={"words": near})
+    lo, hi = seg.start - WORD_SLACK_SECONDS, seg.end + WORD_SLACK_SECONDS
+    far = [w.start is not None and w.end is not None and (w.start < lo or w.end > hi) for w in seg.words]
+    if not any(far):
+        return seg
+    words = [w.model_copy(update={"start": None, "end": None}) if f else w for w, f in zip(seg.words, far, strict=True)]
+    return seg.model_copy(update={"words": words})
+
+
+def _spelled(seg: Segment) -> Segment:
+    """The segment with words that spell its text: its own, else its text split on whitespace, untimed."""
+    if seg.words and spells(seg.words, seg.text):
+        return seg
+    return seg.model_copy(update={"words": split_words(seg.text)})
 
 
 def parse_transcription(data: Any, *, audio_seconds: float | None, forced_language: str | None) -> Transcript:
@@ -157,10 +175,13 @@ def parse_transcription(data: Any, *, audio_seconds: float | None, forced_langua
         )
 
     top_words = [] if nested else _words(data.get("words"))
-    if top_words and not segments and text.strip():
-        # Words but no segments (some servers): one segment that spans the words.
-        first, last = min(w.start or 0.0 for w in top_words), max(w.end or 0.0 for w in top_words)
-        segments = [Segment(text=text.strip(), start=first, end=last)]
+    if not segments and text.strip():
+        # No segments: one segment that spans the timed top-level words (some servers), else one without times.
+        timed_words = [w for w in top_words if w.start is not None and w.end is not None]
+        first = min((w.start for w in timed_words if w.start is not None), default=None)
+        last = max((w.end for w in timed_words if w.end is not None), default=None)
+        segments = [Segment(text=text.strip(), start=first, end=last, words=top_words)]
+        top_words = []
 
     timing: TimingLevel = "none"
     if segments:
@@ -172,9 +193,9 @@ def parse_transcription(data: Any, *, audio_seconds: float | None, forced_langua
                 segments = [
                     seg.model_copy(update={"words": words}) for seg, words in zip(segments, buckets, strict=True)
                 ]
-        segments = [_near_words(seg) for seg in segments]  # before counting: dropped words do not count
-        with_words = sum(1 for seg in segments if seg.words)
-        if timing == "segment" and with_words and with_words / len(segments) >= COVERAGE:
+        segments = [_spelled(_near_words(seg)) for seg in segments]  # before counting: untimed words do not count
+        word_timed_count = sum(1 for seg in segments if word_timed(seg))
+        if timing == "segment" and word_timed_count / len(segments) >= COVERAGE:
             timing = "word"
     elif segments_raw == [] and not text.strip():
         timing = "segment"  # silence: the provider answered with segments, and there are none

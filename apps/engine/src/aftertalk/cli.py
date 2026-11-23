@@ -134,8 +134,12 @@ async def _probe_llm(conn: Any, block_private: bool) -> tuple[int, str]:
     return int((time.monotonic() - started) * 1000), usage.output_mode or conn.output_mode
 
 
-async def _probe_speech(conn: Any, block_private: bool) -> tuple[int, str]:
-    """Send the bundled two-second clip through the same encoder as `transcribe`. Returns latency and timing."""
+async def _probe_speech(conn: Any, block_private: bool) -> tuple[int, str, bool]:
+    """Send the bundled two-second clip through the same encoder as `transcribe`.
+
+    Returns latency, timing and whether the provider reported a language we recognise: without one, a project that
+    allows several languages fails with `language_not_allowed`.
+    """
     from importlib import resources
 
     from aftertalk.audio.encode import open_encoded
@@ -146,7 +150,7 @@ async def _probe_speech(conn: Any, block_private: bool) -> tuple[int, str]:
         async with open_encoded(clip, fmt=conn.audio_format, max_bytes=conn.max_upload_mb * 1024 * 1024) as audio:
             async with open_speech(conn, block_private=block_private) as provider:
                 transcript, _ = await provider.transcribe(audio, language=None, prompt=None, deadline=None)
-    return int((time.monotonic() - started) * 1000), transcript.timing
+    return int((time.monotonic() - started) * 1000), transcript.timing, transcript.language is not None
 
 
 def _speech_connection(file: Path | None) -> Any:
@@ -212,16 +216,18 @@ def providers_test(
         block_private = _cli_settings().block_private_addresses
         speech_failure: EngineError | None = None
         try:
-            speech_ms, timing = asyncio.run(_probe(_probe_speech(speech, block_private)))
+            speech_ms, timing, language_reported = asyncio.run(_probe(_probe_speech(speech, block_private)))
         except Exception as exc:
             speech_failure = _failure(exc)
         if speech_failure is not None:
             typer.echo(_failure_json(speech_failure) if as_json else _failure_text(speech_failure))
             raise typer.Exit(1)
         if as_json:
-            typer.echo(json.dumps({"ok": True, "latency_ms": speech_ms, "timing": timing}))
+            payload = {"ok": True, "latency_ms": speech_ms, "timing": timing, "language_reported": language_reported}
+            typer.echo(json.dumps(payload))
         else:
-            typer.echo(f"ok: speech answered in {speech_ms} ms (timestamps: {timing})")
+            reported = "yes" if language_reported else "no (fails when several languages are allowed)"
+            typer.echo(f"ok: speech answered in {speech_ms} ms (timestamps: {timing}, language reported: {reported})")
         return
     if tier not in get_args(ModelTier):
         typer.echo(f"unknown tier {tier!r}; use one of {', '.join(get_args(ModelTier))}", err=True)

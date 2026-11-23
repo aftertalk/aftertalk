@@ -100,16 +100,23 @@ param such as `file` or `model`) stops as `provider_bad_response`. The rung that
 
 | Level | When | Subtitles |
 | --- | --- | --- |
-| `word` | at least 90% of the segments have timed words (and at least one word) | yes |
+| `word` | at least 90% of the segments have times on all their words | yes |
 | `segment` | at least 90% of the segments have times; the others stay untimed (`start` and `end` are None) | yes, untimed segments are skipped |
 | `none` | text only, or fewer than 90% of the segments have usable times | no (`vtt` and `srt` fail with exit 1) |
 
-Times are never estimated: an untimed segment keeps its text and consumers must treat `None` as "no playback for this segment". `vtt` and `srt` skip such segments and print one stderr note with the count. Words are kept wherever the provider gave them, at every level and always with times; a `word` transcript may have segments without
-words (they keep their segment times). Words come at the top level (OpenAI, Groq) and are given to the segment they
-overlap most, or nested in the segments (whisper.cpp, with `probability`). A word more than 0.5 s
-(`WORD_SLACK_SECONDS`) outside its timed segment is dropped before the level is set, so it cannot fail the transcript. Times may be numbers or numeric strings. A
-word with a missing, negative, infinite or reversed time is dropped, and a segment with such a time keeps its text:
-segment text is never lost (only blank segments are dropped). Words with no segments at all become one segment.
+Times are never estimated or copied: an untimed segment keeps its text and consumers must treat `None` as "no playback
+for this segment". `vtt` and `srt` skip such segments and print one stderr note with the count.
+
+Every segment has words, at every level, and they spell its text (letters and digits, lower-cased). A word has `start`
+and `end`, or neither. Words come at the top level (OpenAI, Groq) and are given to the timed segment they overlap
+most, or nested in the segments (whisper.cpp, with `probability`). A word with a missing, negative, infinite or
+reversed time keeps its text without times (a top-level one cannot be placed and is left out), and a word more than
+0.5 s (`WORD_SLACK_SECONDS`) outside its timed segment loses its times, before the level is set, so neither can fail
+the transcript. A segment with no words left, or whose words do not spell its text, gets its text split on whitespace
+into untimed words: a segment's words are the provider's or the split text, never a mix with holes. A consumer that
+needs a word's time uses the word's, else its segment's, else there is none. Times may be numbers or numeric strings.
+A segment with a bad time keeps its text: segment text is never lost (only blank segments are dropped). Words with no
+segments at all become one segment; a text-only answer becomes one untimed segment with split words (`none`).
 Silence (segments present, none of them) is `segment`.
 
 ### Limits and retries
@@ -133,7 +140,10 @@ Silence (segments present, none of them) is `segment`.
   detects the language. With `allowed_languages`, a detected language outside the list, or one we cannot map
   (`klingon`), fails with `language_not_allowed`; the error's `detected_language` is the code from our table (`uk`),
   or None when it could not be mapped, never provider text. A provider that reports no language at all (text-only
-  models) cannot be checked: its transcript is accepted with `language` None, whatever the allowed list says.
+  models) fails the same way, with `detected_language` None, when several languages are allowed and none is forced:
+  redaction rules and prompts need a known language. With one allowed language that language is used; with a forced
+  language, or without an allowed list (the command line), the transcript is accepted (`language` is the forced one,
+  or None).
 - Errors carry a code only, and nothing from the failed request (which holds the `Authorization` header) is chained
   to them. Mapping: 401/403 `provider_auth`; 404 `provider_model_not_found` only when the JSON error code names the
   model, otherwise `provider_bad_response` (often a wrong base URL); 413 `audio_too_long`; 429
@@ -175,12 +185,14 @@ format: `flac` (default) or `wav` for servers that do not list FLAC (Azure, whis
 ### Commands
 
 ```sh
-aftertalk providers test --kind speech       # {"ok": true, "latency_ms": 900, "timing": "word"}
+aftertalk providers test --kind speech       # {"ok": true, "latency_ms": 900, "timing": "word", "language_reported": true}
 aftertalk transcribe call.mp3 --format vtt --language pl --prompt "Kenobi" --output call.vtt --timeout 600
 ```
 
 `providers test --kind speech` sends the bundled two-second clip (`assets/test-2s.wav`, macOS text-to-speech; replace
-it with a recording we own before a public release; `scripts/make_test_audio.py` rebuilds it). `transcribe` writes
+it with a recording we own before a public release; `scripts/make_test_audio.py` rebuilds it). `language_reported` is
+false when the answer held no language we recognise: such a connection fails with `language_not_allowed` whenever
+several languages are allowed and none is forced. `transcribe` writes
 `text` (default), `json`, `vtt` or `srt` to stdout or `--output` (created with mode 0600); progress goes to stderr and never contains
 transcript text. `--format json` writes `{"transcript": <Transcript>, "usage": <StepUsage>}`. Time limits: `providers test` gives up
 after 120 s (`provider_unreachable`); `transcribe --timeout SECONDS` (default 3600) covers decoding and the upload, and

@@ -40,6 +40,8 @@ class SpeechProvider(Protocol):
         """Transcribe one upload.
 
         `language` forces a language; without it the provider detects it, and a detected language outside
-        `allowed_languages` fails with `language_not_allowed`. `deadline` is an absolute `time.monotonic()` value.
+        `allowed_languages` fails with `language_not_allowed`. So does a provider that reports no language when several
+        languages are allowed; with one allowed language that language is used. `deadline` is an absolute
+        `time.monotonic()` value.
         """
         ...

@@ -151,12 +151,16 @@ class OpenAICompatibleSpeech:
             pass
         if transcript is None:
             raise EngineError("provider_bad_response", usage())
-        if forced is None and allowed_languages is not None and reported_language(data) is not None:
-            # A provider that reports no language cannot be checked (text-only models); one that reports a
-            # language we cannot map, or one that is not allowed, fails.
+        if forced is None and allowed_languages is not None:
             allowed = {code for item in allowed_languages if (code := normalize_language(item)) is not None}
+            if reported_language(data) is None and len(allowed) == 1:
+                # One allowed language is a forced one (#15): a provider that says nothing is not contradicting it.
+                return transcript.model_copy(update={"language": next(iter(allowed))}), usage()
+            # Several allowed: a provider that reports no language (text-only models), one we cannot map, or one
+            # that is not allowed, fails. Redaction rules and prompts need a known language.
             if transcript.language is None or transcript.language not in allowed:
-                # Our own code from the language table (None when it could not be mapped), never provider text.
+                # Our own code from the language table (None when it was not reported or could not be mapped),
+                # never provider text.
                 raise EngineError("language_not_allowed", usage(), detected_language=transcript.language)
         return transcript, usage()
 

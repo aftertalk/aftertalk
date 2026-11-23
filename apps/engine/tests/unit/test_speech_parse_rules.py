@@ -4,7 +4,7 @@ from typing import Any
 
 import pytest
 
-from aftertalk.models.transcript import Segment, Transcript, Word
+from aftertalk.models.transcript import Segment, Transcript, Word, spells, split_words, word_timed
 from aftertalk.providers.speech.languages import _TABLE, CODES, normalize_language
 from aftertalk.providers.speech.parse import parse_transcription, reported_language
 
@@ -26,21 +26,22 @@ def word(text: str, start: Any, end: Any, **extra: Any) -> dict[str, Any]:
 
 def ten_segments(with_words: int, timed: int = 10) -> dict[str, Any]:
     segments = [seg(f"s{i}", i, i + 1) if i < timed else {"text": f"s{i}"} for i in range(10)]
-    words = [word(f"w{i}", i, i + 0.5) for i in range(with_words)]
+    words = [word(f"s{i}", i, i + 0.5) for i in range(with_words)]
     return {"text": " ".join(s["text"] for s in segments), "segments": segments, "words": words}
 
 
 def test_word_timing_needs_words_on_nine_of_ten_segments() -> None:
     assert parse(ten_segments(with_words=10)).timing == "word"
     t = parse(ten_segments(with_words=9))
-    assert t.timing == "word" and sum(1 for s in t.segments if not s.words) == 1
+    assert t.timing == "word" and sum(1 for s in t.segments if not word_timed(s)) == 1
     assert parse(ten_segments(with_words=8)).timing == "segment"
 
 
 def test_segments_without_words_keep_their_segment_times() -> None:
     t = parse(ten_segments(with_words=9))
-    silent = next(s for s in t.segments if not s.words)
+    silent = next(s for s in t.segments if not word_timed(s))
     assert (silent.start, silent.end) == (9.0, 10.0)
+    assert [(w.text, w.start, w.end) for w in silent.words] == [("s9", None, None)]
 
 
 def test_segment_timing_needs_times_on_nine_of_ten_segments() -> None:
@@ -70,7 +71,9 @@ def test_top_level_words_never_land_in_an_untimed_segment() -> None:
     segments = [seg(f"s{i}", i, i + 1) for i in range(10)]
     segments[3] = {"text": "untimed"}
     t = parse({"text": "x", "segments": segments, "words": [word("w", 3.2, 3.4)]})
-    assert t.segments[3].words == [] and sum(len(s.words) for s in t.segments) == 1
+    assert t.segments[3].words == [Word(text="untimed")]
+    # "w" went to a timed neighbour, whose words then no longer spelled its text: split, untimed.
+    assert all(w.start is None for s in t.segments for w in s.words)
 
 
 def test_numeric_strings_are_times() -> None:
@@ -99,22 +102,32 @@ def test_unsorted_segments_still_get_the_right_words() -> None:
     assert [[w.text for w in s.words] for s in t.segments] == [["c"], ["a"], ["b"]]
 
 
+def S(text: str, start: float | None = None, end: float | None = None, words: list[Word] | None = None) -> Segment:
+    return Segment(text=text, start=start, end=end, words=split_words(text) if words is None else words)
+
+
 def test_validator_rules() -> None:
+    timed = [Word(text="a", start=0, end=1)]
     with pytest.raises(ValueError, match="at least 90%"):
-        Transcript(text="a", timing="word", segments=[Segment(text="a", start=0, end=1)])
-    ok = [Segment(text=f"s{i}", start=i, end=i + 1) for i in range(9)] + [Segment(text="x")]
+        Transcript(text="a", timing="word", segments=[S("a", 0, 1)])
+    assert Transcript(text="a", timing="word", segments=[S("a", 0, 1, timed)]).timing == "word"
+    ok = [S(f"s{i}", i, i + 1) for i in range(9)] + [S("x")]
     assert Transcript(text="x", timing="segment", segments=ok).segments[-1].start is None
     with pytest.raises(ValueError, match="at least 90%"):
-        Transcript(text="x", timing="segment", segments=[*ok, Segment(text="y")])
+        Transcript(text="x", timing="segment", segments=[*ok, S("y")])
     with pytest.raises(ValueError, match="both start and end"):
-        Transcript(text="x", timing="segment", segments=[Segment(text="a", start=1)])
-    with pytest.raises(ValueError, match="every word"):
-        Transcript(
-            text="a", timing="word", segments=[Segment(text="a", start=0, end=1, words=[Word(text="a", start=0)])]
-        )
-    assert Transcript(text="a", timing="none", segments=[Segment(text="a")]).timing == "none"
-    t = Transcript(text="a", timing="segment", segments=[Segment(text="a", start=0, end=1)])
-    assert t.segments[0].words == []
+        Transcript(text="x", timing="segment", segments=[S("a", start=1)])
+    with pytest.raises(ValueError, match="both start and end"):
+        Word(text="a", start=0)
+    with pytest.raises(ValueError, match="needs words"):
+        Transcript(text="a", timing="none", segments=[Segment(text="a")])
+    with pytest.raises(ValueError, match="spell"):
+        Transcript(text="a b", timing="none", segments=[S("a b", words=[Word(text="a")])])
+    with pytest.raises(ValueError, match="needs at least one segment"):
+        Transcript(text="a", timing="none")
+    assert Transcript(text="a", timing="none", segments=[S("a")]).timing == "none"
+    t = Transcript(text="a", timing="segment", segments=[S("a", 0, 1)])
+    assert t.segments[0].words == [Word(text="a")]
 
 
 # ---- no text is ever lost ----
@@ -166,6 +179,9 @@ def test_no_segment_text_is_lost_or_invented(seed: int) -> None:
     assert [s.text for s in t.segments] == expected
     assert " ".join(s.text for s in t.segments) == " ".join(expected)
     assert t.text == "whole text"
+    for s in t.segments:  # every segment has words that spell it; a word has both times or neither
+        assert s.words and spells(s.words, s.text)
+        assert all((w.start is None) == (w.end is None) for w in s.words)
     if t.timing != "none":
         for s in t.segments:  # both times or neither; never an estimate
             assert (s.start is None) == (s.end is None)
@@ -216,22 +232,25 @@ def test_reported_language() -> None:
     assert reported_language([]) is None
 
 
-# ---- words far from their segment are dropped (the transcript validator refuses them) ----
+# ---- words far from their segment lose their times (the transcript validator refuses them) ----
 
 
-def test_nested_word_far_outside_its_segment_is_dropped() -> None:
+def test_nested_word_far_outside_its_segment_loses_its_times() -> None:
     t = parse({"text": "a b", "segments": [seg("a b", 0, 1, words=[word("a", 0, 0.5), word("b", 5, 6)])]})
-    assert [w.text for w in t.segments[0].words] == ["a"] and t.timing == "word"
+    assert [(w.text, w.start, w.end) for w in t.segments[0].words] == [("a", 0.0, 0.5), ("b", None, None)]
+    assert t.timing == "segment"
 
 
-def test_top_level_word_in_a_far_gap_is_dropped() -> None:
+def test_top_level_word_in_a_far_gap_is_not_kept() -> None:
     data = {
         "text": "a b",
         "segments": [seg("a", 0, 1), seg("b", 10, 11)],
         "words": [word("a", 0, 0.5), word("lost", 5, 5.5), word("b", 10, 10.5)],
     }
     t = parse(data)
-    assert [[w.text for w in s.words] for s in t.segments] == [["a"], ["b"]] and t.timing == "word"
+    # "lost" lands in "a" and loses its times; "a"'s words then do not spell it, so they are its split text.
+    assert [[(w.text, w.start) for w in s.words] for s in t.segments] == [[("a", None)], [("b", 10.0)]]
+    assert t.timing == "segment"
 
 
 def test_word_a_little_past_its_segment_is_kept() -> None:
@@ -239,10 +258,10 @@ def test_word_a_little_past_its_segment_is_kept() -> None:
     assert [w.text for w in t.segments[0].words] == ["a"]
 
 
-def test_a_segment_that_loses_all_its_words_gives_segment_timing() -> None:
+def test_a_segment_whose_words_all_lose_their_times_gives_segment_timing() -> None:
     data = {
         "text": "a b",
         "segments": [seg("a", 0, 1, words=[word("a", 0, 0.5)]), seg("b", 2, 3, words=[word("b", 8, 9)])],
     }
     t = parse(data)
-    assert t.timing == "segment" and t.segments[1].words == [] and t.segments[1].start == 2
+    assert t.timing == "segment" and t.segments[1].words == [Word(text="b")] and t.segments[1].start == 2

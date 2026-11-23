@@ -39,7 +39,7 @@ _SENTENCES: dict[ErrorCode, str] = {
     "provider_config_invalid": "The connection settings are not valid for this provider.",
     "audio_unreadable": "The file could not be read as audio, or it has no audio stream.",
     "audio_too_long": "The audio is larger than the provider accepts in one upload.",
-    "language_not_allowed": "The spoken language is not one of the allowed languages.",
+    "language_not_allowed": "The spoken language is not one of the allowed languages, or the provider did not report it.",
     "limit_exceeded": "A limit set for this job was reached.",
     "internal": "An internal error occurred.",
 }
@@ -55,7 +55,7 @@ class JobError(BaseModel):
     retryable: bool
     usage: StepUsage | None = None
     # For `language_not_allowed`: the detected language as a code from the engine's language table (never provider
-    # text); None when the provider's language could not be mapped, and for every other code.
+    # text); None when the provider reported no language or one that could not be mapped, and for every other code.
     detected_language: str | None = None
 
 

@@ -84,7 +84,10 @@ async def test_segments_only_gives_segment_timing(fake_speech: FakeSpeech) -> No
     fake_speech.shape = "segments"
     transcript, _ = await run(fake_speech)
     assert transcript.timing == "segment"
-    assert all(not s.words for s in transcript.segments)
+    # No word list: each segment gets its text split into untimed words.
+    for s in transcript.segments:
+        assert s.words and all(w.start is None and w.end is None for w in s.words)
+        assert [w.text for w in s.words] == s.text.split()
 
 
 async def test_words_without_segments_make_one_segment(fake_speech: FakeSpeech) -> None:
@@ -105,7 +108,11 @@ async def test_whispercpp_nested_words(fake_speech: FakeSpeech) -> None:
 async def test_text_only_json(fake_speech: FakeSpeech) -> None:
     fake_speech.shape = "text"
     transcript, usage = await run(fake_speech)
-    assert transcript.timing == "none" and transcript.segments == []
+    assert transcript.timing == "none" and len(transcript.segments) == 1
+    only = transcript.segments[0]
+    assert (only.start, only.end) == (None, None) and only.text == transcript.text
+    assert [w.text for w in only.words] == ["Hello", "there.", "General", "Kenobi."]
+    assert all(w.start is None for w in only.words)
     assert transcript.text == "Hello there. General Kenobi."
     assert transcript.language is None
     assert transcript.duration_seconds == 2.6  # from the audio we sent
@@ -420,9 +427,29 @@ async def test_forced_language_skips_the_check(fake_speech: FakeSpeech) -> None:
     assert transcript.language == "pl"
 
 
-async def test_unknown_detected_language_is_not_refused(fake_speech: FakeSpeech) -> None:
+async def test_no_reported_language_with_several_allowed_fails(fake_speech: FakeSpeech) -> None:
     fake_speech.shape = "text"
-    transcript, _ = await run(fake_speech, allowed_languages=["en"])
+    err = await fails(fake_speech, allowed_languages=["en", "pl"])
+    assert err.code == "language_not_allowed" and err.detected_language is None and not err.retryable
+    assert err.to_model().detected_language is None
+    assert err.usage is not None and err.usage.requests >= 1
+
+
+async def test_no_reported_language_with_one_allowed_uses_it(fake_speech: FakeSpeech) -> None:
+    fake_speech.shape = "text"
+    transcript, _ = await run(fake_speech, allowed_languages=["Polish"])
+    assert transcript.language == "pl"
+
+
+async def test_no_reported_language_with_a_forced_one_is_accepted(fake_speech: FakeSpeech) -> None:
+    fake_speech.shape = "text"
+    transcript, _ = await run(fake_speech, language="pl", allowed_languages=["en", "pl"])
+    assert transcript.language == "pl"
+
+
+async def test_no_reported_language_without_an_allowed_list_is_accepted(fake_speech: FakeSpeech) -> None:
+    fake_speech.shape = "text"
+    transcript, _ = await run(fake_speech)
     assert transcript.language is None
 
 
@@ -490,7 +517,8 @@ async def test_an_unmapped_language_is_refused_without_a_name(fake_speech: FakeS
     assert err.code == "language_not_allowed" and err.detected_language is None
 
 
-async def test_a_provider_that_reports_no_language_is_accepted_unchecked(fake_speech: FakeSpeech) -> None:
-    fake_speech.shape = "text"
-    transcript, _ = await run(fake_speech, allowed_languages=["pl"])
-    assert transcript.language is None
+async def test_a_languages_list_counts_as_reported(fake_speech: FakeSpeech) -> None:
+    fake_speech.shape = "languages"
+    fake_speech.language = "polish"
+    transcript, _ = await run(fake_speech, allowed_languages=["pl", "en"])
+    assert transcript.language == "pl"

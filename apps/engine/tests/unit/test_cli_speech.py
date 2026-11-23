@@ -189,6 +189,7 @@ def test_providers_test_speech_ok(fake_speech: FakeSpeech, tmp_path: Path) -> No
     assert result.exit_code == 0, result.output
     data = json.loads(result.stdout)
     assert data["ok"] is True and data["timing"] == "word" and data["latency_ms"] >= 0
+    assert data["language_reported"] is True
     upload = fake_speech.seen[0].file
     assert upload is not None and upload.filename == "audio.flac" and upload.size > 1000
 
@@ -197,7 +198,9 @@ def test_providers_test_speech_wav_and_text_only(fake_speech: FakeSpeech, tmp_pa
     fake_speech.shape = "text"
     env = setup(tmp_path, fake_speech.base_url, ", audio_format: wav")
     data = json.loads(invoke(env, "--json", "providers", "test", "--kind", "speech").stdout)
-    assert data["ok"] and data["timing"] == "none"
+    assert data["ok"] and data["timing"] == "none" and data["language_reported"] is False
+    human = invoke(env, "providers", "test", "--kind", "speech")
+    assert human.exit_code == 0 and "language reported: no" in human.stdout
     upload = fake_speech.seen[0].file
     assert upload is not None and upload.filename == "audio.wav"
 
@@ -205,6 +208,7 @@ def test_providers_test_speech_wav_and_text_only(fake_speech: FakeSpeech, tmp_pa
 def test_providers_test_speech_human_line(fake_speech: FakeSpeech, tmp_path: Path) -> None:
     result = invoke(setup(tmp_path, fake_speech.base_url), "providers", "test", "--kind", "speech")
     assert result.exit_code == 0 and "word" in result.stdout and KEY not in result.output
+    assert "language reported: yes" in result.stdout
 
 
 def test_providers_test_speech_failure(fake_speech: FakeSpeech, tmp_path: Path) -> None:
