@@ -7,6 +7,7 @@ downgrades the level instead of failing the job, and no segment text is ever dro
 Rules:
 - Times may be numbers or numeric strings; anything else, negative, infinite or reversed is "no time".
 - A word without a usable time is dropped; a segment without one keeps its text.
+- A word further than `WORD_SLACK_SECONDS` outside its (timed) segment is dropped too, nested or top-level.
 - `segment` timing needs usable times on at least 90% of the segments. The others stay untimed (`start` and `end`
   are None): times are never estimated, and consumers treat None as "no playback for this segment".
 - `word` timing needs, on top of that, timed words on at least 90% of the segments. Segments without words keep their
@@ -18,7 +19,7 @@ import math
 from typing import Any
 
 from aftertalk.models.errors import EngineError
-from aftertalk.models.transcript import Segment, TimingLevel, Transcript, Word
+from aftertalk.models.transcript import WORD_SLACK_SECONDS, Segment, TimingLevel, Transcript, Word
 from aftertalk.providers.speech.languages import normalize_language
 
 COVERAGE = 0.9
@@ -111,6 +112,22 @@ def _assign(words: list[Word], segments: list[Segment]) -> list[list[Word]]:
     return buckets
 
 
+def _near_words(seg: Segment) -> Segment:
+    """Drop the words that lie more than `WORD_SLACK_SECONDS` outside the segment; untimed segments are kept as is."""
+    if seg.start is None or seg.end is None or not seg.words:
+        return seg
+    start, end = seg.start, seg.end
+    near = [
+        w
+        for w in seg.words
+        if w.start is not None
+        and w.end is not None
+        and w.start >= start - WORD_SLACK_SECONDS
+        and w.end <= end + WORD_SLACK_SECONDS
+    ]
+    return seg if len(near) == len(seg.words) else seg.model_copy(update={"words": near})
+
+
 def parse_transcription(data: Any, *, audio_seconds: float | None, forced_language: str | None) -> Transcript:
     """Raises `provider_bad_response` when the response has no usable `text`."""
     text = data.get("text") if isinstance(data, dict) else None
@@ -155,9 +172,10 @@ def parse_transcription(data: Any, *, audio_seconds: float | None, forced_langua
                 segments = [
                     seg.model_copy(update={"words": words}) for seg, words in zip(segments, buckets, strict=True)
                 ]
-            with_words = sum(1 for seg in segments if seg.words)
-            if with_words and with_words / len(segments) >= COVERAGE:
-                timing = "word"
+        segments = [_near_words(seg) for seg in segments]  # before counting: dropped words do not count
+        with_words = sum(1 for seg in segments if seg.words)
+        if timing == "segment" and with_words and with_words / len(segments) >= COVERAGE:
+            timing = "word"
     elif segments_raw == [] and not text.strip():
         timing = "segment"  # silence: the provider answered with segments, and there are none
 

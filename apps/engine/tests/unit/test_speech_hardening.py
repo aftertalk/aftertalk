@@ -81,8 +81,10 @@ async def test_a_slow_drip_hits_the_cap_without_a_deadline(
     monkeypatch.setattr(openai_compatible, "MAX_REQUEST_SECONDS", 0.3)
     fake_speech.drip = True
     started = time.monotonic()
-    err = await fails(fake_speech, waits=Waits())
-    assert err.code == "provider_unreachable" and len(fake_speech.seen) == 3
+    waits = Waits()
+    err = await fails(fake_speech, waits=waits)
+    # Not retried: the provider may already have transcribed (and billed) the upload.
+    assert err.code == "provider_unreachable" and len(fake_speech.seen) == 1 and waits.calls == []
     assert time.monotonic() - started < 5
 
 

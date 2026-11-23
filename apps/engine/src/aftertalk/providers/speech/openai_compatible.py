@@ -115,10 +115,18 @@ class OpenAICompatibleSpeech:
         body = audio.read()
 
         rung = 0
+        temperature = True  # sent as 0 until the server rejects the field
         while True:
             counters.format = RUNGS[rung]
-            response = await self._send(audio, body, RUNGS[rung], forced, prompt, deadline, counters, usage)
-            lower = _next_rung(response, rung) if response.status_code in (400, 422) else None
+            response = await self._send(
+                audio, body, RUNGS[rung], forced, prompt, temperature, deadline, counters, usage
+            )
+            if response.status_code not in (400, 422):
+                break
+            if temperature and _mentions(response, "temperature"):
+                temperature = False  # resend the same rung once without it; counts in requests, not retries
+                continue
+            lower = _next_rung(response, rung)
             if lower is None:
                 break
             rung = lower
@@ -148,7 +156,8 @@ class OpenAICompatibleSpeech:
             # language we cannot map, or one that is not allowed, fails.
             allowed = {code for item in allowed_languages if (code := normalize_language(item)) is not None}
             if transcript.language is None or transcript.language not in allowed:
-                raise EngineError("language_not_allowed", usage())
+                # Our own code from the language table (None when it could not be mapped), never provider text.
+                raise EngineError("language_not_allowed", usage(), detected_language=transcript.language)
         return transcript, usage()
 
     async def _send(
@@ -158,11 +167,16 @@ class OpenAICompatibleSpeech:
         form: SpeechFormat,
         language: str | None,
         prompt: str | None,
+        temperature: bool,
         deadline: float | None,
         counters: _Counters,
         usage: Callable[[], StepUsage],
     ) -> httpx2.Response:
-        """One request, retried while the shared budget lasts. Returns the response, whatever its status."""
+        """One request, retried while the shared budget lasts. Returns the response, whatever its status.
+
+        A request that timed out waiting for the answer is not retried: the provider may already have done (and
+        billed) the work. Connect errors, write errors and dropped connections are retried.
+        """
         fields: dict[str, str | list[str]] = {
             "model": self._conn.model,
             "response_format": "json" if form == "json" else "verbose_json",
@@ -173,6 +187,8 @@ class OpenAICompatibleSpeech:
             fields["language"] = language
         if prompt:
             fields["prompt"] = prompt
+        if temperature:
+            fields["temperature"] = "0"  # the same audio should give the same transcript
         headers = {name: value.get_secret_value() for name, value in self._conn.extra_headers.items()}
         if self._conn.api_key is not None:
             headers["Authorization"] = f"Bearer {self._conn.api_key.get_secret_value()}"
@@ -197,9 +213,10 @@ class OpenAICompatibleSpeech:
                         headers=headers,
                         timeout=httpx2.Timeout(min(REQUEST_TIMEOUT, total), connect=min(CONNECT_TIMEOUT, total)),
                     )
-            except TimeoutError:
+            except (TimeoutError, httpx2.ReadTimeout):
                 late = deadline is not None and self._clock() >= deadline - 0.05
                 problem = "limit_exceeded" if late else "provider_unreachable"
+                counters.failures = ATTEMPTS  # no second try: the upload may already be transcribed and billed
             except BlockedAddressError:
                 problem = "provider_unreachable"
                 counters.failures = ATTEMPTS  # spend the whole budget: waiting does not unblock an address
@@ -234,6 +251,12 @@ class OpenAICompatibleSpeech:
             if deadline is not None and pause >= deadline - self._clock():
                 raise EngineError("limit_exceeded", usage())
             await self._sleep(pause)
+
+
+def _mentions(response: httpx2.Response, name: str) -> bool:
+    """Whether a 400 or 422 error's `param` or `message` names `name`."""
+    error = error_object(response)
+    return any(isinstance(item, str) and name in item.lower() for item in (error.get("param"), error.get("message")))
 
 
 def _next_rung(response: httpx2.Response, rung: int) -> int | None:

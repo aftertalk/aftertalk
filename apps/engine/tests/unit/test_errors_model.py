@@ -42,8 +42,15 @@ def test_repr_has_no_provider_text() -> None:
     assert "provider_auth" in repr(err)
 
 
-def test_to_model_carries_code_retryable_and_usage_only() -> None:
+def test_to_model_carries_code_retryable_usage_and_language_only() -> None:
     from aftertalk.models.errors import JobError
 
     assert EngineError("provider_rate_limited").to_model() == JobError(code="provider_rate_limited", retryable=True)
-    assert set(JobError.model_fields) == {"code", "retryable", "usage"}
+    assert set(JobError.model_fields) == {"code", "retryable", "usage", "detected_language"}
+
+
+def test_detected_language_defaults_to_none() -> None:
+    assert EngineError("provider_auth").detected_language is None
+    assert EngineError("provider_auth").to_model().detected_language is None
+    err = EngineError("language_not_allowed", detected_language="uk")
+    assert err.to_model().detected_language == "uk" and str(err) == str(EngineError("language_not_allowed"))

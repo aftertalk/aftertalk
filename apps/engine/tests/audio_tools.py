@@ -43,3 +43,33 @@ def make_offset_aac(path: Path, *, offset: float = 2.0, seconds: float = 1.0, ra
         for packet in stream.encode(None):
             container.mux(packet)
     return path
+
+
+def make_stream(
+    path: Path, codec: str, *, offset: float, seconds: float = 1.0, late: float | None = None, rate: int = 44100
+) -> Path:
+    """Mono tone whose timestamps start at `offset` s, optionally followed by one frame at `late` s.
+
+    `path`'s suffix picks the container (`.ts` with `mp2`, `.mka` with `aac`).
+    """
+    tone = (np.sin(2 * np.pi * 440 * np.arange(int(rate * seconds)) / rate) * 10000).astype(np.int16)
+    size = 1152 if codec == "mp2" else 1024
+
+    def frame(chunk: np.ndarray, pts: int) -> av.AudioFrame:
+        out = av.AudioFrame.from_ndarray(np.ascontiguousarray(chunk).reshape(1, -1), format="s16", layout="mono")
+        out.sample_rate = rate
+        out.pts = pts
+        out.time_base = Fraction(1, rate)
+        return out
+
+    with av.open(str(path), "w") as container:
+        stream = container.add_stream(codec, rate=rate, layout="mono")
+        for i in range(0, len(tone) - size + 1, size):
+            for packet in stream.encode(frame(tone[i : i + size], int(offset * rate) + i)):
+                container.mux(packet)
+        if late is not None:
+            for packet in stream.encode(frame(tone[:size], int(late * rate))):
+                container.mux(packet)
+        for packet in stream.encode(None):
+            container.mux(packet)
+    return path

@@ -11,7 +11,7 @@ from aftertalk.providers.net import make_client
 from aftertalk.providers.speech.openai_compatible import OpenAICompatibleSpeech, open_speech
 from aftertalk.settings import get_cli_settings
 
-# ---- extra_headers ----
+# ---- extra_headers (the LLM side is covered in test_connections.py) ----
 
 
 def speech(**headers: str) -> SpeechConnection:
@@ -22,25 +22,22 @@ def llm(**headers: str) -> LLMConnection:
     return LLMConnection(adapter="openai-compatible", base_url="http://h/v1", model="m", extra_headers=headers)
 
 
-@pytest.mark.parametrize("make", [speech, llm])
 @pytest.mark.parametrize("name", ["Host", "content-type", "Content-Length", "TRANSFER-ENCODING"])
-def test_reserved_headers_cannot_be_overridden(make, name: str) -> None:
+def test_reserved_headers_cannot_be_overridden(name: str) -> None:
     with pytest.raises(ValidationError, match="cannot be overridden"):
-        make(**{name: "x"})
+        speech(**{name: "x"})
 
 
-@pytest.mark.parametrize("make", [speech, llm])
 @pytest.mark.parametrize("name", ["Bad Name", "X:Y", "X\r\nY", "Zażółć", "a/b", "(x)"])
-def test_header_names_must_be_http_tokens(make, name: str) -> None:
+def test_header_names_must_be_http_tokens(name: str) -> None:
     with pytest.raises(ValidationError, match="header names"):
-        make(**{name: "x"})
+        speech(**{name: "x"})
 
 
-@pytest.mark.parametrize("make", [speech, llm])
 @pytest.mark.parametrize("value", ["a\r\nX-Evil: 1", "a\nb", "a\rb", "zażółćłć中"])
-def test_header_values_must_be_latin1_without_line_breaks(make, value: str) -> None:
+def test_header_values_must_be_latin1_without_line_breaks(value: str) -> None:
     with pytest.raises(ValidationError, match="header 'X-Org' has"):
-        make(**{"X-Org": value})
+        speech(**{"X-Org": value})
 
 
 def test_ordinary_headers_still_work() -> None:

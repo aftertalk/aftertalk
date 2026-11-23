@@ -214,3 +214,35 @@ def test_reported_language() -> None:
     assert reported_language({"language": " "}) is None
     assert reported_language({"text": "a"}) is None
     assert reported_language([]) is None
+
+
+# ---- words far from their segment are dropped (the transcript validator refuses them) ----
+
+
+def test_nested_word_far_outside_its_segment_is_dropped() -> None:
+    t = parse({"text": "a b", "segments": [seg("a b", 0, 1, words=[word("a", 0, 0.5), word("b", 5, 6)])]})
+    assert [w.text for w in t.segments[0].words] == ["a"] and t.timing == "word"
+
+
+def test_top_level_word_in_a_far_gap_is_dropped() -> None:
+    data = {
+        "text": "a b",
+        "segments": [seg("a", 0, 1), seg("b", 10, 11)],
+        "words": [word("a", 0, 0.5), word("lost", 5, 5.5), word("b", 10, 10.5)],
+    }
+    t = parse(data)
+    assert [[w.text for w in s.words] for s in t.segments] == [["a"], ["b"]] and t.timing == "word"
+
+
+def test_word_a_little_past_its_segment_is_kept() -> None:
+    t = parse({"text": "a", "segments": [seg("a", 0, 1, words=[word("a", 0.9, 1.3)])]})
+    assert [w.text for w in t.segments[0].words] == ["a"]
+
+
+def test_a_segment_that_loses_all_its_words_gives_segment_timing() -> None:
+    data = {
+        "text": "a b",
+        "segments": [seg("a", 0, 1, words=[word("a", 0, 0.5)]), seg("b", 2, 3, words=[word("b", 8, 9)])],
+    }
+    t = parse(data)
+    assert t.timing == "segment" and t.segments[1].words == [] and t.segments[1].start == 2

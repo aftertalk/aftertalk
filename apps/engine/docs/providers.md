@@ -13,7 +13,9 @@ Only what the local fake server proves. `tests/fake_speech.py` imitates these re
 - whisper.cpp (`words` nested in segments, with `probability`);
 - text-only `json`, and `languages[]` instead of `language` (gpt-transcribe);
 - the format ladder: a 400 naming `timestamp_granularities` (segments only) or `response_format` (plain `json`);
-- 429 with and without `Retry-After`, 5xx, 401, 403, 404, 413, a 200 that is not JSON, a redirect.
+- 429 with and without `Retry-After`, 5xx, 401, 403, 404, 413, a 200 that is not JSON, a redirect;
+- `temperature=0` on every request, and one resend without it when a server answers 400 naming `temperature`;
+- a server that reads the upload and then does not answer: one request only, never a second (billed) upload.
 
 Nothing below has been run against a real provider.
 
@@ -83,6 +85,15 @@ update the table above.
 - Audio is always mixed down to mono and only the first audio stream is read. Two-channel calls (one speaker per
   channel) and files with several audio tracks are handled in M2.
 - No chunking: audio over `max_upload_mb` fails with `audio_too_long`.
+- Silence padding has limits. A gap in the timestamps is filled with silence, measured from media time 0, but MPEG-TS
+  and MPEG-PS files and streams that start later than 30 s are measured from their first frame. More than 30 minutes
+  of inserted silence, or inserted silence more than 30 s longer than the decoded audio, is `audio_unreadable`.
+- Time limits: `providers test --kind speech` gives up after 120 s; `aftertalk transcribe` after `--timeout` seconds
+  (default 3600, decoding included). A request that timed out after the upload is not retried, so the audio is never
+  billed twice.
+- A provider that reports no language (text-only models such as `gpt-4o-transcribe`) cannot be checked against
+  allowed languages: its transcript is accepted with `language` null. When a language is refused, the error names it
+  (`detected_language`).
 - Times are never estimated. A segment the provider gave no usable time for keeps its text with `start` and `end`
   `None` (allowed while at least 90% of the segments are timed); treat `None` as "no playback for this segment".
   Subtitle output skips those segments and says how many.

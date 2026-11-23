@@ -281,3 +281,73 @@ def test_subtitles_skip_untimed_segments_and_say_so(
     data = json.loads(invoke(setup(tmp_path, fake_speech.base_url), "transcribe", str(audio_file), "-f", "json").stdout)
     untimed = data["transcript"]["segments"][4]
     assert untimed["text"] == "no times here" and untimed["start"] is None and untimed["end"] is None
+
+
+# ---- time limits ----
+
+
+def test_providers_test_speech_has_a_time_limit(
+    fake_speech: FakeSpeech, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import time
+
+    monkeypatch.setattr("aftertalk.cli.PROBE_TIMEOUT_SECONDS", 0.3)
+    fake_speech.stall = 5.0
+    started = time.monotonic()
+    result = invoke(setup(tmp_path, fake_speech.base_url), "--json", "providers", "test", "--kind", "speech")
+    assert result.exit_code == 1 and json.loads(result.stdout)["code"] == "provider_unreachable"
+    assert time.monotonic() - started < 4
+
+
+def test_transcribe_timeout_is_limit_exceeded_and_leaves_nothing(
+    fake_speech: FakeSpeech, tmp_path: Path, audio_file: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import tempfile
+    import time
+
+    (tmp_path / "tmp").mkdir()
+    monkeypatch.setattr(tempfile, "tempdir", str(tmp_path / "tmp"))
+    fake_speech.stall = 5.0
+    started = time.monotonic()
+    result = invoke(setup(tmp_path, fake_speech.base_url), "--json", "transcribe", str(audio_file), "--timeout", "1")
+    assert result.exit_code == 1 and json.loads(result.stdout)["code"] == "limit_exceeded"
+    assert len(fake_speech.seen) == 1 and time.monotonic() - started < 4
+    assert [p for p in (tmp_path / "tmp").rglob("*") if p.is_file()] == []
+
+
+def test_transcribe_timeout_must_be_positive(fake_speech: FakeSpeech, tmp_path: Path, audio_file: Path) -> None:
+    result = invoke(setup(tmp_path, fake_speech.base_url), "transcribe", str(audio_file), "--timeout", "0")
+    assert result.exit_code == 2 and fake_speech.seen == []
+
+
+# ---- settings spelled with the prefix ----
+
+
+@pytest.mark.parametrize("command", [["transcribe", "AUDIO"], ["providers", "test", "--kind", "speech"]])
+def test_prefixed_setting_exits_2(
+    fake_speech: FakeSpeech, tmp_path: Path, audio_file: Path, command: list[str]
+) -> None:
+    env = {**setup(tmp_path, fake_speech.base_url), "AFTERTALK_BLOCK_PRIVATE_ADDRESSES": "1"}
+    result = invoke(env, *[str(audio_file) if part == "AUDIO" else part for part in command])
+    assert result.exit_code == 2 and "AFTERTALK_BLOCK_PRIVATE_ADDRESSES is not read" in result.output
+    assert fake_speech.seen == []
+
+
+# ---- the detected language is shown ----
+
+
+def test_language_not_allowed_shows_the_detected_language(
+    tmp_path: Path, audio_file: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from aftertalk.models.errors import EngineError
+    from aftertalk.providers.speech.openai_compatible import OpenAICompatibleSpeech
+
+    async def refuse(self: object, *args: object, **kwargs: object) -> None:
+        raise EngineError("language_not_allowed", detected_language="uk")
+
+    monkeypatch.setattr(OpenAICompatibleSpeech, "transcribe", refuse)
+    env = setup(tmp_path, "http://127.0.0.1:1/v1")
+    data = json.loads(invoke(env, "--json", "transcribe", str(audio_file)).stdout)
+    assert data == {"ok": False, "code": "language_not_allowed", "detected_language": "uk"}
+    text = invoke(env, "transcribe", str(audio_file))
+    assert text.exit_code == 1 and "language_not_allowed" in text.stderr and "(detected: uk)" in text.stderr

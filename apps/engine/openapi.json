@@ -69,6 +69,18 @@
               }
             ],
             "default": null
+          },
+          "detected_language": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Detected Language"
           }
         },
         "required": [

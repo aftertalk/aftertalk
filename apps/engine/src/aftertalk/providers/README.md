@@ -106,7 +106,8 @@ param such as `file` or `model`) stops as `provider_bad_response`. The rung that
 
 Times are never estimated: an untimed segment keeps its text and consumers must treat `None` as "no playback for this segment". `vtt` and `srt` skip such segments and print one stderr note with the count. Words are kept wherever the provider gave them, at every level and always with times; a `word` transcript may have segments without
 words (they keep their segment times). Words come at the top level (OpenAI, Groq) and are given to the segment they
-overlap most, or nested in the segments (whisper.cpp, with `probability`). Times may be numbers or numeric strings. A
+overlap most, or nested in the segments (whisper.cpp, with `probability`). A word more than 0.5 s
+(`WORD_SLACK_SECONDS`) outside its timed segment is dropped before the level is set, so it cannot fail the transcript. Times may be numbers or numeric strings. A
 word with a missing, negative, infinite or reversed time is dropped, and a segment with such a time keeps its text:
 segment text is never lost (only blank segments are dropped). Words with no segments at all become one segment.
 Silence (segments present, none of them) is `segment`.
@@ -119,15 +120,20 @@ Silence (segments present, none of them) is `segment`.
 - A 429, 5xx, 408 or dropped connection may fail 3 times in all (one budget for all three rungs), waiting 2 s then
   10 s, or `Retry-After` (seconds or an HTTP date, capped at 60 s). A wait that would pass `deadline` (an absolute
   `time.monotonic()` value) fails with `limit_exceeded`. Each request is also bounded by the deadline as a wall-clock
-  limit (a server that drips bytes cannot hold it), or by 30 minutes when there is none. Not retried: a blocked
+  limit (a server that drips bytes cannot hold it), or by 30 minutes when there is none. Not retried: a request that
+  timed out waiting for the answer (the read timeout or that wall-clock limit; the provider may already have
+  transcribed and billed the upload), which is `provider_unreachable` or, past the deadline, `limit_exceeded`; a blocked
   private address, a 413, a request the client cannot send (`provider_config_invalid`), other HTTP errors
   (`provider_bad_response`) and 429 with `insufficient_quota` (`provider_quota_exceeded`).
 - `requests` counts requests that got a response; `attempts` counts every request sent.
+- `temperature=0` is sent on every rung. A 400 or 422 naming `temperature` gets the same rung once more without it
+  (counted in `requests`, not in the retry budget), and the field stays off for the rest of the call.
 - Language: a forced `language` goes through the same table as reported ones (`Polish`, `pl-PL` and `zh-Hans-CN` all
   work; an unknown one is `provider_config_invalid`, and exit 2 on the command line). Without it the provider
   detects the language. With `allowed_languages`, a detected language outside the list, or one we cannot map
-  (`klingon`), fails with `language_not_allowed`. A provider that reports no language at all (text-only models)
-  cannot be checked and is let through.
+  (`klingon`), fails with `language_not_allowed`; the error's `detected_language` is the code from our table (`uk`),
+  or None when it could not be mapped, never provider text. A provider that reports no language at all (text-only
+  models) cannot be checked: its transcript is accepted with `language` None, whatever the allowed list says.
 - Errors carry a code only, and nothing from the failed request (which holds the `Authorization` header) is chained
   to them. Mapping: 401/403 `provider_auth`; 404 `provider_model_not_found` only when the JSON error code names the
   model, otherwise `provider_bad_response` (often a wrong base URL); 413 `audio_too_long`; 429
@@ -146,10 +152,21 @@ the proxy would resolve and connect to the host itself and so get around the add
 ### Audio
 
 `audio/encode.py`: `encode_for_speech(path, fmt=)` decodes anything PyAV reads, downmixes to mono, resamples to
-16 kHz and writes FLAC or WAV (16-bit PCM) to a temp file in `<tmp>/aftertalk-audio` (mode 0700; files older than an
-hour are swept at the start of each call). Use it as a context manager so the file is removed; an interrupt
-(`KeyboardInterrupt`, cancellation) removes it too. Audio that starts after 0 (an mp4 whose audio begins at 2 s) or
-has timestamp gaps over 0.1 s is padded with silence, so output time 0 is media time 0. Playlists and lists that make
+16 kHz and writes FLAC or WAV (16-bit PCM) to a temp file in `<tmp>/aftertalk-audio-<uid>` (mode 0700, owned by the
+user; files older than an hour are swept at the start of each call; `<tmp>/aftertalk-audio` on Windows). If that name
+belongs to someone else or is not a real directory, a fresh private directory with a random name is used. A temp
+directory that cannot be used is `internal`, not `audio_unreadable`. From async code use
+`async with open_encoded(path, fmt=) as audio:`: it encodes in a worker thread, and the file is gone after the block,
+also when the await is cancelled or times out (the decoder stops at the next frame). An interrupt
+(`KeyboardInterrupt`, cancellation) removes the file too. Timestamp gaps over 0.1 s, and a start after 0 (an mp4 whose
+audio begins at 2 s), are padded with silence, within three rules:
+
+- Padding is measured from media time 0, except for MPEG-TS and MPEG-PS (their clock is arbitrary) and for a stream
+  whose first frame is later than 30 s: those are measured from their first frame.
+- More than 30 minutes of inserted silence in one file is `audio_unreadable`.
+- So is inserted silence that exceeds the decoded audio by more than 30 s (one lone frame hours in).
+
+Playlists and lists that make
 FFmpeg open other files or streams (HLS, concat, ffconcat, SDP, RTP, RTSP, image sequences, tee, pipes) and every
 protocol but `file` are refused. No audio stream, or a file that cannot be decoded, is `audio_unreadable`.
 Channels are mixed down to mono (M2 adds per-channel handling), and only the first audio stream is read. `SpeechConnection.audio_format` picks the
@@ -159,12 +176,15 @@ format: `flac` (default) or `wav` for servers that do not list FLAC (Azure, whis
 
 ```sh
 aftertalk providers test --kind speech       # {"ok": true, "latency_ms": 900, "timing": "word"}
-aftertalk transcribe call.mp3 --format vtt --language pl --prompt "Kenobi" --output call.vtt
+aftertalk transcribe call.mp3 --format vtt --language pl --prompt "Kenobi" --output call.vtt --timeout 600
 ```
 
 `providers test --kind speech` sends the bundled two-second clip (`assets/test-2s.wav`, macOS text-to-speech; replace
 it with a recording we own before a public release; `scripts/make_test_audio.py` rebuilds it). `transcribe` writes
 `text` (default), `json`, `vtt` or `srt` to stdout or `--output` (created with mode 0600); progress goes to stderr and never contains
-transcript text. `--format json` writes `{"transcript": <Transcript>, "usage": <StepUsage>}`. Exit codes: 0 ok, 1
-failure (the code is printed: `failed: provider_auth: ...`, or `{"ok": false, "code": ...}` with `--json`), 2 no
-speech connection, bad connections file or bad arguments.
+transcript text. `--format json` writes `{"transcript": <Transcript>, "usage": <StepUsage>}`. Time limits: `providers test` gives up
+after 120 s (`provider_unreachable`); `transcribe --timeout SECONDS` (default 3600) covers decoding and the upload, and
+running out is `limit_exceeded`. Exit codes: 0 ok, 1 failure (the code is printed: `failed: provider_auth: ...`, or
+`{"ok": false, "code": ...}` with `--json`; `language_not_allowed` adds the detected language, `(detected: uk)` or
+`"detected_language": "uk"`), 2 no speech connection, bad connections file, bad arguments or a setting spelled with
+the `AFTERTALK_` prefix.

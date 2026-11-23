@@ -54,17 +54,23 @@ class JobError(BaseModel):
     code: ErrorCode
     retryable: bool
     usage: StepUsage | None = None
+    # For `language_not_allowed`: the detected language as a code from the engine's language table (never provider
+    # text); None when the provider's language could not be mapped, and for every other code.
+    detected_language: str | None = None
 
 
 class EngineError(Exception):
     """A failure with a stable code. `str()` is the code and a fixed sentence, never provider text."""
 
-    def __init__(self, code: ErrorCode, usage: StepUsage | None = None) -> None:
+    def __init__(
+        self, code: ErrorCode, usage: StepUsage | None = None, *, detected_language: str | None = None
+    ) -> None:
         super().__init__(code)
         self.code: ErrorCode = code
         # What a failed run used before it stopped, so callers can bill and log it.
         self.usage: StepUsage | None = usage
         self.retryable: bool = code in _RETRYABLE
+        self.detected_language: str | None = detected_language
         # Raised from inside `except` blocks that hold provider bodies; do not chain them.
         self.__suppress_context__ = True
 
@@ -72,4 +78,6 @@ class EngineError(Exception):
         return f"{self.code}: {_SENTENCES[self.code]}"
 
     def to_model(self) -> JobError:
-        return JobError(code=self.code, retryable=self.retryable, usage=self.usage)
+        return JobError(
+            code=self.code, retryable=self.retryable, usage=self.usage, detected_language=self.detected_language
+        )

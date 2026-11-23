@@ -439,3 +439,58 @@ def test_provider_takes_an_httpx2_client() -> None:
     client = make_client(block_private=False)
     provider = OpenAICompatibleSpeech(SpeechConnection(base_url="http://h/v1", model="m"), client)
     assert isinstance(client, httpx2.AsyncClient) and provider.capabilities.max_upload_bytes == 25 * 1024 * 1024
+
+
+# ---- temperature 0, resent once without it when refused ----
+
+
+async def test_temperature_zero_is_sent(fake_speech: FakeSpeech) -> None:
+    await run(fake_speech)
+    assert fake_speech.seen[0].values("temperature") == ["0"]
+
+
+async def test_a_server_that_refuses_temperature_gets_one_resend_without_it(fake_speech: FakeSpeech) -> None:
+    fake_speech.reject_temperature = True
+    waits = Waits()
+    transcript, usage = await run(fake_speech, waits=waits)
+    assert transcript.timing == "word" and usage.requests == 2 and waits.calls == []
+    assert fake_speech.seen[0].values("temperature") == ["0"] and fake_speech.seen[1].values("temperature") == []
+    assert fake_speech.seen[1].values("response_format") == ["verbose_json"]  # the same rung
+
+
+# ---- no second request after a timeout once the upload was sent ----
+
+
+async def test_a_read_timeout_after_the_upload_is_not_retried(
+    fake_speech: FakeSpeech, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from aftertalk.providers.speech import openai_compatible
+
+    monkeypatch.setattr(openai_compatible, "REQUEST_TIMEOUT", 0.3)
+    fake_speech.stall = 5.0
+    waits = Waits()
+    err = await fails(fake_speech, waits=waits)
+    assert err.code == "provider_unreachable" and len(fake_speech.seen) == 1 and waits.calls == []
+    assert fake_speech.seen[0].file is not None and fake_speech.seen[0].file.size == 2048
+
+
+# ---- the detected language travels with language_not_allowed ----
+
+
+async def test_language_not_allowed_names_the_detected_language(fake_speech: FakeSpeech) -> None:
+    fake_speech.language = "ukrainian"
+    err = await fails(fake_speech, allowed_languages=["pl"])
+    assert err.code == "language_not_allowed" and err.detected_language == "uk"
+    assert err.to_model().detected_language == "uk"
+
+
+async def test_an_unmapped_language_is_refused_without_a_name(fake_speech: FakeSpeech) -> None:
+    fake_speech.language = "klingon"
+    err = await fails(fake_speech, allowed_languages=["pl"])
+    assert err.code == "language_not_allowed" and err.detected_language is None
+
+
+async def test_a_provider_that_reports_no_language_is_accepted_unchecked(fake_speech: FakeSpeech) -> None:
+    fake_speech.shape = "text"
+    transcript, _ = await run(fake_speech, allowed_languages=["pl"])
+    assert transcript.language is None

@@ -80,6 +80,8 @@ class FakeSpeech:
         self.language = "polish"
         self.reject_granularities = False  # 400 naming timestamp_granularities when they are sent
         self.drip = False  # answer a byte at a time, slowly: never idle long, never finishing
+        self.stall = 0.0  # read the whole upload, then wait this many seconds before answering
+        self.reject_temperature = False  # 400 naming temperature when the field is sent
         self._server = ThreadingHTTPServer(("127.0.0.1", 0), self._handler())
 
     @property
@@ -125,6 +127,8 @@ class FakeSpeech:
             return self.forced.pop(0)
         if self.redirect_to:
             return Forced(302, "", {"Location": self.redirect_to})
+        if self.reject_temperature and seen.values("temperature"):
+            return Forced(400, error_body("Unsupported parameter: temperature", param="temperature"))
         verbose = seen.values("response_format") == ["verbose_json"]
         if verbose and granular and self.reject_granularities:
             return Forced(400, error_body("not supported", param="timestamp_granularities[]"))
@@ -162,6 +166,8 @@ class FakeSpeech:
                 seen = Seen(self.path, headers, fields, upload)
                 outer.seen.append(seen)
                 answer = outer._answer(seen)
+                if outer.stall:
+                    time.sleep(outer.stall)
                 data = answer.body.encode()
                 if outer.drip:
                     self.send_response(200)
