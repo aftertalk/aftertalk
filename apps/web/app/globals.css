@@ -1,8 +1,6 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
 
-@plugin '@tailwindcss/typography';
-
 @custom-variant dark (&:is(.dark *));
 
 @font-face {
@@ -234,21 +232,6 @@
 }
 *::-webkit-scrollbar {
   display: none;
-}
-
-/* The dashboard grid draws its resize corner in near-black, so on a dark background there is
-   nothing to see and nothing to grab. Recolour it to follow the theme, make it a little bigger,
-   and pull it further in so it clears a widget's own scrollbar. */
-.react-grid-layout .react-grid-item > .react-resizable-handle::after {
-  right: 6px;
-  bottom: 6px;
-  width: 7px;
-  height: 7px;
-  border-color: var(--muted-foreground);
-  opacity: 0.5;
-}
-.react-grid-layout .react-grid-item > .react-resizable-handle:hover::after {
-  opacity: 0.9;
 }
 
 @layer base {

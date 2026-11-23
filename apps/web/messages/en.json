@@ -12,7 +12,8 @@
     "activateAccount": "Activate account",
     "configure": "Configuration",
     "projects": "Projects",
-    "notFound": "Page not found"
+    "notFound": "Page not found",
+    "providers": "Providers"
   },
   "common": {
     "loading": "Loading...",
@@ -435,6 +436,19 @@
       "description": "The newest calls with negative sentiment.",
       "empty": "No calls with negative sentiment in this period",
       "olderOnly": "This period's negative calls are older than the 50 newest. See this period's calls."
+    },
+    "checklist": {
+      "title": "Finish setting up this project",
+      "description": "Calls can be uploaded once the required items are set.",
+      "askAdmin": "Ask a project admin to set these before uploading calls.",
+      "categories": "Add at least one call reason",
+      "roles": "Add speaker roles",
+      "templates": "Add a scorecard template",
+      "speech": "Choose a speech-to-text provider",
+      "llm": "Choose a language model",
+      "diarization": "No speaker separation: one-channel recordings will be one speaker.",
+      "optional": "Optional",
+      "fix": "Choose a provider"
     }
   },
   "upload": {
@@ -506,7 +520,14 @@
     },
     "errors": {
       "fileTooLarge": "This file is too large to upload. Please contact support to request a higher upload limit.",
-      "uploadFailed": "Couldn't upload the file. Please try again."
+      "uploadFailed": "Couldn't upload the file. Please try again.",
+      "tooLarge": "The file is larger than 500 MB.",
+      "empty": "The file is empty.",
+      "badFormat": "This is not a WAV, MP3, M4A, OGG, FLAC or WebM file.",
+      "badFilename": "The file name is missing or too long.",
+      "badChannels": "Give both channel labels or neither. Each has 1 to 40 characters and they must differ.",
+      "incomplete": "The upload was cut short. Try again.",
+      "notReady": "This project is not ready for uploads yet. Finish its setup first."
     },
     "dropToUpload": "Drop to upload"
   },
@@ -514,7 +535,9 @@
     "header": {
       "title": "Calls",
       "description": "Every call in this project, transcribed and analysed.",
-      "backToDashboard": "Back to dashboard"
+      "backToDashboard": "Back to dashboard",
+      "export": "Export",
+      "exportHint": "Download the calls in this list as JSON. Text is always redacted."
     },
     "table": {
       "call": "Call",
@@ -535,7 +558,8 @@
       "tasksCount": "{count, plural, one {# task} other {# tasks}}",
       "deleteConfirm": {
         "title": "Delete call",
-        "description": "Are you sure you want to delete this call? This action cannot be undone."
+        "description": "This permanently deletes the call with its recording, transcript and analyses. There is no bin and this can't be undone.",
+        "typeToConfirm": "Type “{name}” to confirm."
       }
     },
     "empty": {
@@ -569,7 +593,19 @@
       "details": "Details",
       "noTranscript": "No transcript",
       "lowConfidence": "Low confidence",
-      "playFrom": "Play from {time}"
+      "playFrom": "Play from {time}",
+      "quoteUnverified": "Not found in the transcript, so there is no quote to show.",
+      "showOriginal": "Show original",
+      "originalShown": "You are reading the original words. Opening them was recorded in the access log.",
+      "originalFailed": "Couldn't load the original text.",
+      "notDiarized": "One-channel recording with no speaker separation: the whole call is one speaker.",
+      "audioNotReady": "The recording can be played once the call has been processed.",
+      "audioNotAllowed": "In this project only organization owners and admins can play recordings.",
+      "emptyProcessing": "Not ready yet: the call is still being processed.",
+      "emptyFailed": "Nothing to show: processing this call failed.",
+      "emptyStepFailed": "This step failed: {reason}",
+      "emptyNoTemplate": "No scorecard was made. Activate a template in Configuration, then process the call again.",
+      "emptyNoTemplateAskAdmin": "No scorecard was made. Ask a project admin to activate a template."
     },
     "player": {
       "play": "Play",
@@ -581,6 +617,45 @@
       "speed": "Playback speed",
       "position": "Playback position",
       "volume": "Volume"
+    },
+    "status": {
+      "queued": "Queued",
+      "processing": "Processing",
+      "completed": "Completed",
+      "completedWithErrors": "Completed with errors",
+      "failed": "Failed",
+      "failedReason": "Failed: {reason}",
+      "laterQueued": "A new run is queued. These are the results of the last one.",
+      "laterProcessing": "A new run is in progress. These are the results of the last one.",
+      "laterFailed": "The last run failed, so these are older results: {reason}"
+    },
+    "steps": {
+      "title": "Processing steps",
+      "completed": "Done",
+      "failed": "Failed",
+      "skipped": "Skipped",
+      "cached": "From cache",
+      "tokens": "{input} tokens in, {output} out",
+      "names": {
+        "decode": "Read the audio",
+        "vad": "Find speech",
+        "transcribe": "Transcribe",
+        "diarize": "Separate speakers",
+        "redact": "Redact personal data",
+        "summary": "Summary",
+        "call_reason": "Call reason",
+        "scorecard": "Scorecard",
+        "quotes": "Match quotes"
+      }
+    },
+    "accessLog": {
+      "title": "Access log",
+      "description": "Who opened the original text or played the recording of this call.",
+      "empty": "Nobody yet.",
+      "text": "original text",
+      "audio": "recording",
+      "deletedUser": "Deleted user",
+      "loadFailed": "Couldn't load the access log."
     }
   },
   "settings": {
@@ -604,7 +679,7 @@
     },
     "security": {
       "title": "Security",
-      "description": "Manage your password, email, and two-factor authentication",
+      "description": "Manage your password and two-factor authentication.",
       "twoFactorAuth": "Two-factor authentication",
       "twoFactorDescription": "Require a one-time code from an authenticator app when you sign in.",
       "notEnabled": "Off",
@@ -634,7 +709,8 @@
       "hour1": "1 hour",
       "hours4": "4 hours",
       "hours8": "8 hours",
-      "hours24": "24 hours"
+      "hours24": "24 hours",
+      "disableTwoFactorPassword": "Enter your password to turn off two-factor authentication."
     },
     "taxonomy": {
       "categories": {
@@ -862,7 +938,8 @@
     "adminPanel": "Admin panel",
     "allProjects": "All projects",
     "backToOrganization": "Back to organization",
-    "skipToContent": "Skip to content"
+    "skipToContent": "Skip to content",
+    "providers": "Providers"
   },
   "templates": {
     "title": "Analysis templates",
@@ -1111,7 +1188,18 @@
       "nameRequired": "Enter a project name.",
       "saveFailed": "Couldn't save. Please try again.",
       "saveError": "Could not update the default language.",
-      "loadError": "Couldn’t load this project’s settings. Reload the page to try again."
+      "loadError": "Couldn’t load this project’s settings. Reload the page to try again.",
+      "languages": "Call languages",
+      "languagesHint": "The languages calls in this project may be in. With one language every call is processed in it. With several, the language of each call is detected.",
+      "retention": "Delete calls after (days)",
+      "retentionHint": "Calls older than this are deleted for good, with their audio and analyses. Leave empty to keep them.",
+      "retentionNever": "Never",
+      "piiAccess": "Original text and audio",
+      "piiAccessFull": "All project members",
+      "piiAccessStrict": "Owners and admins only",
+      "piiAccessFullHint": "Every page shows redacted text. Any member of this project can turn on the original text and play the recording.",
+      "piiAccessStrictHint": "Every page shows redacted text. Only organization owners and admins can turn on the original text and play the recording.",
+      "piiAccessLocked": "Organization owners and admins change this."
     },
     "saved": "Saved",
     "delete": {
@@ -1127,9 +1215,9 @@
       "forbidden": "Only project admins can delete a project."
     },
     "title": "Configuration",
-    "description": "Categories, speaker roles, analysis templates and access for this project.",
+    "description": "Call reasons, speaker roles, scorecard templates and providers for this project.",
     "dangerTitle": "Irreversible actions",
-    "dangerDescription": "Available to organization owners and admins.",
+    "dangerDescription": "Available to project admins.",
     "webhooks": {
       "title": "Webhooks",
       "description": "We notify your system when a call finishes processing, so you don't have to poll the API for status.",
@@ -1171,7 +1259,26 @@
       "failingStreak": "{count, plural, one {# failed delivery in a row} other {# failed deliveries in a row}}",
       "invalidUrl": "That doesn't look like a valid address. It should start with https://"
     },
-    "readOnly": "You can view the configuration; project admins change it."
+    "readOnly": "You can view the configuration; project admins change it.",
+    "providers": {
+      "title": "Providers",
+      "description": "Which speech and language-model services process the calls of this project.",
+      "speech": "Speech to text",
+      "speechHint": "Turns the recording into text. Required.",
+      "llm": "Language model",
+      "llmHint": "Writes the summary, picks the call reason and fills the scorecard. Required.",
+      "diarization": "Speaker separation",
+      "diarizationHint": "Optional. Tells speakers apart in one-channel recordings. Without it a one-channel recording is one speaker; two-channel recordings do not need it.",
+      "none": "None",
+      "model": "Model",
+      "modelPlaceholder": "Model name, for example whisper-1",
+      "modelRequired": "Enter the model name.",
+      "noConnections": "No connection of this kind yet.",
+      "connections": "Provider connections",
+      "connectionsHint": "Addresses and API keys are set once for the organization.",
+      "connectionsAskAdmin": "Ask an organization owner or admin to add a connection.",
+      "manage": "Manage connections"
+    }
   },
   "orgCreate": {
     "title": "Create organization",
@@ -1587,5 +1694,98 @@
     "twoFactorOff": "Two-factor authentication: off",
     "setUpTwoFactor": "Turn on two-factor authentication",
     "signOut": "Sign out"
+  },
+  "errors": {
+    "invalidInput": "That value is not valid.",
+    "textLength": "Enter 1 to {max} characters.",
+    "tooMany": "The limit here is {max}.",
+    "nameTaken": "This name is already used.",
+    "languages": "Pick at least one language.",
+    "retentionDays": "Enter 1 to 3650 days, or leave the field empty.",
+    "categoryDepth": "Call reasons can be nested three levels deep at most.",
+    "speakerLabels": "Enter at least two different labels, each up to {max} characters.",
+    "twoFactorFirst": "Set up two-factor authentication on your own account first."
+  },
+  "providers": {
+    "errors": {
+      "baseUrl": "Enter an http or https address with no query string, for example https://api.openai.com/v1.",
+      "baseUrlResource": "Enter the address up to the version, for example https://api.openai.com/v1, without /chat/completions or /audio/transcriptions.",
+      "hostNotAllowed": "This server allows only the provider hosts on its list (PROVIDER_HOST_ALLOWLIST).",
+      "apiKey": "Enter an API key of up to 500 characters.",
+      "inUse": "A project uses this connection. Pick another one in that project first."
+    },
+    "title": "Providers",
+    "description": "The speech, language-model and speaker-separation services this organization uses. Each project picks from these.",
+    "empty": "No connections yet. Add one for speech to text and one for a language model to start processing calls.",
+    "add": "Add connection",
+    "addTitle": "Add a provider connection",
+    "editTitle": "Edit connection",
+    "edit": "Edit",
+    "name": "Name",
+    "namePlaceholder": "For example OpenAI EU",
+    "kind": "Kind",
+    "kinds": {
+      "speech": "Speech to text",
+      "llm": "Language model",
+      "diarization": "Speaker separation"
+    },
+    "kindFixed": "The kind cannot be changed later.",
+    "baseUrl": "Base URL",
+    "baseUrlHint": "Up to the version, for example https://api.openai.com/v1 or http://whisper:8000/v1.",
+    "baseUrlHintDiarization": "For pyannoteAI: https://api.pyannote.ai/v1.",
+    "apiKey": "API key",
+    "apiKeyHintNew": "Leave empty for a server on your own network that needs no key.",
+    "apiKeyHintEdit": "Leave empty to keep the stored key. A saved key is never shown again.",
+    "removeKey": "Remove the stored key",
+    "keySet": "Key saved",
+    "keyNone": "No key",
+    "dataLocation": "Where the data is processed",
+    "dataLocationHint": "You declare this; Aftertalk cannot verify it. Check your provider's contract.",
+    "location": {
+      "eu": "European Union",
+      "us": "United States",
+      "ownNetwork": "Own network",
+      "other": "Other"
+    },
+    "locationDeclared": "Data location: {location} (declared, not verified)",
+    "inUse": "In use",
+    "test": "Test",
+    "testing": "Testing...",
+    "testPassed": "The test passed.",
+    "testFailed": "The test failed: {reason}",
+    "noWordTimes": "No word times: quotes play from the start of their segment.",
+    "save": "Save",
+    "saving": "Saving...",
+    "saved": "Connection saved",
+    "saveFailed": "Couldn't save the connection. Please try again.",
+    "remove": "Remove",
+    "removeTitle": "Remove this connection?",
+    "removeDescription": "The address and the stored key are deleted. Calls already processed keep their results.",
+    "removed": "Connection removed",
+    "removeFailed": "Couldn't remove the connection."
+  },
+  "jobErrors": {
+    "unknown": "Something went wrong while processing.",
+    "internal": "An internal error stopped processing.",
+    "stalled": "Processing stopped responding.",
+    "contract_rejected": "The result was not in the expected form.",
+    "provider_missing": "The project has no speech or language-model provider.",
+    "audio_unreadable": "The recording could not be read.",
+    "audio_too_long": "The recording is too long for the speech provider.",
+    "language_not_allowed": "The call is in a language this project does not allow. Process it again and pick the language.",
+    "language_not_allowed_detected": "The call seems to be in {language}, which this project does not allow. Process it again and pick the language.",
+    "limit_exceeded": "The call went over a processing limit.",
+    "provider_auth": "The provider refused the API key.",
+    "provider_unreachable": "The provider could not be reached.",
+    "provider_rate_limited": "The provider is limiting requests. Try again later.",
+    "provider_quota_exceeded": "The provider account is out of quota or credit.",
+    "provider_model_not_found": "The provider does not have the chosen model.",
+    "provider_context_too_long": "The call is too long for the chosen model.",
+    "provider_bad_response": "The provider sent an answer that could not be used.",
+    "provider_output_invalid": "The model's answer was not in the expected form.",
+    "llm_output_invalid": "The model's answer was not in the expected form.",
+    "provider_output_truncated": "The model's answer was cut short.",
+    "provider_refused": "The model declined to answer.",
+    "provider_config_invalid": "The provider connection is set up incorrectly."
   }
 }

@@ -26,6 +26,8 @@ export const TOP_LEVEL_ROUTES = [
   'setup-2fa',
   'reset-password',
   'no-organization',
+  'account',
+  'organization',
   'api',
   'internal',
   ...eeRoutes.topLevelRoutes,

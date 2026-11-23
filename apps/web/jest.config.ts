@@ -13,6 +13,8 @@ const config: Config = {
     '^@ee/(.*)$': '<rootDir>/ee/$1',
     // No request scope in tests: a cookie jar stands in for the browser (test/next-headers.ts).
     '^next/headers(\.js)?$': '<rootDir>/test/next-headers.ts',
+    // Nor a page cache to revalidate.
+    '^next/cache(\.js)?$': '<rootDir>/test/next-cache.ts',
   },
   globalSetup: '<rootDir>/test/global-setup.ts',
   setupFiles: ['<rootDir>/test/setup-env.ts'],
