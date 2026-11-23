@@ -80,7 +80,6 @@ _START_SECONDS = 0.02  # audio that starts later than this is shifted: output ti
 # Silence padding (hours of padding would be billed as audio):
 _MAX_START_SECONDS = 30  # a stream that starts later than this is measured from its first frame, not media time 0
 _MAX_PAD_SECONDS = 1800  # more inserted silence than this in one file is refused
-_PAD_ALLOWANCE_SECONDS = 30  # inserted silence may exceed the decoded audio by at most this much
 _TS_DISCONT = 0x200  # FFmpeg's AVFMT_TS_DISCONT: the container's clock is arbitrary (MPEG-TS, MPEG-PS)
 _SWEEP_AFTER_SECONDS = 3600
 
@@ -128,7 +127,8 @@ def _convert(
 
     Holes in the timestamps are filled with silence, measured from `origin`: media time 0, or the first frame's time
     when the container's clock is arbitrary or the first frame is later than `_MAX_START_SECONDS` (or negative).
-    Padding over `_MAX_PAD_SECONDS`, or more than `_PAD_ALLOWANCE_SECONDS` beyond the decoded audio, is refused.
+    Padding over `_MAX_PAD_SECONDS` in total is refused. There is no rule against more silence than audio: recorders
+    that write no packets while a call is on hold produce exactly that.
     """
     codec, _, _ = _FORMATS[fmt]
     written = 0  # output samples so far
@@ -192,8 +192,6 @@ def _convert(
             put(None)
     if written == 0:
         raise ValueError("no audio samples")
-    if padded / SAMPLE_RATE > _PAD_ALLOWANCE_SECONDS + (written - padded) / SAMPLE_RATE:
-        raise ValueError("more inserted silence than audio")
     return written / SAMPLE_RATE
 
 

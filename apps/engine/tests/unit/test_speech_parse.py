@@ -134,7 +134,7 @@ def test_malformed_top_level_words_are_not_fatal(bad: Any) -> None:
     # words no longer spell its text, so it gets its text split into untimed words.
     t = parse({"text": "a x", "segments": [seg("a x", 0, 2)], "words": [word("a", 0, 1), bad]})
     assert t.timing == "segment"
-    assert [(w.text, w.start) for w in t.segments[0].words] == [("a", None), ("x", None)]
+    assert [(w.text, w.start) for w in t.segments[0].words] == [("a", 0.0), ("x", None)]
 
 
 def test_all_words_malformed_downgrades_to_segment() -> None:
@@ -224,7 +224,7 @@ def test_top_level_words_that_miss_a_word_of_a_segment() -> None:
     }
     t = parse(data)
     assert [[(w.text, w.start) for w in s.words] for s in t.segments] == [
-        [("one", None), ("two", None)],  # replaced by the split text, untimed: never a mix with holes
+        [("one", 0.0), ("two", None)],  # lined up with the text: "one" keeps its time, only "two" has none
         [("three", 2.0)],
     ]
     assert t.timing == "segment"

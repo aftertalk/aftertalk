@@ -87,10 +87,11 @@ update the table above.
 - No chunking: audio over `max_upload_mb` fails with `audio_too_long`.
 - Silence padding has limits. A gap in the timestamps is filled with silence, measured from media time 0, but MPEG-TS
   and MPEG-PS files and streams that start later than 30 s are measured from their first frame. More than 30 minutes
-  of inserted silence, or inserted silence more than 30 s longer than the decoded audio, is `audio_unreadable`.
+  of inserted silence in one file is `audio_unreadable`. A long hold with no packets is padded, however short the
+  talk around it.
 - Time limits: `providers test --kind speech` gives up after 120 s; `aftertalk transcribe` after `--timeout` seconds
-  (default 3600, decoding included). A request that timed out after the upload is not retried, so the audio is never
-  billed twice.
+  (default 3600, decoding included). A request that timed out after the upload is not retried. A dropped connection
+  or a 5xx after the upload still is (up to 3 sends), so a long file can be billed more than once.
 - A provider that reports no language (text-only models such as `gpt-4o-transcribe`) fails with
   `language_not_allowed` (`detected_language` null) when several languages are allowed and none is forced; process
   the call again with its language picked. A forced language, a single allowed language or no allowed list (the

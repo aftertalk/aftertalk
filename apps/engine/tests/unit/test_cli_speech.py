@@ -1,4 +1,5 @@
 import json
+import sys
 from pathlib import Path
 
 import pytest
@@ -257,6 +258,7 @@ def test_language_names_are_normalised(fake_speech: FakeSpeech, tmp_path: Path, 
     assert result.exit_code == 0 and fake_speech.seen[0].values("language") == ["pl"]
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX file modes")
 def test_output_file_is_private(fake_speech: FakeSpeech, tmp_path: Path, audio_file: Path) -> None:
     import stat
 

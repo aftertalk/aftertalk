@@ -10,9 +10,12 @@ Rules:
   without a usable time keeps its text too. Times are never estimated or copied from the segment.
 - A word further than `WORD_SLACK_SECONDS` outside its (timed) segment keeps its text and loses its times, nested or
   top-level.
-- Every segment has words that spell its text: a segment that got no words, or whose words do not spell its text
-  (letters and digits, lower-cased), gets its text split on whitespace into untimed words instead. A top-level word
-  without times cannot be placed, so it never reaches a segment.
+- Every segment has words that spell its text (letters and digits, lower-cased). Words that already spell it are kept.
+  Otherwise the text is split on whitespace and lined up with the provider's words: a piece that matches a word (or
+  several words that together spell it) takes their times, the others stay untimed. One wrong word ("ten" for "10")
+  costs only that word its times. Top-level words are lined up against all timed segments at once, so a word the
+  provider timed just past a segment edge still lands in the right segment. A top-level word without times cannot be
+  placed, so it never reaches a segment.
 - A text-only answer becomes one segment without times, with the split words, and `none` timing.
 - `segment` timing needs usable times on at least 90% of the segments. The others stay untimed (`start` and `end`
   are None), and consumers treat None as "no playback for this segment".
@@ -21,6 +24,7 @@ Rules:
 
 import bisect
 import math
+from difflib import SequenceMatcher
 from typing import Any
 
 from aftertalk.models.errors import EngineError
@@ -139,11 +143,64 @@ def _near_words(seg: Segment) -> Segment:
     return seg.model_copy(update={"words": words})
 
 
+def _key(text: str) -> str:
+    return "".join(ch for ch in text.lower() if ch.isalnum())
+
+
+def _line_up(pieces: list[str], words: list[Word]) -> list[Word]:
+    """The pieces as words, each with the times of the provider word(s) that spell it, else untimed.
+
+    Pieces without letters or digits (a dash) are left out: they spell nothing, so the result still spells the text.
+    """
+    pieces = [piece for piece in pieces if _key(piece)]
+    out = [Word(text=piece) for piece in pieces]
+    a, b = [_key(piece) for piece in pieces], [_key(w.text) for w in words]
+    for tag, i1, i2, j1, j2 in SequenceMatcher(None, a, b, autojunk=False).get_opcodes():
+        if tag == "equal":
+            for i, j in zip(range(i1, i2), range(j1, j2), strict=True):
+                out[i] = Word(text=pieces[i], start=words[j].start, end=words[j].end, probability=words[j].probability)
+        elif tag == "replace":  # e.g. "e-mail" given as "e" and "mail": walk from the left while the words spell
+            j = j1
+            for i in range(i1, i2):
+                k, joined = j, ""
+                while k < j2 and len(joined) < len(a[i]) and a[i].startswith(joined + b[k]):
+                    joined += b[k]
+                    k += 1
+                if joined != a[i]:
+                    break
+                first, last = words[j], words[k - 1]
+                if first.start is not None and last.end is not None and first.start <= last.end:
+                    out[i] = Word(text=pieces[i], start=first.start, end=last.end)
+                j = k
+    return out
+
+
 def _spelled(seg: Segment) -> Segment:
-    """The segment with words that spell its text: its own, else its text split on whitespace, untimed."""
+    """The segment with words that spell its text: its own when they do, else its text lined up with them."""
     if seg.words and spells(seg.words, seg.text):
         return seg
-    return seg.model_copy(update={"words": split_words(seg.text)})
+    return seg.model_copy(update={"words": _line_up(seg.text.split(), seg.words) or split_words(seg.text)})
+
+
+def _line_up_top(words: list[Word], segments: list[Segment]) -> list[Segment]:
+    """Top-level words lined up with the text of all timed segments at once (in time order); untimed ones get none."""
+    order = sorted((i for i, seg in enumerate(segments) if seg.start is not None), key=lambda i: segments[i].start)
+    owner: list[int] = []
+    pieces: list[str] = []
+    for i in order:
+        for piece in segments[i].text.split():
+            if _key(piece):
+                owner.append(i)
+                pieces.append(piece)
+    timed = sorted((w for w in words if w.start is not None), key=lambda w: (w.start, w.end))
+    lined = _line_up(pieces, timed)
+    buckets: list[list[Word]] = [[] for _ in segments]
+    for i, word in zip(owner, lined, strict=True):
+        buckets[i].append(word)
+    return [
+        seg.model_copy(update={"words": bucket or split_words(seg.text)})
+        for seg, bucket in zip(segments, buckets, strict=True)
+    ]
 
 
 def parse_transcription(data: Any, *, audio_seconds: float | None, forced_language: str | None) -> Transcript:
@@ -190,9 +247,12 @@ def parse_transcription(data: Any, *, audio_seconds: float | None, forced_langua
             timing = "segment"
             if top_words:
                 buckets = _assign(top_words, segments)
-                segments = [
+                assigned = [
                     seg.model_copy(update={"words": words}) for seg, words in zip(segments, buckets, strict=True)
                 ]
+                if not all(spells(seg.words, seg.text) for seg in assigned):
+                    assigned = _line_up_top(top_words, segments)
+                segments = assigned
         segments = [_spelled(_near_words(seg)) for seg in segments]  # before counting: untimed words do not count
         word_timed_count = sum(1 for seg in segments if word_timed(seg))
         if timing == "segment" and word_timed_count / len(segments) >= COVERAGE:

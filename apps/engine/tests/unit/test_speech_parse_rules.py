@@ -248,8 +248,49 @@ def test_top_level_word_in_a_far_gap_is_not_kept() -> None:
         "words": [word("a", 0, 0.5), word("lost", 5, 5.5), word("b", 10, 10.5)],
     }
     t = parse(data)
-    # "lost" lands in "a" and loses its times; "a"'s words then do not spell it, so they are its split text.
-    assert [[(w.text, w.start) for w in s.words] for s in t.segments] == [[("a", None)], [("b", 10.0)]]
+    # "lost" spells no part of any segment, so lining up drops it and "a" keeps its time.
+    assert [[(w.text, w.start) for w in s.words] for s in t.segments] == [[("a", 0.0)], [("b", 10.0)]]
+
+
+def test_a_word_timed_just_past_a_segment_edge_keeps_every_time() -> None:
+    # "two" belongs to the first segment but the provider timed it mostly inside the second.
+    data = {
+        "text": "one two three four",
+        "segments": [seg("one two", 0, 2), seg("three four", 2, 4)],
+        "words": [word("one", 0, 1), word("two", 1.9, 2.4), word("three", 2.4, 3), word("four", 3, 4)],
+    }
+    t = parse(data)
+    assert [[(w.text, w.start) for w in s.words] for s in t.segments] == [
+        [("one", 0.0), ("two", 1.9)],
+        [("three", 2.4), ("four", 3.0)],
+    ]
+    assert t.timing == "word"
+
+
+@pytest.mark.parametrize("nested", [True, False])
+def test_one_word_spelled_differently_costs_only_that_word(nested: bool) -> None:
+    words = [word("call", 0, 0.5), word("at", 0.5, 0.7), word("ten", 0.7, 1.0), word("today", 1.0, 1.5)]
+    segment = seg("Call at 10 today.", 0, 1.5)
+    data = (
+        {"text": "Call at 10 today.", "segments": [{**segment, "words": words}]}
+        if nested
+        else {"text": "Call at 10 today.", "segments": [segment], "words": words}
+    )
+    t = parse(data)
+    assert [(w.text, w.start) for w in t.segments[0].words] == [
+        ("Call", 0.0),
+        ("at", 0.5),
+        ("10", None),
+        ("today.", 1.0),
+    ]
+
+
+def test_words_that_together_spell_one_piece_give_it_their_span() -> None:
+    words = [word("e", 0, 0.2), word("mail", 0.2, 0.6), word("me", 0.6, 0.9)]
+    t = parse(
+        {"text": "e-mail me", "segments": [{**seg("e-mail me!", 0, 1), "words": words[:2] + [word("you", 0.6, 0.9)]}]}
+    )
+    assert [(w.text, w.start, w.end) for w in t.segments[0].words] == [("e-mail", 0.0, 0.6), ("me!", None, None)]
     assert t.timing == "segment"
 
 

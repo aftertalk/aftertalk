@@ -147,9 +147,8 @@ def test_mka_that_starts_at_one_hour_is_one_second(tmp_path: Path, audio_dir: Pa
         assert audio.duration_seconds == pytest.approx(1.0, abs=0.15)
 
 
-@pytest.mark.parametrize("late", [21600.0, 120.0])  # over the 30 min cap; under it, but far more than the audio
-def test_a_lone_late_frame_is_refused(tmp_path: Path, audio_dir: Path, late: float) -> None:
-    source = make_stream(tmp_path / "a.mka", "aac", offset=0.0, late=late)
+def test_a_lone_late_frame_is_refused(tmp_path: Path, audio_dir: Path) -> None:
+    source = make_stream(tmp_path / "a.mka", "aac", offset=0.0, late=21600.0)  # over the 30 min cap
     started = time.monotonic()
     with pytest.raises(EngineError) as info:
         encode_for_speech(source, fmt="flac")
@@ -161,6 +160,13 @@ def test_a_real_gap_is_still_padded(tmp_path: Path, audio_dir: Path) -> None:
     source = make_stream(tmp_path / "a.mka", "aac", offset=0.0, seconds=3.0, late=5.0)
     with encode_for_speech(source, fmt="flac") as audio:
         assert audio.duration_seconds == pytest.approx(5.0, abs=0.15)
+
+
+def test_a_long_hold_is_padded(tmp_path: Path, audio_dir: Path) -> None:
+    # A recorder that writes no packets during a hold: far more silence than audio, under the cap.
+    source = make_stream(tmp_path / "a.mka", "aac", offset=0.0, seconds=1.0, late=300.0)
+    with encode_for_speech(source, fmt="flac") as audio:
+        assert audio.duration_seconds == pytest.approx(300.0, abs=0.5)
 
 
 # ---- cancellation: no decoded audio left on disk ----

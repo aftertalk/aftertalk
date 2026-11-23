@@ -109,11 +109,15 @@ for this segment". `vtt` and `srt` skip such segments and print one stderr note 
 
 Every segment has words, at every level, and they spell its text (letters and digits, lower-cased). A word has `start`
 and `end`, or neither. Words come at the top level (OpenAI, Groq) and are given to the timed segment they overlap
-most, or nested in the segments (whisper.cpp, with `probability`). A word with a missing, negative, infinite or
+most, or nested in the segments (whisper.cpp, with `probability`). When that leaves a segment whose words do not spell
+its text, top-level words are lined up with the text of all timed segments at once, so a word timed just past a
+segment edge still lands in the right one. A word with a missing, negative, infinite or
 reversed time keeps its text without times (a top-level one cannot be placed and is left out), and a word more than
 0.5 s (`WORD_SLACK_SECONDS`) outside its timed segment loses its times, before the level is set, so neither can fail
-the transcript. A segment with no words left, or whose words do not spell its text, gets its text split on whitespace
-into untimed words: a segment's words are the provider's or the split text, never a mix with holes. A consumer that
+the transcript. A segment whose words do not spell its text gets its text split on whitespace and lined up with
+them: a piece that matches a word, or several words that together spell it ("e" "mail" for "e-mail"), takes their
+times, the others stay untimed. One wrong word ("ten" for "10") costs only that word its times; the segment then does
+not count as word-timed. A consumer that
 needs a word's time uses the word's, else its segment's, else there is none. Times may be numbers or numeric strings.
 A segment with a bad time keeps its text: segment text is never lost (only blank segments are dropped). Words with no
 segments at all become one segment; a text-only answer becomes one untimed segment with split words (`none`).
@@ -169,12 +173,12 @@ directory that cannot be used is `internal`, not `audio_unreadable`. From async 
 `async with open_encoded(path, fmt=) as audio:`: it encodes in a worker thread, and the file is gone after the block,
 also when the await is cancelled or times out (the decoder stops at the next frame). An interrupt
 (`KeyboardInterrupt`, cancellation) removes the file too. Timestamp gaps over 0.1 s, and a start after 0 (an mp4 whose
-audio begins at 2 s), are padded with silence, within three rules:
+audio begins at 2 s), are padded with silence, within two rules:
 
 - Padding is measured from media time 0, except for MPEG-TS and MPEG-PS (their clock is arbitrary) and for a stream
   whose first frame is later than 30 s: those are measured from their first frame.
-- More than 30 minutes of inserted silence in one file is `audio_unreadable`.
-- So is inserted silence that exceeds the decoded audio by more than 30 s (one lone frame hours in).
+- More than 30 minutes of inserted silence in one file is `audio_unreadable` (one lone frame hours in). There is no
+  rule against more silence than audio: recorders that write no packets while a call is on hold produce exactly that.
 
 Playlists and lists that make
 FFmpeg open other files or streams (HLS, concat, ffconcat, SDP, RTP, RTSP, image sequences, tee, pipes) and every
