@@ -11,7 +11,7 @@ from aftertalk.models.connections import (
     SpeechConnection,
 )
 from aftertalk.models.errors import EngineError, ErrorCode
-from aftertalk.models.transcript import Segment, TimingLevel, Transcript, Word
+from aftertalk.models.transcript import Segment, Source, Speaker, TimingLevel, Transcript, Word
 from aftertalk.models.usage import JobLimits, StepUsage
 
 __all__ = [
@@ -25,6 +25,8 @@ __all__ = [
     "ModelTiers",
     "OutputMode",
     "Segment",
+    "Source",
+    "Speaker",
     "SpeechAdapter",
     "SpeechConnection",
     "StepUsage",

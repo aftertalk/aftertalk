@@ -70,7 +70,7 @@ verified, is in `apps/engine/docs/providers.md`.
 
 | File | What it does |
 | --- | --- |
-| `speech/protocols.py` | `SpeechProvider` (`capabilities`, `transcribe(audio, language=, prompt=, deadline=, allowed_languages=)`) and `SpeechCapabilities` (`word_times`, `segment_times`, `speakers`, `channels`, `max_upload_bytes`). A native adapter such as Deepgram implements the same protocol. `EncodedAudio` (from `audio/encode.py`) is the upload: bytes or a temp file, `filename`, `content_type`, `duration_seconds`, `size_bytes`. |
+| `speech/protocols.py` | `SpeechProvider` (`capabilities`, `transcribe(audio, language=, prompt=, deadline=, allowed_languages=)`) and `SpeechCapabilities` (`word_times`, `segment_times`, `speakers`, `channels`, `max_upload_bytes`). A native adapter such as Deepgram implements the same protocol. `EncodedAudio` (from `audio/encode.py`) is one upload: bytes in memory, `filename`, `content_type`, `duration_seconds`, `size_bytes`. The pipeline sends one per window and reads only `capabilities.max_upload_bytes` to size the windows. |
 | `speech/openai_compatible.py` | The only adapter in M1: `POST {base_url}/audio/transcriptions` with plain `httpx2` (not the OpenAI SDK, so `OPENAI_API_KEY`, `OPENAI_BASE_URL` and `OPENAI_ORG_ID` are never read). It is the only place that reads the key and `extra_headers`. `Authorization: Bearer` is sent only when a key is set. `open_speech(conn, block_private=)` makes the client and closes it. Returns `(Transcript, StepUsage)`; `usage.speech_format` is the rung that worked. |
 | `speech/parse.py` | Response to `Transcript`; sets `timing` from what survived parsing. |
 | `speech/languages.py` | `normalize_language`: Whisper's full language table with names, ISO 639-2/3 codes, aliases and BCP-47 forms (`polish`, `pl-PL`, `zh-Hans-CN`, `mandarin`, `cym`); unknown to None. |
@@ -125,9 +125,9 @@ Silence (segments present, none of them) is `segment`.
 
 ### Limits and retries
 
-- Upload ceiling: `SpeechConnection.max_upload_mb` (default 25 MiB; Groq's dev tier takes 100). `transcribe` stops
-  converting once the encoded audio passes it, and the provider refuses an upload over it before any request:
-  `audio_too_long`. A 413 from the server is the same code. No chunking in M1.
+- Upload ceiling: `SpeechConnection.max_upload_mb` (default 25 MiB; Groq's dev tier takes 100). The pipeline cuts the
+  audio into windows that fit it (`audio/windows.py`), and the provider refuses an upload over it before any request:
+  `audio_too_long`. A 413 from the server is the same code.
 - A 429, 5xx, 408 or dropped connection may fail 3 times in all (one budget for all three rungs), waiting 2 s then
   10 s, or `Retry-After` (seconds or an HTTP date, capped at 60 s). A wait that would pass `deadline` (an absolute
   `time.monotonic()` value) fails with `limit_exceeded`. Each request is also bounded by the deadline as a wall-clock
@@ -165,26 +165,27 @@ the proxy would resolve and connect to the host itself and so get around the add
 
 ### Audio
 
-`audio/encode.py`: `encode_for_speech(path, fmt=)` decodes anything PyAV reads, downmixes to mono, resamples to
-16 kHz and writes FLAC or WAV (16-bit PCM) to a temp file in `<tmp>/aftertalk-audio-<uid>` (mode 0700, owned by the
-user; files older than an hour are swept at the start of each call; `<tmp>/aftertalk-audio` on Windows). If that name
-belongs to someone else or is not a real directory, a fresh private directory with a random name is used. A temp
-directory that cannot be used is `internal`, not `audio_unreadable`. From async code use
-`async with open_encoded(path, fmt=) as audio:`: it encodes in a worker thread, and the file is gone after the block,
-also when the await is cancelled or times out (the decoder stops at the next frame). An interrupt
-(`KeyboardInterrupt`, cancellation) removes the file too. Timestamp gaps over 0.1 s, and a start after 0 (an mp4 whose
-audio begins at 2 s), are padded with silence, within two rules:
+`audio/decode.py`: `open_decoded(path, max_seconds=)` decodes the first audio stream of anything PyAV reads, once, to
+16 kHz 16-bit PCM in a temp file in `<tmp>/aftertalk-audio-<uid>` (mode 0700, owned by the user; files older than an
+hour are swept at the start of each call; `<tmp>/aftertalk-audio` on Windows), read back as a memory map. If that name
+belongs to someone else or is not a real directory, a fresh private directory with a random name is used and removed
+on close. A temp directory that cannot be used is `internal`, not `audio_unreadable`. The file is gone after the
+block, also when the await is cancelled or times out (the decoder stops at the next frame) and on an interrupt. Mono
+and stereo are kept as they are; more channels are mixed to mono. Sample 0 is the first decoded frame: the lead-in is
+not padded, and `start_offset_seconds` says where it sits in the file (the audio stream's first timestamp minus the
+container's start time, so MPEG-TS clocks do not count). Gaps inside over 0.1 s are filled with silence; more than
+30 minutes of it in one file is `audio_unreadable`. Past `max_seconds` decoding stops with `limit_exceeded`.
+`probe_duration(path)` reads the length from the container metadata only (the command line sizes its default
+timeout with it).
 
-- Padding is measured from media time 0, except for MPEG-TS and MPEG-PS (their clock is arbitrary) and for a stream
-  whose first frame is later than 30 s: those are measured from their first frame.
-- More than 30 minutes of inserted silence in one file is `audio_unreadable` (one lone frame hours in). There is no
-  rule against more silence than audio: recorders that write no packets while a call is on hold produce exactly that.
+Playlists and lists that make FFmpeg open other files or streams (HLS, concat, ffconcat, SDP, RTP, RTSP, image
+sequences, tee, pipes) and every protocol but `file` are refused. No audio stream, or a file that cannot be decoded,
+is `audio_unreadable`.
 
-Playlists and lists that make
-FFmpeg open other files or streams (HLS, concat, ffconcat, SDP, RTP, RTSP, image sequences, tee, pipes) and every
-protocol but `file` are refused. No audio stream, or a file that cannot be decoded, is `audio_unreadable`.
-Channels are mixed down to mono (M2 adds per-channel handling), and only the first audio stream is read. `SpeechConnection.audio_format` picks the
-format: `flac` (default) or `wav` for servers that do not list FLAC (Azure, whisper.cpp without `--convert`).
+`audio/windows.py`: `plan_mix_windows` cuts the mono mix into windows of at most 600 s that fit the upload ceiling.
+`audio/encode.py`: `encode_pcm(samples, fmt)` encodes one window, in memory, as FLAC or WAV (16-bit PCM, mono,
+16 kHz); `SpeechConnection.audio_format` picks it: `flac` (default) or `wav` for servers that do not list FLAC (Azure,
+whisper.cpp without `--convert`). `open_encoded` (the whole file as one upload) is used only by `providers test`.
 
 ### Commands
 
@@ -197,10 +198,12 @@ aftertalk transcribe call.mp3 --format vtt --language pl --prompt "Kenobi" --out
 it with a recording we own before a public release; `scripts/make_test_audio.py` rebuilds it). `language_reported` is
 false when the answer held no language we recognise: such a connection fails with `language_not_allowed` whenever
 several languages are allowed and none is forced. `transcribe` writes
-`text` (default), `json`, `vtt` or `srt` to stdout or `--output` (created with mode 0600); progress goes to stderr and never contains
-transcript text. `--format json` writes `{"transcript": <Transcript>, "usage": <StepUsage>}`. Time limits: `providers test` gives up
-after 120 s (`provider_unreachable`); `transcribe --timeout SECONDS` (default 3600) covers decoding and the upload, and
-running out is `limit_exceeded`. Exit codes: 0 ok, 1 failure (the code is printed: `failed: provider_auth: ...`, or
+`text` (default), `json`, `vtt` or `srt` to stdout or `--output` (created with mode 0600); progress goes to stderr
+(decoding, the audio length, `transcribing window 2/5`) and never contains transcript text. `--format json` writes
+`{"transcript": <Transcript>, "usage": [<StepUsage>, ...]}`, one usage entry per step (`decode`, then `transcribe`
+with the windows summed and the lowest `speech_format` any window needed). Time limits: `providers test` gives up
+after 120 s (`provider_unreachable`); `transcribe --timeout SECONDS` covers decoding and every window, and running
+out is `limit_exceeded`. Its default is 3600 s, or twice the file's duration when that is longer. Exit codes: 0 ok, 1 failure (the code is printed: `failed: provider_auth: ...`, or
 `{"ok": false, "code": ...}` with `--json`; `language_not_allowed` adds the detected language, `(detected: uk)` or
 `"detected_language": "uk"`), 2 no speech connection, bad connections file, bad arguments or a setting spelled with
 the `AFTERTALK_` prefix.

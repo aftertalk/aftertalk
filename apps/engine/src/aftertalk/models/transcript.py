@@ -1,5 +1,10 @@
-"""Transcript model (what M1 needs)."""
+"""Transcript model: what a speech provider returns, and the canonical transcript the pipeline builds from it.
 
+A provider answer has segments as the provider cut them, and no ids, speakers or source. A pipeline result adds the
+source, the speakers, and segments that are the turns, each with an id and a speaker. Both validate as `Transcript`.
+"""
+
+from collections.abc import Sequence
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -43,6 +48,53 @@ def word_timed(seg: "Segment") -> bool:
     return seg.start is not None and bool(seg.words) and all(w.start is not None for w in seg.words)
 
 
+def timing_level(segments: "Sequence[Segment]") -> TimingLevel:
+    """The highest level the `Transcript` validator accepts for these segments (the 90% rule, on segments with text).
+
+    Without any segment with text it is `none`: there is nothing to time.
+    """
+    spoken = [seg for seg in segments if seg.text.strip()]
+    if not spoken:
+        return "none"
+    if sum(seg.start is not None for seg in spoken) < COVERAGE * len(spoken):
+        return "none"
+    if sum(word_timed(seg) for seg in spoken) < COVERAGE * len(spoken):
+        return "segment"
+    return "word"
+
+
+class Source(BaseModel):
+    """Where the transcript comes from. All times in the transcript are already on the original file's timeline."""
+
+    model_config = _CONFIG
+
+    kind: Literal["audio", "video", "text"]  # the medium only; "call" or "meeting" is not a kind
+    name: str | None = None  # file name only, never a path
+    sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")  # of the original bytes: the file's identity
+    url: str | None = None
+    container: str | None = None
+    channels: int | None = Field(default=None, ge=1)  # in the original audio stream
+    channel_mode: Literal["mix", "split"] | None = None
+    start_offset_seconds: Seconds = 0  # where the audio starts in the file; already added to all times
+
+    @model_validator(mode="after")
+    def _fields(self) -> "Source":
+        if self.name is not None and ("/" in self.name or "\\" in self.name):
+            raise ValueError("source name is a file name, not a path")
+        return self
+
+
+class Speaker(BaseModel):
+    """A speaker. `id` is stable within the transcript and is what segments refer to; `label` is for display only."""
+
+    model_config = _CONFIG
+
+    id: str = Field(min_length=1)  # "s1", "s2"
+    label: str = Field(min_length=1)  # "Agent", "Speaker 1"
+    role: Literal["agent", "customer"] | None = None  # calls only; at most one speaker per role
+    channel: int | None = Field(default=None, ge=0)
+
+
 class Word(BaseModel):
     """A word. It has `start` and `end`, or neither: a provider may give no usable time for it, and times are never
     estimated or copied from the segment."""
@@ -68,6 +120,8 @@ class Segment(BaseModel):
 
     model_config = _CONFIG
 
+    id: str | None = Field(default=None, min_length=1)  # "t1", "t2": all segments of a transcript have one, or none do
+    speaker: str | None = None  # a `Speaker.id` of the transcript
     text: str
     start: Seconds | None = None
     end: Seconds | None = None
@@ -83,7 +137,12 @@ class Segment(BaseModel):
 
 
 class Transcript(BaseModel):
-    """A transcript. The adapter sets `timing` from what the provider actually returned.
+    """A transcript. The adapter sets `timing` from what the provider actually returned; the pipeline recomputes it
+    on the turns with `timing_level`.
+
+    A provider answer has no ids, speakers or source. In a pipeline result the segments are the turns: every segment
+    has an id ("t1", "t2"... in order) and a speaker from `speakers`, and a word is addressed as (segment id, word
+    index). Speaker ids are unique, at most one speaker has each role, and segment ids are unique.
 
     At every timing level: non-blank text is in segments, every segment with text has words, and the words spell the
     segment's text (letters and digits, lower-cased). A segment or a word has start and end, or neither: times are
@@ -93,6 +152,11 @@ class Transcript(BaseModel):
     a start and end. `word`: that too, and at least 90% of the segments with text have times on all their words.
     `none` is text only (or too few times to use). A consumer that needs a time for a word uses the word's time, else
     its segment's time, else there is none (no playback).
+
+    `text`: in a pipeline result, the turn texts joined with one space, with no turn or speaker structure; read
+    `segments` for that. `duration_seconds`: in a pipeline result, where the audio ends on the file's timeline
+    (`source.start_offset_seconds` plus the decoded length), not the container's duration; the audio's own length is
+    the difference, and the billed length is in the usage. In a provider answer it is the upload's length.
     """
 
     model_config = _CONFIG
@@ -102,6 +166,26 @@ class Transcript(BaseModel):
     duration_seconds: Seconds | None = None
     timing: TimingLevel
     segments: list[Segment] = []
+    source: Source | None = None
+    speakers: list[Speaker] = []
+
+    @model_validator(mode="after")
+    def _ids(self) -> "Transcript":
+        speaker_ids = [sp.id for sp in self.speakers]
+        if len(set(speaker_ids)) != len(speaker_ids):
+            raise ValueError("speaker ids must be unique")
+        roles = [sp.role for sp in self.speakers if sp.role is not None]
+        if len(set(roles)) != len(roles):
+            raise ValueError("at most one speaker per role")
+        ids = [seg.id for seg in self.segments if seg.id is not None]
+        if ids and len(ids) != len(self.segments):
+            raise ValueError("all segments have an id, or none do")
+        if len(set(ids)) != len(ids):
+            raise ValueError("segment ids must be unique")
+        known = set(speaker_ids)
+        if any(seg.speaker is not None and seg.speaker not in known for seg in self.segments):
+            raise ValueError("a segment's speaker must be one of the transcript's speakers")
+        return self
 
     @model_validator(mode="after")
     def _timing(self) -> "Transcript":

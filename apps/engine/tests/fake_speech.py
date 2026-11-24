@@ -21,6 +21,7 @@ class Upload:
     filename: str | None
     content_type: str
     size: int
+    data: bytes = b""  # the uploaded bytes, kept in memory on the fake only
 
 
 @dataclass
@@ -68,10 +69,30 @@ WORDS = [
 ]
 
 
+def reply(words: list[str], *, shape: str = "verbose", language: str | None = "polish", step: float = 0.5) -> Forced:
+    """A 200 answer for one request (queue it in `FakeSpeech.forced`): `words` from 0 s, `step` seconds apart.
+
+    `verbose`: one segment and top-level words; `segments`: the segment only; `text`: plain text. A `language` of None
+    leaves it out, as text-only models do.
+    """
+    timed = [
+        {"word": w, "start": round(i * step, 3), "end": round(i * step + step * 0.8, 3)} for i, w in enumerate(words)
+    ]
+    text = " ".join(words)
+    data: dict = {"text": text}
+    if language is not None:
+        data["language"] = language
+    if shape in ("verbose", "segments"):
+        data["segments"] = [{"id": 0, "start": 0.0, "end": timed[-1]["end"], "text": f" {text}"}]
+    if shape == "verbose":
+        data["words"] = timed
+    return Forced(200, json.dumps(data))
+
+
 class FakeSpeech:
     def __init__(self) -> None:
         self.seen: list[Seen] = []
-        self.forced: list[Forced] = []  # served first, one per request
+        self.forced: list[Forced] = []  # served first, one per request: a queue of answers (see `reply`)
         self.always: Forced | None = None  # every request gets this
         self.redirect_to: str | None = None
         self.shape = "verbose"  # verbose | segments | words_only | whispercpp | text | languages
@@ -110,8 +131,8 @@ class FakeSpeech:
                     {**SEGMENTS[1], "words": [{**w, "probability": 0.8} for w in WORDS[2:]]},
                 ]
                 return {**base, "segments": nested}
-            case "untimed":  # ten segments, one of them without times
-                many = [{**SEGMENTS[0], "id": i, "start": i, "end": i + 1, "text": f" s{i}"} for i in range(10)]
+            case "untimed":  # ten segments 2 s apart (each a turn), one without times: a gap follows, so it stays apart
+                many = [{**SEGMENTS[0], "id": i, "start": 3 * i, "end": 3 * i + 1, "text": f" s{i}"} for i in range(10)]
                 many[4] = {"id": 4, "text": " no times here"}
                 return {**base, "segments": many}
             case "languages":
@@ -159,7 +180,7 @@ class FakeSpeech:
                     filename = part.get_filename()
                     payload = part.get_payload(decode=True) or b""
                     if filename is not None:
-                        upload = Upload(filename, part.get_content_type(), len(payload))
+                        upload = Upload(filename, part.get_content_type(), len(payload), payload)
                     else:
                         fields.append((str(name), payload.decode()))
                 headers = {k.lower(): v for k, v in self.headers.items()}

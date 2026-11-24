@@ -73,3 +73,77 @@ def make_stream(
         for packet in stream.encode(None):
             container.mux(packet)
     return path
+
+
+_LAYOUTS = {1: "mono", 2: "stereo", 3: "2.1", 6: "5.1"}
+
+
+def tone(seconds: float, rate: int, freq: float = 440.0, amplitude: float = 10000.0) -> np.ndarray:
+    return (np.sin(2 * np.pi * freq * np.arange(int(rate * seconds)) / rate) * amplitude).astype(np.int16)
+
+
+def make_media(
+    path: Path,
+    codec: str,
+    *,
+    seconds: float = 2.0,
+    rate: int = 48000,
+    channels: int = 1,
+    signal: np.ndarray | None = None,
+    video: str | None = None,
+    video_seconds: float | None = None,
+    audio_offset: float = 0.0,
+    video_offset: float = 0.0,
+    cover: str | None = None,
+    fmt: str | None = None,
+) -> Path:
+    """A file with one audio stream and optionally a real video stream or cover art; `path`'s suffix (or `fmt`)
+    picks the container.
+
+    `signal` is (frames, channels) int16; by default every channel carries the same 440 Hz tone. Audio timestamps
+    start at `audio_offset` s, video ones at `video_offset` s; `cover` is the codec of an attached picture.
+    """
+    layout = _LAYOUTS[channels]
+    if signal is None:
+        signal = np.repeat(tone(seconds, rate)[:, None], channels, axis=1)
+    with av.open(str(path), "w", format=fmt) as container:
+        picture = None
+        if video is not None:
+            picture = container.add_stream(video, rate=10)
+            picture.width, picture.height, picture.pix_fmt = 64, 64, "yuv420p"
+        art = None
+        if cover is not None:
+            art = container.add_stream(cover)
+            art.width, art.height = 16, 16
+            art.pix_fmt = "rgb24" if cover == "png" else "yuvj420p"
+            art.disposition = av.stream.Disposition.attached_pic
+        # FFmpeg's own Vorbis encoder is marked experimental (there is no libvorbis in PyAV's build).
+        options = {"strict": "experimental"} if codec == "vorbis" else {}
+        stream = container.add_stream(codec, rate=rate, layout=layout, options=options)
+        if art is not None:
+            image = av.VideoFrame.from_ndarray(np.full((16, 16, 3), 200, np.uint8), format="rgb24")
+            image = image.reformat(format=art.pix_fmt)
+            image.pts = 0
+            for packet in [*art.encode(image), *art.encode(None)]:
+                container.mux(packet)
+        if picture is not None:
+            for i in range(int((video_seconds or seconds) * 10)):
+                frame = av.VideoFrame(64, 64, "yuv420p")
+                frame.pts = int(video_offset * 10) + i
+                frame.time_base = Fraction(1, 10)
+                for packet in picture.encode(frame):
+                    container.mux(packet)
+            for packet in picture.encode(None):
+                container.mux(packet)
+        size = stream.codec_context.frame_size or 1024
+        for i in range(0, len(signal), size):
+            chunk = np.ascontiguousarray(signal[i : i + size]).reshape(1, -1)
+            frame = av.AudioFrame.from_ndarray(chunk, format="s16", layout=layout)
+            frame.sample_rate = rate
+            frame.pts = int(audio_offset * rate) + i
+            frame.time_base = Fraction(1, rate)
+            for packet in stream.encode(frame):
+                container.mux(packet)
+        for packet in stream.encode(None):
+            container.mux(packet)
+    return path

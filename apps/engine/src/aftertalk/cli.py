@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import math
 import os
 import time
 from collections.abc import Coroutine
@@ -259,30 +260,49 @@ def providers_test(
         typer.echo(f"ok: llm {tier} answered in {latency_ms} ms (output mode: {mode})")
 
 
-TRANSCRIBE_TIMEOUT_SECONDS = 3600  # default for `aftertalk transcribe --timeout`
+TRANSCRIBE_TIMEOUT_SECONDS = 3600  # the shortest default for `aftertalk transcribe --timeout`
+
+
+def default_timeout(duration_seconds: float | None) -> int:
+    """`--timeout` when it is not given: 3600 s, or twice the file's duration when that is longer.
+
+    An unknown duration (the container does not say, or the file cannot be read) gives 3600 s.
+    """
+    if duration_seconds is None:
+        return TRANSCRIBE_TIMEOUT_SECONDS
+    return max(TRANSCRIBE_TIMEOUT_SECONDS, math.ceil(2 * duration_seconds))
+
+
+def _clock(seconds: float) -> str:
+    whole = round(seconds)
+    hours, rest = divmod(whole, 3600)
+    minutes, secs = divmod(rest, 60)
+    return f"{hours}:{minutes:02d}:{secs:02d}" if hours else f"{minutes}:{secs:02d}"
+
+
+def _progress(event: Any) -> None:
+    """Progress lines on stderr: steps, the audio length and window counts, never text."""
+    if event.step == "decode" and event.kind == "started":
+        typer.echo("decoding audio", err=True)
+    elif event.step == "decode" and event.kind == "finished" and event.audio_seconds is not None:
+        typer.echo(f"audio length {_clock(event.audio_seconds)}", err=True)
+    elif event.step == "transcribe" and event.kind in ("started", "progress"):
+        done, total = event.windows_done, event.windows_total
+        if done is not None and total is not None and done < total:
+            typer.echo(f"transcribing window {done + 1}/{total}", err=True)
 
 
 async def _transcribe(
-    conn: Any, path: Path, language: str | None, prompt: str | None, block_private: bool, timeout: float
-) -> tuple[Any, Any]:
-    """Decode and transcribe within `timeout` seconds; running out is `limit_exceeded`."""
-    from aftertalk.audio.encode import open_encoded
-    from aftertalk.models.errors import EngineError
+    conn: Any, path: Path, language: str | None, prompt: str | None, block_private: bool, timeout: int
+) -> Any:
+    """Run the pipeline within `timeout` seconds, decoding included; running out is `limit_exceeded`."""
+    from aftertalk.models.usage import JobLimits
+    from aftertalk.pipeline import TranscribeOptions, transcribe_file
     from aftertalk.providers.speech.openai_compatible import open_speech
 
-    deadline = time.monotonic() + timeout  # set before decoding: the limit covers the whole command
-    try:
-        async with asyncio.timeout(timeout):
-            typer.echo("decoding audio", err=True)
-            async with open_encoded(path, fmt=conn.audio_format, max_bytes=conn.max_upload_mb * 1024 * 1024) as audio:
-                size = f"{audio.size_bytes / 1_000_000:.1f} MB ({audio.duration_seconds:.0f} s)"
-                typer.echo(f"uploading {size}", err=True)
-                typer.echo("transcribing", err=True)
-                async with open_speech(conn, block_private=block_private) as provider:
-                    return await provider.transcribe(audio, language=language, prompt=prompt, deadline=deadline)
-    except TimeoutError:
-        pass
-    raise EngineError("limit_exceeded")  # outside the except block: nothing is chained to it
+    options = TranscribeOptions(language=language, prompt=prompt, audio_format=conn.audio_format)
+    async with open_speech(conn, block_private=block_private) as provider:
+        return await transcribe_file(path, provider, options, JobLimits(timeout_seconds=timeout), _progress)
 
 
 @app.command()
@@ -301,13 +321,21 @@ def transcribe(
         Path | None, typer.Option(help="Connections file (default ~/.aftertalk/connections.yaml).")
     ] = None,
     timeout: Annotated[
-        int, typer.Option(min=1, help="Give up after this many seconds, decoding included.")
-    ] = TRANSCRIBE_TIMEOUT_SECONDS,
+        int | None,
+        typer.Option(
+            min=1,
+            show_default=False,
+            help="Give up after this many seconds, decoding included. Default: 3600, or twice the file's duration "
+            "when that is longer.",
+        ),
+    ] = None,
 ) -> None:
     """Transcribe a file with the speech connection. Exit 0 ok, 1 failure, 2 configuration or usage error.
 
-    Progress goes to stderr. `--format json` writes {"transcript": ..., "usage": ...}.
+    Any length: long audio is sent in windows of at most 10 minutes. Progress goes to stderr.
+    `--format json` writes {"transcript": ..., "usage": [...]}, with one usage entry per step (decode, transcribe).
     """
+    from aftertalk.audio.decode import probe_duration
     from aftertalk.models.errors import EngineError
     from aftertalk.providers.speech.languages import normalize_language
     from aftertalk.render import RenderError, render_srt, render_text, render_vtt, untimed_segments
@@ -318,10 +346,11 @@ def transcribe(
         raise typer.Exit(2)
     conn = _speech_connection(connections)
     block_private = _cli_settings().block_private_addresses
+    seconds = timeout if timeout is not None else default_timeout(probe_duration(audio_file))
     failure: EngineError | None = None
     result: Any = None
     try:
-        result = asyncio.run(_transcribe(conn, audio_file, language, prompt, block_private, timeout))
+        result = asyncio.run(_transcribe(conn, audio_file, language, prompt, block_private, seconds))
     except Exception as exc:
         failure = _failure(exc)
     if failure is not None:
@@ -331,10 +360,11 @@ def transcribe(
         else:
             typer.echo(_failure_text(failure), err=True)
         raise typer.Exit(1)
-    transcript, usage = result
-    if usage.speech_format != "verbose_json":
+    transcript = result.transcript
+    speech_format = next((u.speech_format for u in result.usage if u.step == "transcribe"), None)
+    if speech_format is not None and speech_format != "verbose_json":
         typer.echo(
-            f"the provider did not accept word timestamps (used {usage.speech_format}); timestamps are limited",
+            f"the provider did not accept word timestamps (used {speech_format}); timestamps are limited",
             err=True,
         )
     text: str | None = None
@@ -344,7 +374,7 @@ def transcribe(
             case OutputFormat.json:
                 payload = {
                     "transcript": transcript.model_dump(mode="json"),
-                    "usage": usage.model_dump(mode="json"),
+                    "usage": [usage.model_dump(mode="json") for usage in result.usage],
                 }
                 text = json.dumps(payload, indent=2, ensure_ascii=False) + "\n"
             case OutputFormat.text:

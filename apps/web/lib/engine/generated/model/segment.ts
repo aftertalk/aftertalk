@@ -11,6 +11,8 @@ import type { Word } from './word';
  * into untimed words.
  */
 export interface Segment {
+  id?: string | null;
+  speaker?: string | null;
   text: string;
   start?: number | null;
   end?: number | null;
