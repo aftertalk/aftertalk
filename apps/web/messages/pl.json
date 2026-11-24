@@ -564,7 +564,6 @@
       "completed": "Gotowa",
       "completedWithErrors": "Gotowa z błędami",
       "failed": "Błąd",
-      "failedReason": "Błąd: {reason}",
       "laterQueued": "Nowe przetwarzanie czeka w kolejce. To wyniki poprzedniego.",
       "laterProcessing": "Trwa nowe przetwarzanie. To wyniki poprzedniego.",
       "laterFailed": "Ostatnie przetwarzanie nie powiodło się, więc to starsze wyniki: {reason}"

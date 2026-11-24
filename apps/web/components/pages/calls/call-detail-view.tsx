@@ -170,8 +170,11 @@ export function CallDetailView({ call, projectId, tasks, backHref, neighbours, c
           eyebrow={[
             t(i18n.calls.detail.eyebrow),
             labels.titleParts(call).day ? format.time(call.createdAt) : format.dateTime(call.createdAt),
-            format.clock(call.durationS),
-          ].join(' · ')}
+            // A call that never got a result has no known length.
+            call.durationS > 0 ? format.clock(call.durationS) : null,
+          ]
+            .filter(Boolean)
+            .join(' · ')}
           title={labels.title(call)}
           // Category and sentiment are in the tiles below; the header names the file only.
           description={<span className="text-meta font-mono">{stripExtension(call.filename)}</span>}

@@ -564,7 +564,6 @@ export const i18n = {
       completed: 'calls.status.completed',
       completedWithErrors: 'calls.status.completedWithErrors',
       failed: 'calls.status.failed',
-      failedReason: 'calls.status.failedReason',
       laterQueued: 'calls.status.laterQueued',
       laterProcessing: 'calls.status.laterProcessing',
       laterFailed: 'calls.status.laterFailed',
@@ -864,7 +863,8 @@ export const i18n = {
   },
   organization: {
     createFailed: 'organization.createFailed',
-    header: [],
+    header: [
+    ],
     general: {
       title: 'organization.general.title',
       description: 'organization.general.description',
@@ -1044,31 +1044,52 @@ export const i18n = {
     roles: {
       salesCall: {
         name: 'suggestions.roles.salesCall.name',
-        speakers: ['suggestions.roles.salesCall.speakers.0', 'suggestions.roles.salesCall.speakers.1'],
+        speakers: [
+          'suggestions.roles.salesCall.speakers.0',
+          'suggestions.roles.salesCall.speakers.1',
+        ],
       },
       supportCall: {
         name: 'suggestions.roles.supportCall.name',
-        speakers: ['suggestions.roles.supportCall.speakers.0', 'suggestions.roles.supportCall.speakers.1'],
+        speakers: [
+          'suggestions.roles.supportCall.speakers.0',
+          'suggestions.roles.supportCall.speakers.1',
+        ],
       },
       discoveryCall: {
         name: 'suggestions.roles.discoveryCall.name',
-        speakers: ['suggestions.roles.discoveryCall.speakers.0', 'suggestions.roles.discoveryCall.speakers.1'],
+        speakers: [
+          'suggestions.roles.discoveryCall.speakers.0',
+          'suggestions.roles.discoveryCall.speakers.1',
+        ],
       },
       jobInterview: {
         name: 'suggestions.roles.jobInterview.name',
-        speakers: ['suggestions.roles.jobInterview.speakers.0', 'suggestions.roles.jobInterview.speakers.1'],
+        speakers: [
+          'suggestions.roles.jobInterview.speakers.0',
+          'suggestions.roles.jobInterview.speakers.1',
+        ],
       },
       teamMeeting: {
         name: 'suggestions.roles.teamMeeting.name',
-        speakers: ['suggestions.roles.teamMeeting.speakers.0', 'suggestions.roles.teamMeeting.speakers.1'],
+        speakers: [
+          'suggestions.roles.teamMeeting.speakers.0',
+          'suggestions.roles.teamMeeting.speakers.1',
+        ],
       },
       onboarding: {
         name: 'suggestions.roles.onboarding.name',
-        speakers: ['suggestions.roles.onboarding.speakers.0', 'suggestions.roles.onboarding.speakers.1'],
+        speakers: [
+          'suggestions.roles.onboarding.speakers.0',
+          'suggestions.roles.onboarding.speakers.1',
+        ],
       },
       productDemo: {
         name: 'suggestions.roles.productDemo.name',
-        speakers: ['suggestions.roles.productDemo.speakers.0', 'suggestions.roles.productDemo.speakers.1'],
+        speakers: [
+          'suggestions.roles.productDemo.speakers.0',
+          'suggestions.roles.productDemo.speakers.1',
+        ],
       },
     },
   },

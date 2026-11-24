@@ -564,7 +564,6 @@
       "completed": "Completed",
       "completedWithErrors": "Completed with errors",
       "failed": "Failed",
-      "failedReason": "Failed: {reason}",
       "laterQueued": "A new run is queued. These are the results of the last one.",
       "laterProcessing": "A new run is in progress. These are the results of the last one.",
       "laterFailed": "The last run failed, so these are older results: {reason}"

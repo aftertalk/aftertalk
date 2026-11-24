@@ -9,7 +9,7 @@ import { LANGUAGE_KEYS, type UploadLanguage } from '@/lib/utils/upload-language'
 
 // The status of a call as the lists and the call page show it (item 54): one badge with five values,
 // "Failed: {reason}" and a note when a later run is queued, running or failed. The cloud showed no
-// status, so all of this is new.
+// status, so all of this is new. The badge and the reason sit side by side: "Failed" + the sentence.
 
 const STATUS_KEY: Record<CallStatus, string> = {
   queued: i18n.calls.status.queued,
@@ -68,7 +68,8 @@ export function useCallStatusNote() {
   const sentence = useJobErrorSentence();
   return (call: StatusFields): string | null => {
     if (call.status === 'failed') {
-      return t(i18n.calls.status.failedReason, { reason: sentence(call.failedReason, call.detectedLanguage) });
+      // The badge beside it already says "Failed".
+      return sentence(call.failedReason, call.detectedLanguage);
     }
     if (call.laterRun?.status === 'queued') return t(i18n.calls.status.laterQueued);
     if (call.laterRun?.status === 'processing') return t(i18n.calls.status.laterProcessing);

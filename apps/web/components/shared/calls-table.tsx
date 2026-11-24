@@ -52,6 +52,8 @@ function FullList({ calls, snippetMap, callHref }: FullListProps) {
   const t = useTranslations();
   const labels = useCallLabels();
   const format = useFormat();
+  // A call that never got a result has no known length.
+  const callLength = (seconds: number) => (seconds > 0 ? format.clock(seconds) : null);
 
   return (
     <Surface pad="none" className="overflow-hidden">
@@ -71,8 +73,8 @@ function FullList({ calls, snippetMap, callHref }: FullListProps) {
             call.actionItemsCount > 0 ? t(i18n.calls.table.tasksCount, { count: call.actionItemsCount }) : null;
           // Untitled calls already carry the day in their title, so the mobile line gives the hour instead.
           const mobileMeta = day
-            ? [labels.time(call.createdAt), format.clock(call.durationS), tasks]
-            : [labels.day(call.createdAt), format.clock(call.durationS), call.primaryCategory, tasks];
+            ? [labels.time(call.createdAt), callLength(call.durationS), tasks]
+            : [labels.day(call.createdAt), callLength(call.durationS), call.primaryCategory, tasks];
           return (
             <li key={call.id}>
               <Link
@@ -118,7 +120,7 @@ function FullList({ calls, snippetMap, callHref }: FullListProps) {
                   <SentimentBadge level={call.sentimentLevel} />
                 </div>
                 <span className="text-meta text-muted-foreground hidden tabular-nums md:block">
-                  {format.clock(call.durationS)}
+                  {callLength(call.durationS) ?? '—'}
                 </span>
                 <span className="text-meta text-muted-foreground hidden text-right whitespace-nowrap tabular-nums md:block">
                   {labels.when(call.createdAt)}
@@ -156,6 +158,8 @@ function CompactList({ calls, title, projectId, callHref }: CompactListProps) {
   const t = useTranslations();
   const labels = useCallLabels();
   const format = useFormat();
+  // A call that never got a result has no known length.
+  const callLength = (seconds: number) => (seconds > 0 ? format.clock(seconds) : null);
   const shown = calls.slice(0, COMPACT_LIMIT);
 
   return (
@@ -174,7 +178,7 @@ function CompactList({ calls, title, projectId, callHref }: CompactListProps) {
                 <div className="min-w-0 flex-1">
                   <p className="text-body text-foreground truncate font-medium">{labels.title(call)}</p>
                   <p className="text-meta text-muted-foreground truncate">
-                    {[labels.when(call.createdAt), format.clock(call.durationS)].join(' · ')}
+                    {[labels.when(call.createdAt), callLength(call.durationS)].filter(Boolean).join(' · ')}
                   </p>
                 </div>
                 {call.status === 'completed' ? (
