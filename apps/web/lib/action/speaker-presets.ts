@@ -5,11 +5,12 @@ import { and, asc, eq, ne } from 'drizzle-orm';
 import { i18n } from '@/i18n/constants';
 import { requireProjectAccess } from '@/lib/access';
 import { db } from '@/lib/db/client';
-import { speakerPresets } from '@/lib/db/schema/app';
+import { projects, speakerPresets } from '@/lib/db/schema/app';
 import type { SpeakerPreset } from '@/lib/types';
 
 import { invalid, isUniqueViolation, requiredText, uuid } from './helpers';
-import { NotFoundError } from './result';
+import { type ActionResult, NotFoundError } from './result';
+import { runAction } from './run';
 
 // Channel labels a person can pick at upload (item 31): the first is channel 0, the second channel 1.
 const MAX_PRESETS = 50;
@@ -49,6 +50,8 @@ async function find(projectId: string, id: string): Promise<Row> {
 
 async function makeDefault(projectId: string, id: string): Promise<Row> {
   return db.transaction(async (tx) => {
+    // One at a time per project: two requests at once would otherwise both leave their preset default.
+    await tx.select({ id: projects.id }).from(projects).where(eq(projects.id, projectId)).for('update');
     await tx
       .update(speakerPresets)
       .set({ isDefault: false })
@@ -77,6 +80,13 @@ export async function getSpeakerPresets(projectId: string): Promise<SpeakerPrese
 export async function createSpeakerPreset(
   projectId: string,
   input: { name: string; speakers: string[]; isDefault?: boolean }
+): Promise<ActionResult<SpeakerPreset>> {
+  return runAction(() => createPreset(projectId, input));
+}
+
+async function createPreset(
+  projectId: string,
+  input: { name: string; speakers: string[]; isDefault?: boolean }
 ): Promise<SpeakerPreset> {
   const { user } = await requireProjectAccess(uuid(projectId), 'EDITOR');
   const name = await requiredText(input?.name, 100);
@@ -101,6 +111,13 @@ export async function createSpeakerPreset(
 export async function updateSpeakerPreset(
   projectId: string,
   input: { id: string; name?: string; speakers?: string[]; isDefault?: boolean }
+): Promise<ActionResult<SpeakerPreset>> {
+  return runAction(() => updatePreset(projectId, input));
+}
+
+async function updatePreset(
+  projectId: string,
+  input: { id: string; name?: string; speakers?: string[]; isDefault?: boolean }
 ): Promise<SpeakerPreset> {
   await requireProjectAccess(uuid(projectId), 'EDITOR');
   const current = await find(projectId, input?.id);
@@ -122,14 +139,18 @@ export async function updateSpeakerPreset(
   return toPreset(row);
 }
 
-export async function deleteSpeakerPreset(projectId: string, id: string): Promise<void> {
-  await requireProjectAccess(uuid(projectId), 'EDITOR');
-  const current = await find(projectId, id);
-  await db.delete(speakerPresets).where(eq(speakerPresets.id, current.id));
+export async function deleteSpeakerPreset(projectId: string, id: string): Promise<ActionResult> {
+  return runAction(async () => {
+    await requireProjectAccess(uuid(projectId), 'EDITOR');
+    const current = await find(projectId, id);
+    await db.delete(speakerPresets).where(eq(speakerPresets.id, current.id));
+  });
 }
 
-export async function setDefaultSpeakerPreset(projectId: string, id: string): Promise<SpeakerPreset> {
-  await requireProjectAccess(uuid(projectId), 'EDITOR');
-  const current = await find(projectId, id);
-  return toPreset(await makeDefault(projectId, current.id));
+export async function setDefaultSpeakerPreset(projectId: string, id: string): Promise<ActionResult<SpeakerPreset>> {
+  return runAction(async () => {
+    await requireProjectAccess(uuid(projectId), 'EDITOR');
+    const current = await find(projectId, id);
+    return toPreset(await makeDefault(projectId, current.id));
+  });
 }

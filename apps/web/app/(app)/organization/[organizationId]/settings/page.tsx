@@ -4,8 +4,7 @@ import { redirect } from 'next/navigation';
 import { OrganizationSettings } from '@/components/pages/organization/organization-settings';
 import { OrgManagersOnly } from '@/components/shared/no-access';
 import { i18n } from '@/i18n/constants';
-import { getOrganization } from '@/lib/action/organizations';
-import { getCurrentUser } from '@/lib/utils/auth';
+import { getOrganization, getOrganizations } from '@/lib/action/organizations';
 import { localizedPageMetadata } from '@/lib/utils/page-metadata';
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -19,7 +18,7 @@ interface OrganizationSettingsPageProps {
 }
 
 export default async function OrganizationSettingsPage({ params }: OrganizationSettingsPageProps) {
-  const [user, { organizationId }] = await Promise.all([getCurrentUser(), params]);
+  const { organizationId } = await params;
   const organization = await getOrganization(organizationId).catch(() => null);
 
   if (!organization) redirect(`/organization/${organizationId}`);
@@ -27,5 +26,6 @@ export default async function OrganizationSettingsPage({ params }: OrganizationS
     return <OrgManagersOnly organizationId={organizationId} />;
   }
 
-  return <OrganizationSettings organization={organization} userEmail={user?.email ?? ''} />;
+  const organizations = await getOrganizations();
+  return <OrganizationSettings organization={organization} canDelete={organizations.length > 1} />;
 }

@@ -1,8 +1,7 @@
 import { DEFAULT_PAGE_SIZE, PAGE_SIZES } from '@/components/pages/calls/page-sizes';
 import { getCallsFiltered, searchCalls } from '@/lib/action/transcription';
 import type { Call, CallSearchResult } from '@/lib/types';
-import type { DateRangeInput, DateRangePreset } from '@/lib/utils/date-range';
-import { ISO_DATE_RE, isValidDateRangeInput, resolveDateRange, VALID_PRESETS } from '@/lib/utils/date-range';
+import { callsDateRangeInput } from '@/lib/utils/date-range';
 
 // The list and the call page read the same query string: the call page keeps it so "← Rozmowy" returns
 // to the same page of the same list, and so it can work out where in that list the call sits.
@@ -14,24 +13,6 @@ export interface CallsSearchParams {
   from?: string;
   to?: string;
   q?: string;
-}
-
-function buildDateRange(params: CallsSearchParams): DateRangeInput {
-  const { range, from, to } = params;
-
-  // Defaults to all-time, unlike the dashboard: a "library" that hides older calls reads as empty
-  const preset = range && VALID_PRESETS.includes(range as DateRangePreset) ? (range as DateRangePreset) : 'allTime';
-
-  if (preset === 'custom') {
-    const validFrom = from && ISO_DATE_RE.test(from) ? from : undefined;
-    const validTo = to && ISO_DATE_RE.test(to) ? to : undefined;
-    if (!validFrom || !validTo) return { preset: 'allTime' };
-    // A hand-edited URL can carry a range the backend rejects (e.g. over a year); fall back instead of crashing the page
-    const custom: DateRangeInput = { preset: 'custom', from: validFrom, to: validTo };
-    return isValidDateRangeInput(custom) ? custom : { preset: 'allTime' };
-  }
-
-  return { preset };
 }
 
 export function parseCallsParams(params: CallsSearchParams) {
@@ -51,7 +32,7 @@ export function parseCallsParams(params: CallsSearchParams) {
   const filterQuery = new URLSearchParams(baseQuery);
   if (q) filterQuery.set('q', q);
 
-  return { page, pageSize, q, dateRange: buildDateRange(params), baseQuery, filterQuery };
+  return { page, pageSize, q, dateRange: callsDateRangeInput(params), baseQuery, filterQuery };
 }
 
 export type CallsListParams = ReturnType<typeof parseCallsParams>;
@@ -65,13 +46,11 @@ export function listQuery(list: CallsListParams, page: number): string {
 
 export async function fetchCallsPage(projectId: string, list: CallsListParams, page: number) {
   if (list.q) {
-    const { from, to } = resolveDateRange(list.dateRange);
     const result = await searchCalls(projectId, {
       q: list.q,
       page,
       pageSize: list.pageSize,
-      from: from.toISOString(),
-      to: to.toISOString(),
+      dateRange: list.dateRange,
     });
     return {
       calls: result.data as (Call | CallSearchResult)[],

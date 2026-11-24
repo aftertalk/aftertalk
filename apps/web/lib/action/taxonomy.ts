@@ -10,7 +10,8 @@ import type { Category } from '@/lib/types';
 import type { TaxonomyCategory } from '@/lib/types/classification';
 
 import { conflict, invalid, isUniqueViolation, optionalText, requiredText, uuid } from './helpers';
-import { type ActionResult, NotFoundError, runAction } from './result';
+import { type ActionResult, NotFoundError } from './result';
+import { runAction } from './run';
 
 // Call reasons: one taxonomy per project, a tree of at most three levels (item 31).
 const MAX_LEVELS = 3;

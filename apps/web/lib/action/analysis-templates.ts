@@ -5,11 +5,12 @@ import { and, asc, eq, inArray, ne } from 'drizzle-orm';
 import { i18n } from '@/i18n/constants';
 import { requireProjectAccess } from '@/lib/access';
 import { db } from '@/lib/db/client';
-import { analysisTemplateFields, analysisTemplates, ANSWER_TYPES } from '@/lib/db/schema/app';
+import { analysisTemplateFields, analysisTemplates, ANSWER_TYPES, projects } from '@/lib/db/schema/app';
 import type { AnalysisTemplate, CreateFieldRequest, CreateTemplateRequest, UpdateTemplateRequest } from '@/lib/types';
 
 import { conflict, invalid, isUniqueViolation, oneOf, optionalText, requiredText, uuid } from './helpers';
-import { type ActionResult, NotFoundError, runAction } from './result';
+import { type ActionResult, NotFoundError } from './result';
+import { runAction } from './run';
 
 // Scorecards (item 31). One template per project is active; its fields go to the engine with each job.
 const MAX_FIELDS = 20;
@@ -107,7 +108,7 @@ export async function createAnalysisTemplate(
     const description = await optionalText(input?.description, 1000);
     const fields = await cleanFields(input?.fields ?? []);
     const existing = await db
-      .select({ id: analysisTemplates.id })
+      .select({ id: analysisTemplates.id, isActive: analysisTemplates.isActive })
       .from(analysisTemplates)
       .where(eq(analysisTemplates.projectId, projectId));
     if (existing.length >= MAX_TEMPLATES) await invalid(i18n.errors.tooMany, { max: MAX_TEMPLATES });
@@ -115,7 +116,9 @@ export async function createAnalysisTemplate(
       const id = await db.transaction(async (tx) => {
         const [row] = await tx
           .insert(analysisTemplates)
-          .values({ projectId, userId: user.id, name, description })
+          // With no active template the scorecard step has nothing to fill in, so the first
+          // template of a project (or the first after the active one was deleted) is activated.
+          .values({ projectId, userId: user.id, name, description, isActive: !existing.some((t) => t.isActive) })
           .returning({ id: analysisTemplates.id });
         if (fields.length > 0) {
           await tx.insert(analysisTemplateFields).values(fields.map((f) => ({ ...f, templateId: row.id })));
@@ -185,6 +188,8 @@ export async function activateAnalysisTemplate(projectId: string, id: string): P
   await requireProjectAccess(uuid(projectId), 'EDITOR');
   const current = await one(projectId, id);
   await db.transaction(async (tx) => {
+    // One at a time per project, so two activations at once do not trip the one-active index.
+    await tx.select({ id: projects.id }).from(projects).where(eq(projects.id, projectId)).for('update');
     await tx
       .update(analysisTemplates)
       .set({ isActive: false })

@@ -201,7 +201,7 @@ export function DashboardDateRangePicker({
                   className="text-muted-foreground hover:text-foreground flex items-center gap-1 text-sm transition-colors"
                 >
                   <ChevronLeft className="h-3.5 w-3.5" />
-                  {t(i18n.onboarding.back)}
+                  {t(i18n.common.back)}
                 </button>
                 <span className={`text-meta ${tooLong ? 'text-negative' : 'text-muted-foreground'}`}>
                   {tooLong

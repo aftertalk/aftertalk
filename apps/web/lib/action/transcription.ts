@@ -11,12 +11,13 @@ import { calls, categories, piiAccessLog, taxonomies } from '@/lib/db/schema/app
 import { user as userTable } from '@/lib/db/schema/auth';
 import { deleteCall } from '@/lib/deletion';
 import { log } from '@/lib/log';
+import { userTimeZone, zonedRange } from '@/lib/time-zone';
 import type { CallDetail, PagedResultCall, PagedResultCallSearchResult, PiiAccessLogEntry, Turn } from '@/lib/types';
 import type { DateRangeInput } from '@/lib/utils/date-range';
-import { resolveDateRange } from '@/lib/utils/date-range';
 
 import { uuid } from './helpers';
-import { type ActionResult, ForbiddenError, NotFoundError, runAction } from './result';
+import { type ActionResult, ForbiddenError, NotFoundError } from './result';
+import { runAction } from './run';
 
 const MAX_PAGE_SIZE = 100;
 const MAX_QUERY = 200;
@@ -39,16 +40,12 @@ function hasDateFilter(input?: DateRangeInput): boolean {
   return input.preset !== undefined || input.from !== undefined || input.to !== undefined;
 }
 
-const validDate = (value: unknown): Date | undefined => {
-  if (typeof value !== 'string') return undefined;
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? undefined : date;
-};
-
 export async function getCallsFiltered(projectId: string, options: CallFilterOptions): Promise<PagedResultCall> {
-  await requireProjectAccess(uuid(projectId), 'VIEWER');
+  const { user } = await requireProjectAccess(uuid(projectId), 'VIEWER');
   const [page, pageSize] = paging(options?.page, options?.pageSize);
-  const filter: CallListFilter = hasDateFilter(options?.dateRange) ? resolveDateRange(options.dateRange) : {};
+  const filter: CallListFilter = hasDateFilter(options?.dateRange)
+    ? zonedRange(options.dateRange, await userTimeZone(user.id))
+    : {};
   return listCalls(projectId, filter, page, pageSize);
 }
 
@@ -76,10 +73,10 @@ export async function getOriginalTranscript(projectId: string, callId: string): 
       .from(calls)
       .where(and(eq(calls.id, uuid(callId)), eq(calls.projectId, projectId)));
     if (!call) throw new NotFoundError();
-    // The log row comes first: no original text leaves without one.
-    await db.insert(piiAccessLog).values({ callId, userId: user.id, kind: 'text' });
     const transcript = await loadTranscript(callId, 'original');
     if (!transcript) throw new NotFoundError();
+    // The log row is written before the words are returned: no original text leaves without one.
+    await db.insert(piiAccessLog).values({ callId, userId: user.id, kind: 'text' });
     log('info', 'original text shown', { call_id: callId, user_id: user.id });
     return transcript.turns;
   });
@@ -160,14 +157,15 @@ export interface CallSearchOptions {
   page: number;
   pageSize: number;
   q: string;
-  from?: string;
-  to?: string;
+  /** The same range input as the list without a search, resolved in the user's time zone. */
+  dateRange?: DateRangeInput;
 }
 
 /** A substring search over redacted text only (item 33). */
 export async function searchCalls(projectId: string, options: CallSearchOptions): Promise<PagedResultCallSearchResult> {
-  await requireProjectAccess(uuid(projectId), 'VIEWER');
+  const { user } = await requireProjectAccess(uuid(projectId), 'VIEWER');
   const [page, pageSize] = paging(options?.page, options?.pageSize);
+  const range = hasDateFilter(options?.dateRange) ? zonedRange(options.dateRange, await userTimeZone(user.id)) : {};
   const q = typeof options?.q === 'string' ? options.q.trim().slice(0, MAX_QUERY) : '';
-  return listCalls(projectId, { q, from: validDate(options?.from), to: validDate(options?.to) }, page, pageSize);
+  return listCalls(projectId, { ...range, q }, page, pageSize);
 }

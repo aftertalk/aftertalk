@@ -22,6 +22,13 @@ export function cleanBaseUrl(raw: unknown): { url: string } | { problem: BaseUrl
   }
   if (url.protocol !== 'http:' && url.protocol !== 'https:') return { problem: 'invalid' };
   if (url.username || url.password || url.search || url.hash || !url.hostname) return { problem: 'invalid' };
+  // Link-local addresses hold cloud metadata services, never a provider. Other private addresses
+  // are allowed on purpose: a company's own Whisper or vLLM server lives there. An operator who
+  // wants a closed list sets PROVIDER_HOST_ALLOWLIST.
+  const host = url.hostname.toLowerCase().replace(/^\[|\]$/g, '');
+  if (/^169\.254\./.test(host) || /^fe[89ab][0-9a-f]:/.test(host) || /^::ffff:(169\.254\.|a9fe:)/.test(host)) {
+    return { problem: 'host_not_allowed' };
+  }
   const allow = env.PROVIDER_HOST_ALLOWLIST;
   if (allow.length > 0 && !allow.includes(url.hostname.toLowerCase())) return { problem: 'host_not_allowed' };
   const path = url.pathname.replace(/\/+$/, '');

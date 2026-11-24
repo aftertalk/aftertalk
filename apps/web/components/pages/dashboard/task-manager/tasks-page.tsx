@@ -37,6 +37,7 @@ import type {
   ListActionItemsSortBy,
   ListActionItemsSortDir,
 } from '@/lib/types';
+import { backendMessage } from '@/lib/utils/backend-error';
 import { cn } from '@/lib/utils/cn';
 
 import { TaskDetail } from './task-detail';
@@ -235,8 +236,13 @@ export function TasksPageClient({ projectId, projectName, initialData, initialSt
       setSelectedItem(null);
       closeTask();
     }
-    await tm.removeItem(deleteId);
-    setDeleteId(null);
+    try {
+      await tm.removeItem(deleteId);
+    } catch (e) {
+      toast.error(backendMessage(e) ?? t(i18n.dashboard.taskManager.updateFailed));
+    } finally {
+      setDeleteId(null);
+    }
   };
 
   const openTask = (task: ActionItem) => {
@@ -317,7 +323,9 @@ export function TasksPageClient({ projectId, projectName, initialData, initialSt
       }}
       onSetPriority={(priority: ActionItemPriority) => {
         patchSelected({ priority });
-        tm.updateItem(selected.id, { priority, clearNotes: false, clearDeadline: false });
+        tm.updateItem(selected.id, { priority, clearNotes: false, clearDeadline: false }).catch((e) =>
+          toast.error(backendMessage(e) ?? t(i18n.dashboard.taskManager.updateFailed))
+        );
       }}
       onSaveNotes={(notes) => {
         patchSelected({ notes: notes || undefined });

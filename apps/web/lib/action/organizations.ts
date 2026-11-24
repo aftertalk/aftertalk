@@ -11,8 +11,9 @@ import { deleteOrganization as deleteOrganizationRows } from '@/lib/deletion';
 import { log } from '@/lib/log';
 import type { OrganizationResponse, OrgRole, UpdateOrganizationRequest } from '@/lib/types';
 
-import { invalid, optionalText, requiredText, uuid } from './helpers';
-import { type ActionResult, runAction } from './result';
+import { conflict, invalid, optionalText, requiredText, uuid } from './helpers';
+import { type ActionResult } from './result';
+import { runAction } from './run';
 
 // The open-source edition has one organisation with one owner, created by /setup. Invitations, more
 // members, removing members, more organisations and resets by an admin belong to the commercial fork
@@ -83,6 +84,14 @@ export async function updateOrganization(
 export async function deleteOrganization(organizationId: string): Promise<ActionResult> {
   return runAction(async () => {
     const { user } = await requireOrgRole(uuid(organizationId), 'OWNER');
+    // Core has no way to make another organisation (/setup closes once a user exists), so deleting
+    // the only one would leave an install nobody can use. The commercial fork has more than one.
+    const mine = await db
+      .select({ id: organizationMembers.organizationId })
+      .from(organizationMembers)
+      .where(eq(organizationMembers.userId, user.id))
+      .limit(2);
+    if (mine.length < 2) await conflict(i18n.organization.danger.lastOrganization);
     await deleteOrganizationRows(organizationId);
     log('info', 'organisation deleted', { user_id: user.id });
     revalidatePath('/', 'layout');

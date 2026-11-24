@@ -1,10 +1,8 @@
 'use client';
 
-import { useTranslations } from 'next-intl';
 import { useCallback, useOptimistic, useRef, useState, useTransition } from 'react';
 import { toast } from 'sonner';
 
-import { i18n } from '@/i18n/constants';
 import { deleteActionItem, listActionItems, updateActionItem } from '@/lib/action/action-items';
 import type { ActionItem } from '@/lib/types';
 import type { ActionItemPriority } from '@/lib/types';
@@ -15,6 +13,7 @@ import type { ListActionItemsPriorityItem } from '@/lib/types';
 import type { ListActionItemsSortBy as ActionItemSortBy } from '@/lib/types';
 import type { ListActionItemsSortDir as ActionItemSortDir } from '@/lib/types';
 import type { ListActionItemsStatusItem } from '@/lib/types';
+import { backendMessage, unwrap } from '@/lib/utils/backend-error';
 
 export type { ActionItem, ActionItemPriority, ActionItemSortBy, ActionItemSortDir, ActionItemStatus };
 
@@ -45,18 +44,13 @@ export function useTaskManager(
   const [isLoading, setIsLoading] = useState(false);
   const [, startTransition] = useTransition();
   const reloadSeq = useRef(0);
-  const t = useTranslations();
 
-  // A denied write means the user only has VIEWER access on this project — say so plainly instead of
-  // failing silently. Other failures (network / token race) stay quiet, as before.
-  const notifyIfDenied = useCallback(
-    (e: unknown) => {
-      if (e instanceof Error && /EDITOR role|FORBIDDEN/i.test(e.message)) {
-        toast.error(t(i18n.dashboard.taskManager.viewOnlyError));
-      }
-    },
-    [t]
-  );
+  // A refused write comes back with the server's own sentence (no permission, a bad value); say it.
+  // A request that failed on the way stays quiet here: the caller shows its own generic message.
+  const notifyIfDenied = useCallback((e: unknown) => {
+    const message = backendMessage(e);
+    if (message) toast.error(message);
+  }, []);
 
   const [optimisticItems, updateOptimistic] = useOptimistic(
     page.items,
@@ -94,9 +88,7 @@ export function useTaskManager(
     [projectId, filters, currentPage]
   );
 
-  // Run every write through one queue so rapid edits reach the backend sequentially, never
-  // concurrently — concurrent requests can trip a transient auth/token race on the client side,
-  // surfacing as a spurious "Couldn't save changes". Sequential writes are handled cleanly.
+  // Every write goes through one queue, so rapid edits of one task reach the server in order.
   const writeQueue = useRef<Promise<unknown>>(Promise.resolve());
   const enqueue = useCallback(<T>(task: () => Promise<T>): Promise<T> => {
     const result = writeQueue.current.then(task, task);
@@ -136,7 +128,9 @@ export function useTaskManager(
     async (id: string, status: ActionItemStatus): Promise<{ ok: boolean; previousStatus?: ActionItemStatus }> => {
       const previousStatus = page.items.find((i) => i.id === id)?.status;
       const completedAt = status === 'DONE' ? new Date().toISOString() : undefined;
-      const write = enqueue(() => updateActionItem(projectId, id, { status, clearNotes: false, clearDeadline: false }));
+      const write = enqueue(async () =>
+        unwrap(await updateActionItem(projectId, id, { status, clearNotes: false, clearDeadline: false }))
+      );
       // useOptimistic only holds its value while the transition is pending, so the transition has to span the
       // write; committing the status to `page` at the end keeps it from flashing back before the reload lands.
       startTransition(async () => {
@@ -168,16 +162,23 @@ export function useTaskManager(
 
   const updateItem = useCallback(
     async (id: string, patch: Parameters<typeof updateActionItem>[2]) => {
-      await enqueue(() => updateActionItem(projectId, id, patch));
-      scheduleReload();
+      try {
+        await enqueue(async () => unwrap(await updateActionItem(projectId, id, patch)));
+      } finally {
+        // Also after a failure, so the list drops what the page showed ahead of the answer.
+        scheduleReload();
+      }
     },
     [projectId, enqueue, scheduleReload]
   );
 
   const removeItem = useCallback(
     async (id: string) => {
-      await enqueue(() => deleteActionItem(projectId, id));
-      scheduleReload();
+      try {
+        await enqueue(async () => unwrap(await deleteActionItem(projectId, id)));
+      } finally {
+        scheduleReload();
+      }
     },
     [projectId, enqueue, scheduleReload]
   );

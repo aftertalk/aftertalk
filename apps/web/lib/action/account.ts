@@ -11,7 +11,8 @@ import { user as userTable } from '@/lib/db/schema/auth';
 import type { AccountDto } from '@/lib/types';
 
 import { invalid, optionalText } from './helpers';
-import { type ActionResult, runAction } from './result';
+import { type ActionResult } from './result';
+import { runAction } from './run';
 
 // Profile only (item 35). Password, 2FA and sessions are Better Auth client calls in
 // settings-security.tsx (item 47c); an email cannot be changed in the first release.

@@ -9,7 +9,7 @@
 // The owner is the first user of the install; when there is none, the script makes
 // `seed@example.com` with the password in SEED_PASSWORD (default: the one printed at the end).
 import { randomBytes } from 'node:crypto';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import Module from 'node:module';
 import path from 'node:path';
 
@@ -87,9 +87,11 @@ export async function seed(): Promise<{ projectId: string; email: string | null;
   const { createUser } = await import('@/lib/auth/create-user');
   const { deleteOrganization } = await import('@/lib/deletion');
   const { storeResult } = await import('@/lib/jobs/store-result');
-  const bodies = (await import('../../../tests/fixtures/seed-calls.json')).default as unknown as Array<
-    import('@/lib/jobs/store-result').ResultBody
-  >;
+  // Read at run time, not imported: the web image is built without the repo's tests folder, and an
+  // import would make its type check look for the file.
+  const bodies = JSON.parse(
+    await readFile(path.join(repoRoot, 'tests/fixtures/seed-calls.json'), 'utf8')
+  ) as import('@/lib/jobs/store-result').ResultBody[];
 
   // Run again: start from nothing.
   const old = await db

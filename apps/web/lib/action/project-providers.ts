@@ -4,7 +4,7 @@ import { and, asc, eq } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 
 import { i18n } from '@/i18n/constants';
-import { requireProjectAccess } from '@/lib/access';
+import { projectRoleAtLeast, requireProjectAccess } from '@/lib/access';
 import { db } from '@/lib/db/client';
 import { projectProviderChoice, PROVIDER_SLOTS, providerConnections } from '@/lib/db/schema/app';
 import { log } from '@/lib/log';
@@ -14,13 +14,16 @@ import { decryptSecret } from '@/lib/secrets';
 import type { ProjectProviders, ProjectReadiness, ProviderKind } from '@/lib/types';
 
 import { invalid, oneOf, requiredText, uuid } from './helpers';
-import { type ActionResult, NotFoundError, runAction } from './result';
+import { type ActionResult, NotFoundError } from './result';
+import { runAction } from './run';
 
 // Which connection and model a project uses for speech, diarization and the LLM (item 37f).
 
 export async function getProjectProviders(projectId: string): Promise<ProjectProviders> {
-  const { organizationId } = await requireProjectAccess(uuid(projectId), 'VIEWER');
-  const [choices, options] = await Promise.all([
+  const { organizationId, role } = await requireProjectAccess(uuid(projectId), 'VIEWER');
+  // Everyone sees what the project uses; the organisation's other connections are for those who choose.
+  const mayChoose = projectRoleAtLeast(role, 'ADMIN');
+  const [choices, all] = await Promise.all([
     db
       .select({
         slot: projectProviderChoice.slot,
@@ -40,6 +43,7 @@ export async function getProjectProviders(projectId: string): Promise<ProjectPro
       .where(eq(providerConnections.organizationId, organizationId))
       .orderBy(asc(providerConnections.name)),
   ]);
+  const options = mayChoose ? all : all.filter((o) => choices.some((c) => c.connectionId === o.id));
   return { choices, options };
 }
 

@@ -679,7 +679,7 @@ export function RolesEditor({ projectId }: { projectId: string }) {
       if (settled) return;
       settled = true;
       try {
-        await deleteSpeakerPreset(projectId, preset.id);
+        unwrap(await deleteSpeakerPreset(projectId, preset.id));
       } catch {
         toast.error(t(i18n.settings.speakerPresets.error.delete));
         await refreshPresets();
@@ -700,7 +700,7 @@ export function RolesEditor({ projectId }: { projectId: string }) {
 
   const handleSetDefault = async (id: string) => {
     try {
-      await setDefaultSpeakerPreset(projectId, id);
+      unwrap(await setDefaultSpeakerPreset(projectId, id));
       setPresets((prev) => prev.map((p) => ({ ...p, isDefault: p.id === id })));
       setSavedId(id);
     } catch {
@@ -717,10 +717,13 @@ export function RolesEditor({ projectId }: { projectId: string }) {
   });
   const addSuggestion = async (idx: number) => {
     const r = SUGGESTED_ROLES[idx];
-    await createSpeakerPreset(projectId, {
-      name: t(r.nameKey),
-      speakers: r.speakerKeys.map((key) => t(key)),
-    });
+    try {
+      unwrap(
+        await createSpeakerPreset(projectId, { name: t(r.nameKey), speakers: r.speakerKeys.map((key) => t(key)) })
+      );
+    } catch (e) {
+      toast.error(backendMessage(e) ?? t(i18n.settings.speakerPresets.error.create));
+    }
     await refreshPresets();
   };
 
@@ -858,12 +861,18 @@ function PresetForm({
     setServerError(null);
     try {
       const input = { name: name.trim(), speakers: speakers.map((s) => s.trim()) };
-      const saved = preset
-        ? await updateSpeakerPreset(projectId, { id: preset.id, ...input })
-        : await createSpeakerPreset(projectId, input);
+      const saved = unwrap(
+        preset
+          ? await updateSpeakerPreset(projectId, { id: preset.id, ...input })
+          : await createSpeakerPreset(projectId, input)
+      );
       await onSaved(saved.id);
-    } catch {
-      setServerError(t(preset ? i18n.settings.speakerPresets.error.update : i18n.settings.speakerPresets.error.create));
+    } catch (e) {
+      // The server's sentence when it refused the preset (a name already used, labels too long).
+      setServerError(
+        backendMessage(e) ??
+          t(preset ? i18n.settings.speakerPresets.error.update : i18n.settings.speakerPresets.error.create)
+      );
       setIsSubmitting(false);
     }
   };

@@ -41,6 +41,8 @@ import {
 jest.mock('next-intl/server', () => jest.requireActual('@/test/intl-server'));
 
 const DATA_DIR = process.env.DATA_DIR!;
+const FORBIDDEN = "You don't have permission to do this.";
+const NOT_FOUND = "This no longer exists, or you can't see it.";
 const PRIVATE = ['Emma', 'Clarke', 'Daniel', 'Reed', '07700', '900123', 'Nowak', 'Wiśniewski'];
 
 type World = {
@@ -225,7 +227,7 @@ describe('original text and audio', () => {
     expect(await getPiiAccessLog(w.projectId, w.callIds[0])).toMatchObject({ ok: false });
 
     await db.update(projects).set({ memberPiiAccess: 'strict' }).where(eq(projects.id, w.projectId));
-    expect(await getOriginalTranscript(w.projectId, w.callIds[0])).toEqual({ ok: false, error: 'Forbidden' });
+    expect(await getOriginalTranscript(w.projectId, w.callIds[0])).toEqual({ ok: false, error: FORBIDDEN });
     const strict = (await getCallById(w.projectId, w.callIds[0]))!;
     expect(strict).toMatchObject({ canShowOriginal: false, canPlayAudio: false });
 
@@ -277,11 +279,11 @@ describe('original text and audio', () => {
 describe('who may do what', () => {
   test('a viewer reads; an editor changes reasons and tasks; an admin deletes and configures', async () => {
     await signIn(w.viewer.email);
-    expect(await setCallCategory(w.projectId, w.callIds[0], null)).toEqual({ ok: false, error: 'Forbidden' });
+    expect(await setCallCategory(w.projectId, w.callIds[0], null)).toEqual({ ok: false, error: FORBIDDEN });
     const [task] = (await listActionItems(w.projectId)).items;
-    await expect(
-      updateActionItem(w.projectId, task.id, { status: 'DONE', clearNotes: false, clearDeadline: false })
-    ).rejects.toBeInstanceOf(ForbiddenError);
+    expect(
+      await updateActionItem(w.projectId, task.id, { status: 'DONE', clearNotes: false, clearDeadline: false })
+    ).toEqual({ ok: false, error: FORBIDDEN });
     expect(await createCategory(w.projectId, { name: 'X', description: '' })).toMatchObject({ ok: false });
     expect(await updateProject(w.projectId, { name: 'X' })).toMatchObject({ ok: false });
 
@@ -296,8 +298,8 @@ describe('who may do what', () => {
       clearNotes: false,
       clearDeadline: false,
     });
-    expect(done.status).toBe('DONE');
-    expect(done.completedAt).toBeDefined();
+    expect(done).toMatchObject({ ok: true, data: { status: 'DONE' } });
+    expect(done.ok && done.data.completedAt).toBeTruthy();
     // Deleting a call needs a project admin (#46), and so do project settings.
     await expect(deleteTranscript(w.projectId, w.callIds[0])).rejects.toBeInstanceOf(ForbiddenError);
     expect(await updateProject(w.projectId, { retentionDays: 30 })).toMatchObject({ ok: false });
@@ -322,7 +324,7 @@ describe('who may do what', () => {
     await addProjectMember(w.projectId, w.viewer, 'ADMIN');
     await signIn(w.viewer.email);
     expect(await updateProject(w.projectId, { name: 'Renamed' })).toMatchObject({ ok: true });
-    expect(await updateProject(w.projectId, { memberPiiAccess: 'strict' })).toEqual({ ok: false, error: 'Forbidden' });
+    expect(await updateProject(w.projectId, { memberPiiAccess: 'strict' })).toEqual({ ok: false, error: FORBIDDEN });
     await signIn(w.admin.email);
     expect(await updateProject(w.projectId, { memberPiiAccess: 'strict' })).toMatchObject({
       ok: true,
@@ -338,7 +340,7 @@ describe('who may do what', () => {
     await expect(listActionItems(w.projectId)).rejects.toBeInstanceOf(NotFoundError);
     await expect(getTaxonomy(w.projectId)).rejects.toBeInstanceOf(NotFoundError);
     await expect(getProviderConnections(w.organizationId)).rejects.toBeInstanceOf(NotFoundError);
-    expect(await getOriginalTranscript(w.projectId, w.callIds[0])).toEqual({ ok: false, error: 'Not found' });
+    expect(await getOriginalTranscript(w.projectId, w.callIds[0])).toEqual({ ok: false, error: NOT_FOUND });
     const exported = await exportGET(new Request(`http://localhost/api/projects/${w.projectId}/export`), {
       params: Promise.resolve({ projectId: w.projectId }),
     });
@@ -348,7 +350,7 @@ describe('who may do what', () => {
     await signIn(w.owner.email);
     const other = await makeProject(w.organizationId);
     expect(await getCallById(other, w.callIds[0])).toBeNull();
-    expect(await setCallCategory(other, w.callIds[0], null)).toEqual({ ok: false, error: 'Not found' });
+    expect(await setCallCategory(other, w.callIds[0], null)).toEqual({ ok: false, error: NOT_FOUND });
     await expect(getCallById(w.projectId, "'; drop table app.calls; --")).rejects.toBeInstanceOf(NotFoundError);
   });
 });
@@ -439,7 +441,7 @@ describe('providers and readiness', () => {
     // A speech connection cannot fill the LLM slot; the right slot needs a model.
     expect(await setProjectProvider(w.projectId, 'llm', made.data.id, 'gpt')).toEqual({
       ok: false,
-      error: 'Not found',
+      error: NOT_FOUND,
     });
     expect(await setProjectProvider(w.projectId, 'speech', made.data.id, ' ')).toMatchObject({ ok: false });
     expect(await setProjectProvider(w.projectId, 'speech', made.data.id, 'whisper-1')).toMatchObject({ ok: true });
@@ -452,7 +454,7 @@ describe('providers and readiness', () => {
 
     // A connection of another organisation is not one of ours, whoever asks.
     await signIn(w.outsider.email);
-    expect(await updateProviderConnection(made.data.id, { name: 'Mine' })).toEqual({ ok: false, error: 'Not found' });
+    expect(await updateProviderConnection(made.data.id, { name: 'Mine' })).toEqual({ ok: false, error: NOT_FOUND });
   });
 
   test('uploads open once the project has a speech and an LLM provider', async () => {

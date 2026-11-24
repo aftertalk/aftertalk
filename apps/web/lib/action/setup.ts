@@ -21,7 +21,8 @@ import {
 import { user as userTable } from '@/lib/db/schema/auth';
 import { log } from '@/lib/log';
 
-import { type ActionResult, BackendError, NotFoundError, runAction } from './result';
+import { type ActionResult, BackendError, NotFoundError } from './result';
+import { runAction } from './run';
 
 /**
  * First-run setup (item 29): checks the setup token, creates the owner, a default organisation, a
@@ -33,7 +34,7 @@ export async function completeSetup(input: {
   name: string;
   email: string;
   password: string;
-}): Promise<ActionResult<{ projectId: string }>> {
+}): Promise<ActionResult<{ projectId: string; organizationId: string }>> {
   return runAction(async () => {
     if (await hasAnyUser()) throw new NotFoundError();
     if (!checkSetupToken(input?.token)) {
@@ -47,8 +48,9 @@ export async function completeSetup(input: {
 
     const created = await createUser({ email: input.email, name: input.name, password: input.password });
     let projectId: string;
+    let organizationId: string;
     try {
-      projectId = await db.transaction(async (tx) => {
+      [projectId, organizationId] = await db.transaction(async (tx) => {
         // A second setup racing this one: the first user to commit wins, the other rolls back.
         const others = await tx.select({ id: userTable.id }).from(userTable).limit(2);
         if (others.length > 1) throw new NotFoundError();
@@ -126,7 +128,7 @@ export async function completeSetup(input: {
             displayOrder: i,
           }))
         );
-        return project.id;
+        return [project.id, org.id] as const;
       });
     } catch (e) {
       // Leave no orphan user behind, so setup can be tried again.
@@ -138,7 +140,7 @@ export async function completeSetup(input: {
     clearSetupToken();
     log('info', 'setup completed', { user_id: created.id, project_id: projectId });
     await auth.api.signInEmail({ body: { email: input.email, password: input.password }, headers: await headers() });
-    return { projectId };
+    return { projectId, organizationId };
   });
 }
 

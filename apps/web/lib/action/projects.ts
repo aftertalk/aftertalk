@@ -13,7 +13,8 @@ import { log } from '@/lib/log';
 import type { MemberPiiAccess, MyProjectAccessResponse, ProjectResponse, SupportedLanguage } from '@/lib/types';
 
 import { invalid, oneOf, optionalText, requiredText, uuid } from './helpers';
-import { type ActionResult, ForbiddenError, runAction } from './result';
+import { type ActionResult, ForbiddenError } from './result';
+import { runAction } from './run';
 
 type ProjectRow = typeof projects.$inferSelect;
 

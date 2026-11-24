@@ -57,27 +57,6 @@ export function partyLabel(value: string | null | undefined, t: Translate): stri
   return translate(PARTY_KEYS, value, t);
 }
 
-const CATALOG_KEYS: Record<string, string> = {
-  CALL_COUNT: i18n.analytics.measures.CALL_COUNT,
-  AVG_DURATION: i18n.analytics.measures.AVG_DURATION,
-  TOTAL_DURATION: i18n.analytics.measures.TOTAL_DURATION,
-  POSITIVE_SENTIMENT_PCT: i18n.analytics.measures.POSITIVE_SENTIMENT_PCT,
-  AVG_SENTIMENT_CONFIDENCE: i18n.analytics.measures.AVG_SENTIMENT_CONFIDENCE,
-  ACTION_ITEMS_TOTAL: i18n.analytics.measures.ACTION_ITEMS_TOTAL,
-  FOLLOWUP_REQUIRED_PCT: i18n.analytics.measures.FOLLOWUP_REQUIRED_PCT,
-  DATE: i18n.analytics.dimensions.DATE,
-  CATEGORY: i18n.analytics.dimensions.CATEGORY,
-  SENTIMENT_LEVEL: i18n.analytics.dimensions.SENTIMENT_LEVEL,
-  LANGUAGE: i18n.analytics.dimensions.LANGUAGE,
-};
-
-// The builder's measure and group-by lists come from the API already worded in English. The built-in
-// ones have a stable key we can say ourselves; a custom template field is titled by whoever created
-// it, so its own label is already the right words and is kept.
-export function catalogLabel(key: string, fallback: string, t: Translate): string {
-  return CATALOG_KEYS[key] ? t(CATALOG_KEYS[key]) : fallback;
-}
-
 // Analytics groups calls by whatever dimension the widget asked for, so a chart axis or legend can
 // carry a sentiment level one moment and a category name the next. Only the values we recognise get
 // swapped; a real category name is already the user's own words and is left alone.

@@ -30,7 +30,8 @@ export function SetupForm() {
     try {
       const result = await completeSetup({ ...form, token: form.token.trim(), email: form.email.trim() });
       if (!result.ok) return setError(result.error);
-      router.push(`/setup-2fa?next=${encodeURIComponent(`/${result.data.projectId}/home`)}`);
+      // After 2FA the owner goes on to the provider connections: nothing can be processed without one.
+      router.push(`/setup-2fa?next=${encodeURIComponent(`/organization/${result.data.organizationId}/providers`)}`);
       router.refresh();
     } catch {
       setError(t(i18n.appError.title));

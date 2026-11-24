@@ -13,7 +13,8 @@ import { encryptSecret } from '@/lib/secrets';
 import type { DataLocation, ProviderConnection, ProviderKind } from '@/lib/types';
 
 import { conflict, invalid, isUniqueViolation, oneOf, requiredText, uuid } from './helpers';
-import { type ActionResult, NotFoundError, runAction } from './result';
+import { type ActionResult, NotFoundError } from './result';
+import { runAction } from './run';
 
 // Provider connections (item 37d): organisation owners and admins only. The key is stored encrypted
 // (lib/secrets.ts) and never returned to the browser after saving.
@@ -68,7 +69,12 @@ async function load(organizationId: string, id?: string): Promise<ProviderConnec
 /** The connection with its organisation, after checking the caller administers that organisation. */
 async function owned(id: string) {
   const [row] = await db
-    .select({ id: providerConnections.id, organizationId: providerConnections.organizationId })
+    .select({
+      id: providerConnections.id,
+      organizationId: providerConnections.organizationId,
+      baseUrl: providerConnections.baseUrl,
+      hasKey: sql<boolean>`${providerConnections.apiKeyEncrypted} is not null`,
+    })
     .from(providerConnections)
     .where(eq(providerConnections.id, uuid(id)));
   // Checked before the role, so an id from another organisation answers like one that does not exist.
@@ -137,8 +143,17 @@ export async function updateProviderConnection(
     if (input?.name !== undefined) patch.name = await requiredText(input.name, 80);
     if (input?.baseUrl !== undefined) {
       patch.baseUrl = await baseUrl(input.baseUrl);
-      // The last test was of another address.
-      patch.wordTimes = null;
+      if (patch.baseUrl !== current.baseUrl) {
+        // The last test was of another address.
+        patch.wordTimes = null;
+        // A stored key is sent to whatever address the connection names. Moving a connection to
+        // another host must not carry a key the person changing it may never have seen, so the
+        // key has to be typed again (or removed) in the same change.
+        const sameHost = new URL(patch.baseUrl).host === new URL(current.baseUrl).host;
+        if (!sameHost && current.hasKey && !input.apiKey && input.removeKey !== true) {
+          await invalid(i18n.providers.errors.keyAgain);
+        }
+      }
     }
     if (input?.dataLocation !== undefined) {
       if (!oneOf(input.dataLocation, DATA_LOCATIONS)) await invalid(i18n.errors.invalidInput);

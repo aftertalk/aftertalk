@@ -11,7 +11,8 @@ import type { ActionItem, ActionItemsPage, ListActionItemsParams, UpdateActionIt
 import { isUuid } from '@/lib/utils/uuid';
 
 import { invalid, likeLiteral, oneOf, optionalText, requiredText, uuid } from './helpers';
-import { NotFoundError } from './result';
+import { type ActionResult, NotFoundError } from './result';
+import { runAction } from './run';
 
 // The "Tasks" page (item 34): action items the summary found, with a status a person keeps.
 const MAX_PAGE_SIZE = 100;
@@ -62,7 +63,8 @@ export async function listActionItems(projectId: string, params?: ListActionItem
 
   const pageSize = Number.isInteger(p.pageSize) && p.pageSize! > 0 ? Math.min(p.pageSize!, MAX_PAGE_SIZE) : 50;
   const page = Number.isInteger(p.page) && p.page! >= 0 ? Math.min(p.page!, 100_000) : 0;
-  const order = ORDER[p.sortBy ?? 'CREATED_AT'] ?? ORDER.CREATED_AT;
+  // Own keys only: `sortBy` comes from the browser and must not reach Object.prototype.
+  const order = typeof p.sortBy === 'string' && Object.hasOwn(ORDER, p.sortBy) ? ORDER[p.sortBy] : ORDER.CREATED_AT;
   const direction = p.sortDir === 'ASC' ? sql`asc` : sql`desc`;
 
   const [rows, [counts]] = await Promise.all([
@@ -92,6 +94,14 @@ export async function listActionItems(projectId: string, params?: ListActionItem
 }
 
 export async function updateActionItem(
+  projectId: string,
+  actionItemId: string,
+  request: UpdateActionItemRequest
+): Promise<ActionResult<ActionItem>> {
+  return runAction(() => updateItem(projectId, actionItemId, request));
+}
+
+async function updateItem(
   projectId: string,
   actionItemId: string,
   request: UpdateActionItemRequest
@@ -128,9 +138,13 @@ export async function updateActionItem(
   return toActionItem(row);
 }
 
-export async function deleteActionItem(projectId: string, actionItemId: string): Promise<void> {
-  await requireProjectAccess(uuid(projectId), 'EDITOR');
-  await db.delete(actionItems).where(and(eq(actionItems.id, uuid(actionItemId)), eq(actionItems.projectId, projectId)));
+export async function deleteActionItem(projectId: string, actionItemId: string): Promise<ActionResult> {
+  return runAction(async () => {
+    await requireProjectAccess(uuid(projectId), 'EDITOR');
+    await db
+      .delete(actionItems)
+      .where(and(eq(actionItems.id, uuid(actionItemId)), eq(actionItems.projectId, projectId)));
+  });
 }
 
 /** The distinct "who does it" values of the project, for the filter. */

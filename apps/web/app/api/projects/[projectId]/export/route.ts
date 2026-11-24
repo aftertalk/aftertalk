@@ -8,7 +8,8 @@ import { db } from '@/lib/db/client';
 import { projects } from '@/lib/db/schema/app';
 import { exportCall } from '@/lib/export';
 import { log } from '@/lib/log';
-import { buildDateRangeInput, resolveDateRange } from '@/lib/utils/date-range';
+import { userTimeZone, zonedRange } from '@/lib/time-zone';
+import { callsDateRangeInput } from '@/lib/utils/date-range';
 import { isUuid } from '@/lib/utils/uuid';
 
 export const dynamic = 'force-dynamic';
@@ -22,15 +23,13 @@ export async function GET(request: Request, { params }: { params: Promise<{ proj
 
     // The same query string as the calls list: range, from, to, q.
     const query = new URL(request.url).searchParams;
-    const filter: CallListFilter = {};
-    const range = query.get('range');
-    if (range && range !== 'allTime') {
-      const resolved = resolveDateRange(
-        buildDateRangeInput({ range, from: query.get('from') ?? undefined, to: query.get('to') ?? undefined })
-      );
-      filter.from = resolved.from;
-      filter.to = resolved.to;
-    }
+    // Parsed exactly as the list parses it, so the file holds the calls the list shows.
+    const input = callsDateRangeInput({
+      range: query.get('range') ?? undefined,
+      from: query.get('from') ?? undefined,
+      to: query.get('to') ?? undefined,
+    });
+    const filter: CallListFilter = input.preset === 'allTime' ? {} : zonedRange(input, await userTimeZone(user.id));
     const q = query.get('q')?.trim().slice(0, 200);
     if (q) filter.q = q;
 

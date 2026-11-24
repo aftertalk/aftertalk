@@ -58,7 +58,8 @@
       "english": "English",
       "german": "German (Deutsch)"
     },
-    "closeWithEsc": "Close (Esc)"
+    "closeWithEsc": "Close (Esc)",
+    "back": "Back"
   },
   "auth": {
     "login": {
@@ -75,29 +76,11 @@
       "signInFailed": "Sign-in failed",
       "socialTerms": "By signing in with Google or Microsoft for the first time, you accept the <terms>Terms of Service</terms> and acknowledge the <privacy>Privacy Policy</privacy>."
     },
-    "signup": {
-      "title": "Sign up",
-      "description": "Enter your email and password to create your account",
-      "signUp": "Sign up",
-      "creatingAccount": "Creating account...",
-      "passwordsDoNotMatch": "Passwords do not match",
-      "alreadyHaveAccount": "Already have an account?",
-      "acceptTerms": "I accept the <terms>Terms of Service</terms> and acknowledge the <privacy>Privacy Policy</privacy>."
-    },
     "signupSuccess": {
       "title": "Thank you for signing up!",
       "subtitle": "Check your email to confirm",
       "description": "You've successfully signed up. Please check your email to confirm your account before signing in.",
       "openEmail": "Open {provider}"
-    },
-    "forgotPassword": {
-      "title": "Reset your password",
-      "description": "Enter your email and we'll send you a link to reset your password",
-      "sendResetEmail": "Send reset email",
-      "sending": "Sending...",
-      "successTitle": "Check your email",
-      "successSubtitle": "Password reset instructions sent",
-      "successDescription": "If you registered using your email and password, you will receive a password reset email."
     },
     "updatePassword": {
       "title": "Set new password",
@@ -143,14 +126,6 @@
       "invalidToken": "This setup link is invalid or has expired. Please log in again.",
       "successTitle": "Two-factor authentication enabled",
       "successDescription": "You're all set and signed in."
-    },
-    "confirmEmailChange": {
-      "title": "Confirming your new email",
-      "confirming": "Confirming...",
-      "invalidToken": "This confirmation link is invalid or has expired.",
-      "successTitle": "Email updated",
-      "successDescription": "Your email address has been changed. Use it next time you sign in.",
-      "errorTitle": "Confirmation failed"
     },
     "modal": {
       "description": "Log in or create an account"
@@ -422,15 +397,6 @@
       "apiDescription": "Access the Aftertalk API to integrate Aftertalk into your workflow.",
       "apiButton": "Access API"
     },
-    "insights": {
-      "eyebrow": "AI insights",
-      "title": "Key insights",
-      "readMore": "View calls",
-      "empty": "No insights for this period",
-      "emptyDescription": "Insights appear once the period has at least 3 analysed calls.",
-      "unavailableTitle": "Insights are temporarily unavailable",
-      "unavailableDescription": "Try refreshing the page in a few minutes."
-    },
     "toReview": {
       "title": "To review",
       "description": "The newest calls with negative sentiment.",
@@ -472,9 +438,6 @@
       "forAll": "For all:",
       "mixed": "Mixed",
       "remove": "Remove from queue",
-      "language": "Language",
-      "languageProjectDefault": "Same as project ({language})",
-      "languageProjectDefaultUnknown": "Same as project",
       "channelRoles": "Speaker roles",
       "channel0": "Channel 1 (left)",
       "channel1": "Channel 2 (right)",
@@ -487,36 +450,13 @@
         "uploading": "Uploading",
         "processing": "Processing",
         "completed": "Uploaded",
-        "error": "Error",
-        "duplicate": "Duplicate"
+        "error": "Error"
       }
     },
     "summary": {
       "done": "Uploaded {count, plural, one {# recording} other {# recordings}}. The analysis will appear in Calls within a few minutes.",
       "failed": "{count, plural, one {# recording} other {# recordings}} couldn't be uploaded — details next to the files below.",
       "goToCalls": "Go to calls"
-    },
-    "blocked": {
-      "trialExpiredTitle": "Trial expired",
-      "trialExpiredBody": "Your trial period has ended. Choose a plan to continue uploading.",
-      "trialExpiredBodyContact": "Your trial period has ended. Contact us to continue uploading.",
-      "allowanceExhaustedTitle": "Audio limit exhausted",
-      "allowanceExhaustedBody": "You've used your entire audio allowance for this period. Buy more hours or wait for it to renew.",
-      "allowanceExhaustedBodyContact": "The whole audio allowance for this period has been used. Contact us to raise it.",
-      "genericTitle": "Upload blocked",
-      "genericBody": "Uploading recordings needs an active plan for the organization.",
-      "genericBodyContact": "Uploading recordings is paused. Contact us.",
-      "choosePlan": "Choose a plan",
-      "contact": "Contact us",
-      "askOwner": "Ask the organization owner",
-      "nearLimitTitle": "{percent} of the audio allowance used",
-      "nearLimitBody": "{remaining} left this period.",
-      "askOwnerSubject": "Aftertalk: uploads are blocked"
-    },
-    "duplicate": {
-      "body": "This file was already uploaded as {filename}.",
-      "uploadAnyway": "Upload anyway",
-      "skip": "Skip"
     },
     "errors": {
       "fileTooLarge": "This file is too large to upload. Please contact support to request a higher upload limit.",
@@ -604,8 +544,8 @@
       "emptyProcessing": "Not ready yet: the call is still being processed.",
       "emptyFailed": "Nothing to show: processing this call failed.",
       "emptyStepFailed": "This step failed: {reason}",
-      "emptyNoTemplate": "No scorecard was made. Activate a template in Configuration, then process the call again.",
-      "emptyNoTemplateAskAdmin": "No scorecard was made. Ask a project admin to activate a template."
+      "emptyNoTemplate": "No scorecard was made: the project had no active template when this call was processed.",
+      "emptyNoTemplateAskAdmin": "No scorecard was made: the project had no active template when this call was processed."
     },
     "player": {
       "play": "Play",
@@ -635,7 +575,7 @@
       "failed": "Failed",
       "skipped": "Skipped",
       "cached": "From cache",
-      "tokens": "{input} tokens in, {output} out",
+      "tokens": "{input} in, {output} out (tokens)",
       "names": {
         "decode": "Read the audio",
         "vad": "Find speech",
@@ -687,7 +627,6 @@
       "enable2FA": "Enable 2FA",
       "enable": "Enable",
       "disable": "Disable",
-      "adminRequired": "Required for admins",
       "changePassword": "Change password",
       "changePasswordDescription": "Update the password you use to sign in.",
       "changeEmail": "Change email",
@@ -696,15 +635,12 @@
       "newPassword": "New password",
       "confirmPassword": "Confirm new password",
       "password": "Password",
-      "newEmail": "New email",
       "code": "Authentication code",
       "passwordsDontMatch": "Passwords don't match",
       "passwordChanged": "Password changed",
-      "emailLinkSent": "Link sent to {email}",
       "logoutOthers": "Log out other devices",
       "sessionsRevoked": "Signed out of other devices",
       "disableTwoFactorTitle": "Disable two-factor authentication",
-      "disableTwoFactorDescription": "Enter a current code from your authenticator app to turn it off.",
       "sessionTimeout": "Session timeout",
       "hour1": "1 hour",
       "hours4": "4 hours",
@@ -809,133 +745,27 @@
         "update": "Failed to update preset",
         "delete": "Failed to delete preset"
       }
-    },
-    "apiKeys": {
-      "title": "API keys",
-      "description": "Manage your API keys. You can create and revoke keys to control access to the Aftertalk API. You can also view and copy the key.",
-      "keys": "Keys",
-      "usageLimits": "Usage limits",
-      "usageLimitsDescription": "You can view your current usage and limits for the Aftertalk API.",
-      "apiCalls": "API calls",
-      "transcriptionMinutes": "Transcription minutes",
-      "storage": "Storage",
-      "storageDescription": "You can view your current storage usage and limits for the Aftertalk API.",
-      "rateLimits": "Rate limits",
-      "rateLimitsDescription": "You can view your current rate limits for the Aftertalk API.",
-      "apiCallsPerMinute": "API calls per minute",
-      "concurrentUploads": "Concurrent uploads",
-      "maxFileSize": "Max file size",
-      "webhookTimeout": "Webhook timeout",
-      "documentation": "Documentation",
-      "documentationDescription": "You can view the documentation for the Aftertalk API.",
-      "authentication": "Authentication",
-      "uploadAudio": "Upload audio",
-      "viewFullDocumentation": "View full documentation",
-      "sdks": "SDKs",
-      "sdksDescription": "You can view the documentation for the Aftertalk API.",
-      "sdksNotAvailable": "SDKs are not available yet.",
-      "active": "Active",
-      "paused": "Paused",
-      "pause": "Pause key",
-      "resume": "Resume key",
-      "noKeysTitle": "No API keys",
-      "createdOn": "Created {date}",
-      "lastUsedOn": "Last used {date}",
-      "neverUsed": "Never used",
-      "requestsCount": "{count, plural, one {# request} other {# requests}}",
-      "revoke": "Revoke",
-      "revokeKey": "Revoke key",
-      "revokeKeyConfirmation": "Revoke this key?",
-      "revokeKeyConfirmationMessage": "Apps using this key lose API access. This can't be undone.",
-      "revokeKeyConfirmationButton": "Revoke key",
-      "revokeKeySuccess": "API key revoked successfully",
-      "copy": "Copy",
-      "copied": "Copied",
-      "noKeys": "No API keys yet. Create one to get started.",
-      "createKey": {
-        "keyName": "Key name",
-        "placeholder": "Enter a name for your key",
-        "alert": "After creating the key, you will be able to view and copy the key.",
-        "createKey": "Create key",
-        "creating": "Creating...",
-        "cancel": "Cancel"
-      },
-      "keyCreated": {
-        "title": "API key created",
-        "warning": "Copy the key now — it won't be shown again.",
-        "done": "Done"
-      },
-      "nameRequired": "Enter a key name."
-    },
-    "access": {
-      "title": "Access",
-      "description": "Who can see this project and the role they get by default.",
-      "visibility": "Visibility",
-      "visibilityOrg": "Organization",
-      "visibilityPrivate": "Private",
-      "visibilityOrgHint": "Every organization member gets the default role below.",
-      "visibilityPrivateHint": "Only people granted access below can see this project.",
-      "defaultRole": "Default role",
-      "defaultRoleHint": "Role for organization members without an explicit grant.",
-      "members": "People with access",
-      "selectMember": "Choose someone from the organization…",
-      "addMember": "Add to project",
-      "memberAdded": "Member added",
-      "memberRole": "Role",
-      "you": "You",
-      "removeGrant": "Remove access",
-      "memberRemoved": "Member grant removed",
-      "removeConfirm": {
-        "title": "Remove access?",
-        "description": "This removes {email}'s direct access to the project. They may still see it through organization-wide visibility."
-      },
-      "updated": "Access updated",
-      "actionFailed": "Something went wrong",
-      "projectRoles": {
-        "admin": "Admin",
-        "editor": "Editor",
-        "viewer": "Viewer"
-      },
-      "sources": {
-        "org_admin": "Organization admin, always has full access",
-        "direct": "Added directly to the project",
-        "org_default": "Default role for organization members"
-      },
-      "membersDescription": "Each person shows where their access comes from. A direct grant can be taken back.",
-      "selectMemberFirst": "Choose a person first.",
-      "removeGrantFor": "Remove access: {email}",
-      "adminOnly": "Only a project admin can change visibility and access."
     }
   },
   "navbar": {
     "signedInAs": "Signed in as",
     "home": "Overview",
     "calls": "Calls",
-    "analytics": "Analytics",
     "upload": "Upload recordings",
     "tasks": "Tasks",
     "configure": "Configuration",
     "categories": "Categories",
     "channelRoles": "Speaker roles",
     "analysisTemplates": "Analysis Templates",
-    "billing": "Billing",
     "settings": "Settings",
-    "docs": "Docs",
     "logout": "Log out",
-    "pricing": "Pricing",
-    "contact": "Contact",
-    "trialActive": "Trial · {days, plural, one {# day left} other {# days left}}",
-    "trialExpired": "Trial expired · Choose a plan",
-    "trialExpiredContact": "Trial expired",
     "organization": "Organization",
     "theme": "Theme",
     "themeLight": "Light",
     "themeDark": "Dark",
     "themeSystem": "System",
     "projects": "Projects",
-    "members": "Members",
     "accountSettings": "Account",
-    "adminPanel": "Admin panel",
     "allProjects": "All projects",
     "backToOrganization": "Back to organization",
     "skipToContent": "Skip to content",
@@ -1027,24 +857,14 @@
   "orgSwitcher": {
     "organization": "Organization",
     "settings": "Organization settings",
-    "create": "New organization",
     "creating": "Creating...",
     "createTitle": "Create organization",
     "createDescription": "Organizations group your projects and teammates.",
-    "namePlaceholder": "Organization name",
-    "limitReached": "Your {plan} plan allows up to {limit, plural, one {# organization} other {# organizations}}. Upgrade to add more.",
-    "limitReachedContact": "Limit reached: up to {limit, plural, one {# organization} other {# organizations}}. Contact us to add more."
+    "namePlaceholder": "Organization name"
   },
   "organization": {
     "createFailed": "Could not create the organization",
-    "renameBanner": {
-      "title": "Give your organization a real name",
-      "description": "Your organization was created automatically and still has a placeholder name. Update it to something your teammates will recognize.",
-      "cta": "You can change it below."
-    },
-    "header": {
-      "memberCount": "{count, plural, one {# member} other {# members}}"
-    },
+    "header": {},
     "general": {
       "title": "General",
       "description": "Organization name and policies",
@@ -1057,49 +877,6 @@
       "savedInline": "Saved",
       "saveFailed": "Could not update the organization"
     },
-    "roles": {
-      "owner": "Owner",
-      "admin": "Admin",
-      "member": "Member"
-    },
-    "members": {
-      "title": "Members",
-      "description": "People with access to this organization and their roles.",
-      "role": "Role",
-      "you": "You",
-      "inviteAction": "Invite people",
-      "sendInvites": "Send invitations",
-      "emailsLabel": "Email addresses",
-      "emailsHint": "Enter, comma or space adds an address. Each person gets an email with a link to set a password.",
-      "removeEmail": "Remove {email}",
-      "invalidEmails": "Check these addresses: {emails}",
-      "invitePlaceholder": "teammate@company.com",
-      "inviteSent": "Invitation sent",
-      "sentInline": "Sent",
-      "joinedOn": "Joined {date}",
-      "invitedOn": "invited {date}",
-      "actions": "Actions",
-      "remove": "Remove from organization",
-      "removeTitle": "Remove from the organization?",
-      "removeDescription": "{email} will lose access to the organization and its projects.",
-      "removed": "Removed from the organization",
-      "leave": "Leave organization",
-      "leaveTitle": "Leave the organization?",
-      "leaveDescription": "You'll lose access to {name} and its projects. Only a new invitation brings you back.",
-      "left": "You left the organization",
-      "cancelInvite": "Cancel invitation",
-      "cancelInviteTitle": "Cancel the invitation?",
-      "cancelInviteDescription": "{email} won't join the organization.",
-      "inviteCancelled": "Invitation cancelled",
-      "makeOwner": "Transfer ownership",
-      "transferTitle": "Transfer ownership?",
-      "transferDescription": "{email} becomes the owner and you are demoted to admin. This cannot be undone by you.",
-      "transferTypeToConfirm": "Type “{name}” to confirm.",
-      "transferConfirm": "Transfer ownership",
-      "ownershipTransferred": "Ownership transferred to {email}",
-      "actionFailed": "Something went wrong",
-      "emailsRequired": "Enter at least one email address."
-    },
     "danger": {
       "title": "Irreversible actions",
       "sectionDescription": "You can't undo these actions.",
@@ -1110,84 +887,21 @@
       "deleteFailed": "Could not delete the organization",
       "confirmTitle": "Delete organization?",
       "confirmDescription": "{name}, its projects and calls will no longer be available to any member. You can't undo this.",
-      "typeToConfirm": "Type “{name}” to confirm."
+      "typeToConfirm": "Type “{name}” to confirm.",
+      "lastOrganization": "This is the only organization of this install, so it can't be deleted."
     },
     "settings": {
       "description": "This organization's name, access rules and security."
-    }
-  },
-  "onboarding": {
-    "titleSetup": "Set up your workspace",
-    "titleNewProject": "Create a new project",
-    "welcome": "Welcome!",
-    "welcomeNamed": "Welcome, {email}!",
-    "back": "Back",
-    "skip": "Skip",
-    "optional": "(optional)",
-    "steps": {
-      "project": "Project",
-      "categories": "Categories",
-      "roles": "Roles",
-      "templates": "Templates"
-    },
-    "create": {
-      "createdTitle": "Project created",
-      "createdSubtitle": "Your project has been set up. Continue to configure the rest.",
-      "firstProjectTitle": "Create your first project",
-      "newProjectTitle": "Create a new project",
-      "subtitle": "A project groups your calls and analysis together.",
-      "orgNameLabel": "Organization name",
-      "orgNamePlaceholder": "e.g. Acme Inc.",
-      "orgNameHint": "Your workspace — invite teammates and group projects under it.",
-      "projectNameLabel": "Project name",
-      "projectNamePlaceholder": "e.g. Sales calls Q1",
-      "descriptionLabel": "Description",
-      "descriptionPlaceholder": "What are you analysing in this project?",
-      "creating": "Creating…",
-      "createButton": "Create project",
-      "error": "Failed to create project. Please try again."
-    },
-    "done": {
-      "title": "You're all set!",
-      "subtitleNewProject": "Your project is ready. Head to the dashboard to start uploading calls.",
-      "subtitleWorkspace": "Your workspace is ready. Upload your first call recording and start analysing.",
-      "whatsNext": "What's next?",
-      "whatsNextDescription": "Head to your dashboard to upload calls. You can manage categories, channel roles, and templates any time from the settings menu.",
-      "goToDashboard": "Go to dashboard"
-    },
-    "stepCount": "Step {current} of {total}",
-    "org": {
-      "title": "Set up your organization",
-      "subtitle": "Your organization groups projects and teammates. You can invite people later.",
-      "nameLabel": "Organization name",
-      "namePlaceholder": "e.g. Acme Inc.",
-      "personaLabel": "What will you use Aftertalk for?",
-      "personaStudent": "Study",
-      "personaStudentHint": "Lectures, research and coursework",
-      "personaProfessional": "My own work",
-      "personaProfessionalHint": "Your own calls, meetings and interviews",
-      "personaCompany": "Company",
-      "personaCompanyHint": "A team analysing customer calls together",
-      "personaOther": "Other",
-      "personaOtherHint": "Something else entirely",
-      "trialNote": "You'll start on a 14-day free trial — upgrade and pay anytime from Billing.",
-      "trialNoteFree": "You'll start on a 14-day free trial.",
-      "create": "Create organization",
-      "creating": "Creating...",
-      "error": "Could not create the organization"
     }
   },
   "projectConfig": {
     "general": {
       "title": "General",
       "description": "Settings that apply to every call in this project.",
-      "defaultLanguage": "Default transcription language",
-      "defaultLanguageHint": "Used for uploads that don’t pick a language, including uploads made with an API key.",
       "name": "Name",
       "projectDescription": "Description",
       "nameRequired": "Enter a project name.",
       "saveFailed": "Couldn't save. Please try again.",
-      "saveError": "Could not update the default language.",
       "loadError": "Couldn’t load this project’s settings. Reload the page to try again.",
       "languages": "Call languages",
       "languagesHint": "The languages calls in this project may be in. With one language every call is processed in it. With several, the language of each call is detected.",
@@ -1211,54 +925,12 @@
       "typeToConfirm": "Type “{name}” to confirm.",
       "deleting": "Deleting...",
       "success": "Project deleted",
-      "error": "Could not delete the project",
-      "forbidden": "Only project admins can delete a project."
+      "error": "Could not delete the project"
     },
     "title": "Configuration",
     "description": "Call reasons, speaker roles, scorecard templates and providers for this project.",
     "dangerTitle": "Irreversible actions",
     "dangerDescription": "Available to project admins.",
-    "webhooks": {
-      "title": "Webhooks",
-      "description": "We notify your system when a call finishes processing, so you don't have to poll the API for status.",
-      "viewDocs": "Documentation",
-      "url": "URL",
-      "urlHint": "Must be a public HTTPS address. We don't follow redirects.",
-      "events": "Events",
-      "actions": "Actions",
-      "active": "active",
-      "paused": "paused",
-      "none": "No webhooks",
-      "add": "Add webhook",
-      "adding": "Adding...",
-      "addTitle": "Add webhook",
-      "eventsRequired": "Choose at least one event.",
-      "createError": "Couldn't add the webhook. Please try again.",
-      "createdTitle": "Webhook added",
-      "secretWarning": "This is the only time we show the key. Copy it and store it somewhere safe.",
-      "secretHint": "The signature goes in the X-Aftertalk-Signature header as t=seconds,v1=HMAC SHA-256 of the body.",
-      "copySecret": "Copy key",
-      "copied": "Key copied",
-      "done": "Done",
-      "deleteError": "Couldn't delete the webhook",
-      "deleteTitle": "Delete this webhook?",
-      "deleteDescription": "We'll stop sending events to this address, and its delivery history will be deleted.",
-      "deleteConfirm": "Delete webhook",
-      "toggleError": "Couldn't change the status",
-      "log": "History",
-      "lastDelivery": "Last delivery",
-      "attempts": "Attempts",
-      "noDeliveries": "No deliveries",
-      "delivered": "delivered",
-      "failed": "failed",
-      "pending": "queued",
-      "pause": "Pause",
-      "resume": "Resume",
-      "copyUrl": "Copy URL",
-      "urlCopied": "Address copied",
-      "failingStreak": "{count, plural, one {# failed delivery in a row} other {# failed deliveries in a row}}",
-      "invalidUrl": "That doesn't look like a valid address. It should start with https://"
-    },
     "readOnly": "You can view the configuration; project admins change it.",
     "providers": {
       "title": "Providers",
@@ -1280,21 +952,6 @@
       "manage": "Manage connections"
     }
   },
-  "orgCreate": {
-    "title": "Create organization",
-    "subtitle": "Organizations group your projects and teammates under one workspace.",
-    "nameLabel": "Organization name",
-    "namePlaceholder": "e.g. Acme Inc.",
-    "inviteTitle": "Invite your team",
-    "emailPlaceholder": "teammate@company.com",
-    "addAnother": "Add another person",
-    "create": "Create organization",
-    "creating": "Creating…",
-    "inviteFailed": "Organization created, but invitations couldn’t be sent: {message}",
-    "nameDescription": "This is how the people you invite will see it. You can change it later.",
-    "inviteDescription": "Invitations go out once the organization exists. You can also do this later.",
-    "nameRequired": "Enter an organization name."
-  },
   "orgEmpty": {
     "title": "No projects yet",
     "description": "Create your first project in this organization to start uploading and analysing calls.",
@@ -1303,8 +960,6 @@
   "projectSelector": {
     "newProject": "New project",
     "selectProject": "Select project",
-    "limitReached": "Your {plan} plan allows up to {limit, plural, one {# project} other {# projects}}. Upgrade to add more.",
-    "limitReachedContact": "Limit reached: up to {limit, plural, one {# project} other {# projects}}. Contact us to add more.",
     "createRestricted": "Only owners and admins can create projects in this organization."
   },
   "notFound": {
@@ -1346,114 +1001,6 @@
     "continue": "Continue",
     "finish": "Go to upload",
     "checking": "Checking..."
-  },
-  "analytics": {
-    "title": "Analytics",
-    "edit": "Edit",
-    "done": "Done",
-    "saving": "Saving…",
-    "cancel": "Cancel",
-    "addWidget": "Add widget",
-    "setAsDefaultTooltip": "Set as the default dashboard",
-    "alreadyDefaultTooltip": "This dashboard is already the default",
-    "deleteDashboard": "Delete dashboard",
-    "confirmDeleteDashboard": "Delete dashboard?",
-    "deleteDashboardDescription": "“{name}” and its widgets will be removed. Calls and their analyses stay as they are.",
-    "newDashboard": "New dashboard",
-    "untitledDashboard": "Untitled dashboard",
-    "dashboardNameAria": "Dashboard name",
-    "dashboardNamePlaceholder": "My dashboard",
-    "dragAria": "Drag",
-    "editWidgetAria": "Edit widget",
-    "removeWidgetAria": "Remove widget",
-    "addFirstWidget": "Add your first widget.",
-    "noWidgetsYet": "This dashboard has no widgets yet.",
-    "buildFirstTitle": "Build your first dashboard",
-    "buildFirstSubtitle": "Start from a template or a blank canvas.",
-    "nameLabel": "Name",
-    "startFromTemplateHint": "Start from a template, or blank.",
-    "blank": "Blank",
-    "noDataInRange": "No data in this range",
-    "failedToLoad": "Failed to load",
-    "overPeriod": "over period",
-    "pointsDelta": "{value} pp",
-    "editOnLargerScreen": "Switch to a larger screen to change the layout.",
-    "tableHeaderGroup": "Group",
-    "tableHeaderValue": "Value",
-    "seriesValue": "Value",
-    "starters": {
-      "qualityOverview": "Quality overview",
-      "volumeTrends": "Volume & trends"
-    },
-    "widgets": {
-      "positiveSentiment": "Positive sentiment",
-      "totalCalls": "Total calls",
-      "actionItems": "New tasks",
-      "sentimentByCategory": "Sentiment by category",
-      "sentimentSplit": "Sentiment split",
-      "avgDuration": "Average duration",
-      "callsOverTime": "Calls over time",
-      "callsByLanguage": "Calls by language",
-      "recentCalls": "Recent calls"
-    },
-    "widgetTypes": {
-      "KPI": "Stat",
-      "LINE": "Line",
-      "AREA": "Area",
-      "BAR": "Bar",
-      "DONUT": "Donut",
-      "TABLE": "Table",
-      "CALLS": "Calls",
-      "TASKS": "Tasks",
-      "INSIGHTS": "Insights"
-    },
-    "measures": {
-      "CALL_COUNT": "Call count",
-      "AVG_DURATION": "Avg duration",
-      "TOTAL_DURATION": "Total duration",
-      "POSITIVE_SENTIMENT_PCT": "% positive sentiment",
-      "AVG_SENTIMENT_CONFIDENCE": "Avg sentiment confidence",
-      "ACTION_ITEMS_TOTAL": "New tasks",
-      "FOLLOWUP_REQUIRED_PCT": "% follow-up required"
-    },
-    "dimensions": {
-      "DATE": "Date",
-      "CATEGORY": "Category",
-      "SENTIMENT_LEVEL": "Sentiment",
-      "LANGUAGE": "Language"
-    },
-    "granularity": {
-      "DAY": "Day",
-      "WEEK": "Week",
-      "MONTH": "Month"
-    },
-    "builder": {
-      "editTitle": "Edit widget",
-      "addTitle": "Add widget",
-      "chartType": "Chart",
-      "measure": "Measure",
-      "groupBy": "Group by",
-      "granularityLabel": "Granularity",
-      "breakdownBy": "Break down by (optional)",
-      "none": "None",
-      "showTrend": "Show trend & sparkline",
-      "filters": "Filters",
-      "addFilter": "Add filter",
-      "removeFilterAria": "Remove filter",
-      "filterValuesPlaceholder": "value, value",
-      "widgetTitle": "Title",
-      "preview": "Preview",
-      "saveWidget": "Save widget",
-      "noCategoriesYet": "No categories yet",
-      "contentNoConfigHint": "This panel embeds your existing {type} view — no configuration needed.",
-      "sampleInsightBilling": "Billing disputes drove the most negative calls this period.",
-      "sampleInsightResolution": "Average resolution time improved compared with the previous period.",
-      "sampleInsightOnboarding": "Several onboarding calls asked about the same missing feature.",
-      "listType": "List",
-      "description": "Choose what to show. The preview uses data from the selected period."
-    },
-    "description": "Dashboards of charts about this project's calls.",
-    "deleteDashboardOpen": "Delete dashboard…"
   },
   "suggestions": {
     "categories": {
@@ -1671,21 +1218,13 @@
     "resetNotice": "Your password was reset on {date} by {by}.",
     "someone": "the server operator"
   },
-  "invitation": {
-    "joinTitle": "Join {organization}",
-    "joinDescription": "You already have an account with {email}. Sign in to join.",
-    "join": "Join",
-    "signInToJoin": "Sign in to join",
-    "wrongAccount": "This invitation is for {email}. Sign out and sign in with that account.",
-    "invalid": "This invitation has expired, was revoked or was already used. Ask for a new one.",
-    "emailLabel": "Email"
-  },
   "noOrganization": {
     "title": "You are not in any organization",
     "description": "This account does not belong to an organization.",
     "signOut": "Sign out",
     "noProjectTitle": "No project to open yet",
     "noProjectDescription": "There is no project in your organization that you can see. Ask an admin to add you to one.",
+    "openOrganization": "Open the organization",
     "noProjectAdmin": "Create a project in your organization to start."
   },
   "home": {
@@ -1698,13 +1237,16 @@
   "errors": {
     "invalidInput": "That value is not valid.",
     "textLength": "Enter 1 to {max} characters.",
-    "tooMany": "The limit here is {max}.",
+    "tooMany": "You can have at most {max} here.",
     "nameTaken": "This name is already used.",
     "languages": "Pick at least one language.",
     "retentionDays": "Enter 1 to 3650 days, or leave the field empty.",
     "categoryDepth": "Call reasons can be nested three levels deep at most.",
     "speakerLabels": "Enter at least two different labels, each up to {max} characters.",
-    "twoFactorFirst": "Set up two-factor authentication on your own account first."
+    "twoFactorFirst": "Set up two-factor authentication on your own account first.",
+    "forbidden": "You don't have permission to do this.",
+    "notFound": "This no longer exists, or you can't see it.",
+    "twoFactorRequired": "This organization requires two-factor authentication. Set it up in your account first."
   },
   "providers": {
     "errors": {
@@ -1712,7 +1254,8 @@
       "baseUrlResource": "Enter the address up to the version, for example https://api.openai.com/v1, without /chat/completions or /audio/transcriptions.",
       "hostNotAllowed": "This server allows only the provider hosts on its list (PROVIDER_HOST_ALLOWLIST).",
       "apiKey": "Enter an API key of up to 500 characters.",
-      "inUse": "A project uses this connection. Pick another one in that project first."
+      "inUse": "A project uses this connection. Pick another one in that project first.",
+      "keyAgain": "Enter the API key again, or remove it, when you move a connection to another host."
     },
     "title": "Providers",
     "description": "The speech, language-model and speaker-separation services this organization uses. Each project picks from these.",
@@ -1772,8 +1315,8 @@
     "provider_missing": "The project has no speech or language-model provider.",
     "audio_unreadable": "The recording could not be read.",
     "audio_too_long": "The recording is too long for the speech provider.",
-    "language_not_allowed": "The call is in a language this project does not allow. Process it again and pick the language.",
-    "language_not_allowed_detected": "The call seems to be in {language}, which this project does not allow. Process it again and pick the language.",
+    "language_not_allowed": "The call is in a language this project does not allow.",
+    "language_not_allowed_detected": "The call seems to be in {language}, which this project does not allow.",
     "limit_exceeded": "The call went over a processing limit.",
     "provider_auth": "The provider refused the API key.",
     "provider_unreachable": "The provider could not be reached.",

@@ -12,7 +12,6 @@ import { SettingsRow, SettingsSection, SettingsSections } from '@/components/sha
 import { Button } from '@/components/ui/button';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { Input } from '@/components/ui/input';
-import { Surface } from '@/components/ui/surface';
 import { Switch } from '@/components/ui/switch';
 import { i18n } from '@/i18n/constants';
 import { deleteOrganization, updateOrganization } from '@/lib/action/organizations';
@@ -21,7 +20,8 @@ import { backendMessage, unwrap } from '@/lib/utils/backend-error';
 
 interface OrganizationSettingsProps {
   organization: OrganizationResponse;
-  userEmail: string;
+  /** False for the only organisation of an install: core cannot make another one. */
+  canDelete: boolean;
 }
 
 type Field = 'name' | 'allowMemberProjectCreate' | 'twoFaRequired';
@@ -36,12 +36,11 @@ function Saved({ label }: { label: string }) {
   );
 }
 
-export function OrganizationSettings({ organization, userEmail }: OrganizationSettingsProps) {
+export function OrganizationSettings({ organization, canDelete }: OrganizationSettingsProps) {
   const t = useTranslations();
   const router = useRouter();
   const isOwner = organization.role === 'OWNER';
   const isAdmin = isOwner || organization.role === 'ADMIN';
-  const showRenameBanner = isAdmin && organization.name === userEmail.split('@')[0];
 
   const [savedName, setSavedName] = useState(organization.name);
   const [name, setName] = useState(organization.name);
@@ -111,15 +110,6 @@ export function OrganizationSettings({ organization, userEmail }: OrganizationSe
         description={t(i18n.organization.settings.description)}
       />
 
-      {showRenameBanner && (
-        <Surface tone="muted">
-          <p className="text-body text-foreground font-medium">{t(i18n.organization.renameBanner.title)}</p>
-          <p className="text-meta text-muted-foreground mt-1">
-            {t(i18n.organization.renameBanner.description)} {t(i18n.organization.renameBanner.cta)}
-          </p>
-        </Surface>
-      )}
-
       <SettingsSections>
         <SettingsSection
           title={t(i18n.organization.general.title)}
@@ -171,7 +161,7 @@ export function OrganizationSettings({ organization, userEmail }: OrganizationSe
           </SettingsRow>
         </SettingsSection>
 
-        {isOwner && (
+        {isOwner && canDelete && (
           <SettingsSection
             title={t(i18n.organization.danger.title)}
             description={t(i18n.organization.danger.sectionDescription)}

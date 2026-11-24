@@ -17,7 +17,7 @@ export async function projectReadiness(projectId: string): Promise<ProjectReadin
     diarization: boolean;
   }>(sql`
     select exists (select 1 from app.speaker_presets where project_id = ${projectId}) as roles,
-           exists (select 1 from app.analysis_templates where project_id = ${projectId}) as templates,
+           exists (select 1 from app.analysis_templates where project_id = ${projectId} and is_active) as templates,
            exists (select 1 from app.categories c join app.taxonomies t on t.id = c.taxonomy_id
                    where t.project_id = ${projectId}) as categories,
            exists (select 1 from app.project_provider_choice

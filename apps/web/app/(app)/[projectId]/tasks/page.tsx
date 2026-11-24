@@ -8,22 +8,11 @@ import { projectRoleAtLeast } from '@/lib/access';
 import { listActionItems } from '@/lib/action/action-items';
 import { getProject } from '@/lib/action/projects';
 import { requireProjectPage } from '@/lib/page-access';
-import type { ActionItemsPage } from '@/lib/types';
 import { localizedPageMetadata } from '@/lib/utils/page-metadata';
 
 export async function generateMetadata(): Promise<Metadata> {
   return localizedPageMetadata(i18n.meta.tasks);
 }
-
-const EMPTY_PAGE: ActionItemsPage = {
-  items: [],
-  totalCount: 0,
-  pendingCount: 0,
-  inProgressCount: 0,
-  doneCount: 0,
-  cancelledCount: 0,
-  overdueCount: 0,
-};
 
 interface TasksPageProps {
   params: Promise<{ projectId: string }>;
@@ -32,9 +21,8 @@ interface TasksPageProps {
 
 async function firstNonEmptyTab(projectId: string): Promise<TaskTab> {
   for (const tab of ['pending', 'in_progress'] as const) {
-    const page = await listActionItems(projectId, { pageSize: 1, status: TAB_STATUSES[tab] }).catch(() => null);
-    // On a failed lookup stay on the default tab; the page itself will show the error state.
-    if (!page || page.totalCount > 0) return tab;
+    const page = await listActionItems(projectId, { pageSize: 1, status: TAB_STATUSES[tab] });
+    if (page.items.length > 0) return tab;
   }
   return 'all';
 }
@@ -52,9 +40,8 @@ export default async function TasksPage({ params, searchParams }: TasksPageProps
   const statuses = TAB_STATUSES[parseTaskTab(tab)];
 
   const [initialData, project] = await Promise.all([
-    listActionItems(projectId, { pageSize: 50, status: statuses.length ? statuses : undefined }).catch(
-      () => EMPTY_PAGE
-    ),
+    // A failed load goes to the error page: an empty list here would read as "no tasks".
+    listActionItems(projectId, { pageSize: 50, status: statuses.length ? statuses : undefined }),
     getProject(projectId).catch(() => null),
   ]);
 
