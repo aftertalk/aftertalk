@@ -56,13 +56,19 @@ def key_of(seen: Seen) -> Key:
     return value // 1000 - 1, (value % 1000) // 100 - 1
 
 
+def uploads(fake: FakeSpeech) -> list[Seen]:
+    """The requests whose upload arrived whole: a request cancelled mid-upload (the other channel failed) reaches
+    the fake cut off, without a file."""
+    return [seen for seen in fake.seen if seen.file is not None]
+
+
 def keys(fake: FakeSpeech) -> list[Key]:
-    return [key_of(seen) for seen in fake.seen]
+    return [key_of(seen) for seen in uploads(fake)]
 
 
 def by_key(fake: FakeSpeech) -> dict[Key, Seen]:
     out: dict[Key, Seen] = {}
-    for seen in fake.seen:
+    for seen in uploads(fake):
         key = key_of(seen)
         assert key not in out, f"{key} was sent twice"
         out[key] = seen
@@ -77,6 +83,8 @@ def serve(fake: FakeSpeech, answer: Callable[[int, int], Forced] = default_answe
     """Answer each request by what it uploads, not by arrival order: the two channels run concurrently."""
 
     def _answer(seen: Seen) -> Forced:
+        if seen.file is None:  # cut off by a cancel: nobody reads the answer
+            return Forced(400, "{}")
         return answer(*key_of(seen))
 
     fake._answer = _answer  # type: ignore[method-assign]
@@ -782,7 +790,9 @@ async def test_a_detected_window_in_a_language_not_allowed_fails_whichever_arriv
     err = await fails(fake_speech, path, split(allowed_languages=["pl", "en"]))
     assert err.code == "language_not_allowed" and err.detected_language == "de"
     sent = by_key(fake_speech)
-    assert sent[(0, 3)].values("language") == [] and sent[(1, 2)].values("language") == []  # both detecting
+    assert sent[(1, 2)].values("language") == []  # detecting
+    if german_last:  # the Polish upload arrived whole (it may be cut off by the cancel when German comes first)
+        assert sent[(0, 3)].values("language") == []
     assert (1, 3) not in sent  # the failing channel stops there
     if not german_last:
         assert (0, 4) not in sent  # the Polish answer had not come back: its channel never went on
