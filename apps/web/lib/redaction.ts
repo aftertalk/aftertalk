@@ -6,6 +6,11 @@ export type TextWord = { w: string };
 export type TextRange = { startWord: number; endWord: number; token: string };
 export type RenderMode = 'redacted' | 'original';
 
+// Only punctuation, never letters, digits or signs such as "+" or "@", so nothing of the hidden
+// value can show.
+const LEADING = /^[("'„“‘«[]+/;
+const TRAILING = /[.,!?;:…)"'”’»\]]+$/;
+
 /** Ranges sorted by start, so one pass over the words is enough. */
 export function sortRanges<T extends TextRange>(ranges: readonly T[]): T[] {
   return [...ranges].sort((a, b) => a.startWord - b.startWord);
@@ -37,7 +42,12 @@ export function renderText(
     while (r < sortedRanges.length && sortedRanges[r].endWord < i) r++;
     const range = sortedRanges[r];
     if (range && range.startWord <= i) {
-      out.push(range.token);
+      // Speech providers attach punctuation to words ("Clarke."), so a range ends on "Clarke." and
+      // the full stop would go with the name. Keep an opening bracket or quote of its first word and
+      // the closing punctuation of its last word, when those words are inside the window.
+      const lead = range.startWord >= start ? (LEADING.exec(words[range.startWord].w)?.[0] ?? '') : '';
+      const trail = range.endWord <= end ? (TRAILING.exec(words[range.endWord].w)?.[0] ?? '') : '';
+      out.push(lead + range.token + trail);
       i = range.endWord + 1;
     } else {
       out.push(words[i].w);

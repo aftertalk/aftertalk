@@ -243,6 +243,7 @@ export function CallDetailView({ call, projectId, tasks, backHref, neighbours, c
           <AudioPlayer
             ref={playerRef}
             audioUrl={audioUrl}
+            durationSeconds={call.durationS || undefined}
             onTimeUpdate={(time) => {
               // timeupdate fires several times a second; only re-render when the active turn changes.
               if (turnIndexAt(turns, time) !== activeIndex) setCurrentTime(time);

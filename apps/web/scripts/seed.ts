@@ -54,10 +54,10 @@ const FIELD = {
   note: '22222222-2222-4222-8222-222222222213',
 };
 
-/** One second of a quiet 440 Hz tone, 8 kHz mono 16-bit: enough for the player to load and seek. */
+/** A quiet 440 Hz tone, 8 kHz mono 16-bit, as long as the call it stands in for. */
 function toneWav(seconds: number): Buffer {
   const rate = 8000;
-  const samples = rate * seconds;
+  const samples = Math.round(rate * seconds);
   const data = Buffer.alloc(samples * 2);
   for (let i = 0; i < samples; i++)
     data.writeInt16LE(Math.round(Math.sin((2 * Math.PI * 440 * i) / rate) * 2000), i * 2);
@@ -109,9 +109,7 @@ export async function seed(): Promise<{ projectId: string; email: string | null;
     owner = await createUser({ email, name: 'Seed Owner', password });
   }
 
-  const audio = toneWav(30);
-  const sha = createHash('sha256').update(audio).digest('hex');
-  const files: { callId: string }[] = [];
+  const files: { callId: string; audio: Buffer }[] = [];
 
   const projectId = await db.transaction(async (tx) => {
     const [org] = await tx
@@ -201,6 +199,8 @@ export async function seed(): Promise<{ projectId: string; email: string | null;
 
     const names = ['broadband-outage.wav', 'reklamacja-faktury.wav', 'bad-key.wav'];
     for (const [i, body] of bodies.entries()) {
+      // As long as the call's result says, so the player and the page agree; the failed call has none.
+      const audio = toneWav((body.duration_ms ?? 30_000) / 1000);
       const [call] = await tx
         .insert(schema.calls)
         .values({
@@ -209,7 +209,7 @@ export async function seed(): Promise<{ projectId: string; email: string | null;
           originalFilename: names[i],
           contentType: 'audio/wav',
           sizeBytes: audio.length,
-          audioSha256: sha,
+          audioSha256: createHash('sha256').update(audio).digest('hex'),
           // Spread over the last days, so the overview has more than one point.
           createdAt: new Date(Date.now() - (bodies.length - i) * 24 * 60 * 60 * 1000),
         })
@@ -220,7 +220,7 @@ export async function seed(): Promise<{ projectId: string; email: string | null;
         .values({ callId: call.id, attempt: 1, status: 'sent', sentAt: new Date() })
         .returning({ id: schema.jobs.id });
       await storeResult(tx, { callId: call.id, projectId: project.id, jobId: job.id, model: 'seed-model' }, body);
-      files.push({ callId: call.id });
+      files.push({ callId: call.id, audio });
     }
     return project.id;
   });
@@ -228,7 +228,7 @@ export async function seed(): Promise<{ projectId: string; email: string | null;
   // After the commit, like an upload: a file with no call is swept, a call with no file plays nothing.
   const dir = path.join(process.env.DATA_DIR!, 'audio');
   await mkdir(dir, { recursive: true });
-  for (const { callId } of files) await writeFile(path.join(dir, callId), audio);
+  for (const { callId, audio } of files) await writeFile(path.join(dir, callId), audio);
 
   return { projectId, email, password };
 }

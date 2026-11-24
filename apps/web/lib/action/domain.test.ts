@@ -129,8 +129,8 @@ describe('the seeded calls as pages load them', () => {
       }
     }
     const call = (await getCallById(w.projectId, w.callIds[0]))!;
-    expect(call.turns[0].text).toBe('Good morning, Northline support, this is [PERSON_1] How can I help?');
-    expect(call.turns[3].text).toBe('Yes, it is [PHONE_1]');
+    expect(call.turns[0].text).toBe('Good morning, Northline support, this is [PERSON_1]. How can I help?');
+    expect(call.turns[3].text).toBe('Yes, it is [PHONE_1].');
     expect(call.turns[1]).toMatchObject({ index: 2, speakerId: 'customer' });
     expect(call.piiStatistics).toEqual({ totalDetected: 4, types: { PERSON: 3, PHONE: 1 } });
     expect(call.speakers.map((s) => s.name)).toEqual(['Agent', 'Customer']);
@@ -377,7 +377,7 @@ describe('export', () => {
       'failed',
     ]);
     const first = body.calls.find((c: { id: string }) => c.id === w.callIds[0]);
-    expect(first.turns[3]).toMatchObject({ index: 4, speaker: 'customer', text: 'Yes, it is [PHONE_1]' });
+    expect(first.turns[3]).toMatchObject({ index: 4, speaker: 'customer', text: 'Yes, it is [PHONE_1].' });
     expect(first.analyses.find((a: { kind: string }) => a.kind === 'summary').quotes).toContainEqual({
       claim_path: 'action_items.1',
       turn: 5,
@@ -593,6 +593,8 @@ describe('retention and the sweep', () => {
     await utimes(stray, old, old);
     await utimes(staleTmp, old, old);
     const [{ sha }] = await db.select({ sha: calls.audioSha256 }).from(calls).where(eq(calls.id, w.callIds[0]));
+    // The same recording uploaded twice: the second call keeps its cache folder alive.
+    await db.update(calls).set({ audioSha256: sha }).where(eq(calls.id, w.callIds[1]));
     const cache = path.join(DATA_DIR, 'cache', w.organizationId);
     await mkdir(path.join(cache, sha), { recursive: true });
     await mkdir(path.join(cache, 'f'.repeat(64)), { recursive: true });
@@ -612,7 +614,7 @@ describe('retention and the sweep', () => {
     expect(existsSync(stray)).toBe(false);
     expect(existsSync(staleTmp)).toBe(false);
     expect(existsSync(fresh)).toBe(true);
-    // The three seeded calls share one recording, so its cache folder is still needed.
+    // The second call has the same recording, so its cache folder is still needed.
     expect(existsSync(path.join(cache, sha))).toBe(true);
     expect(existsSync(path.join(cache, 'f'.repeat(64)))).toBe(false);
   });

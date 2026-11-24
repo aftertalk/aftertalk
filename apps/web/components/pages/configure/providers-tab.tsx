@@ -177,7 +177,7 @@ function SlotRow({
         </span>
       }
     >
-      <div className="w-full sm:w-80">
+      <div className="w-full sm:w-72">
         <div className="flex flex-col gap-2">
           <Select
             value={connectionId}

@@ -21,6 +21,8 @@ interface AudioPlayerProps {
   onError?: () => void;
   onTimeUpdate?: (currentTime: number) => void;
   onPlayingStateChange?: (isPlaying: boolean) => void;
+  /** Shown as the length until the file's own is known (it is fetched only on play or seek). */
+  durationSeconds?: number;
   className?: string;
 }
 
@@ -50,6 +52,7 @@ export function AudioPlayer({
   onError,
   onTimeUpdate,
   onPlayingStateChange,
+  durationSeconds,
   className,
 }: AudioPlayerProps) {
   const t = useTranslations();
@@ -60,7 +63,7 @@ export function AudioPlayer({
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
+  const [duration, setDuration] = useState(durationSeconds ?? 0);
   const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
   const [speed, setSpeed] = useState<number>(1);
@@ -73,7 +76,10 @@ export function AudioPlayer({
 
   useEffect(() => {
     const audio = new Audio(audioUrl);
-    audio.preload = 'metadata';
+    // Nothing is fetched until someone plays or seeks: every request for the audio is a row in the
+    // call's access log, and opening the page is not listening. The length shown until then is the
+    // call's own.
+    audio.preload = 'none';
     audioRef.current = audio;
 
     const handleTimeUpdate = () => {

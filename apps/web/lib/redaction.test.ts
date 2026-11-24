@@ -29,6 +29,21 @@ test('ranges that start before the window (shifted quote slices) are handled', (
   expect(renderText(slice, shifted, 'redacted')).toBe('[PERSON_1] and my');
 });
 
+test('punctuation attached to a redacted word stays, and nothing else of the word does', () => {
+  const said = 'this is (Emma Clarke). Call „Jan”, on +48 600-100-200, please'.split(' ').map((w) => ({ w }));
+  const marked = sortRanges([
+    { startWord: 2, endWord: 3, token: '[PERSON_1]' },
+    { startWord: 5, endWord: 5, token: '[PERSON_2]' },
+    { startWord: 7, endWord: 8, token: '[PHONE_1]' },
+  ]);
+  // "+" is not punctuation: it stays hidden with the number.
+  expect(renderText(said, marked, 'redacted')).toBe('this is ([PERSON_1]). Call „[PERSON_2]”, on [PHONE_1], please');
+  // A window that ends inside a range does not take the closing punctuation of a word outside it…
+  expect(renderText(said, marked, 'redacted', 0, 2)).toBe('this is ([PERSON_1]');
+  // …and one that starts inside it does not take the opening bracket.
+  expect(renderText(said, marked, 'redacted', 3, 4)).toBe('[PERSON_1]). Call');
+});
+
 test('an empty or reversed window is empty text', () => {
   expect(renderText(words, ranges, 'redacted', 5, 4)).toBe('');
   expect(renderText([], [], 'redacted')).toBe('');

@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 
 import { Upload } from '@/components/pages/upload/upload';
 import { UploadSetupGate } from '@/components/pages/upload/upload-setup-gate';
@@ -18,9 +18,10 @@ export async function generateMetadata(): Promise<Metadata> {
 
 interface UploadPageProps {
   params: Promise<{ projectId: string }>;
+  searchParams: Promise<{ tab?: string }>;
 }
 
-export default async function UploadPage({ params }: UploadPageProps) {
+export default async function UploadPage({ params, searchParams }: UploadPageProps) {
   const { projectId } = await params;
   const { role, orgRole } = await requireProjectPage(projectId);
   // Uploading needs a project editor; a viewer has no use for this page.
@@ -36,6 +37,18 @@ export default async function UploadPage({ params }: UploadPageProps) {
   // One function decides (item 54a): the three lists of the cloud's gate plus a speech and an LLM
   // provider. The upload route asks it again, so a hand-made request cannot skip the gate.
   if (!readiness.canUpload) {
+    // Open on the first step that is still missing, not always on the first step; the sidebar marks
+    // the step from the same parameter.
+    if (!(await searchParams).tab) {
+      const missing = !readiness.categories
+        ? 'categories'
+        : !readiness.roles
+          ? 'roles'
+          : !readiness.templates
+            ? 'templates'
+            : 'providers';
+      redirect(`/${projectId}/upload?tab=${missing}`);
+    }
     return (
       <UploadSetupGate
         projectId={projectId}

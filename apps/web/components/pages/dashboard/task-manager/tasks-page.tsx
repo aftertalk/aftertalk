@@ -350,7 +350,11 @@ export function TasksPageClient({ projectId, projectName, initialData, initialSt
         {!projectHasNoTasks && (
           <div className="flex gap-8">
             <Stat value={tm.stats.pending + tm.stats.inProgress} label={t(i18n.dashboard.taskManager.statOpen)} />
-            <Stat value={tm.stats.overdue} label={t(i18n.dashboard.taskManager.overdue)} alert />
+            {/* Deadlines are the caller's words, not dates, so this is 0 until something sets a date: no
+                permanent "0 overdue" beside the open count. */}
+            {tm.stats.overdue > 0 && (
+              <Stat value={tm.stats.overdue} label={t(i18n.dashboard.taskManager.overdue)} alert />
+            )}
           </div>
         )}
       </PageHeader>

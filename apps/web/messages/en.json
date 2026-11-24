@@ -990,7 +990,7 @@
   "uploadGate": {
     "kicker": "Before your first upload",
     "title": "Set up this project",
-    "description": "Uploads need categories, speaker roles and an analysis template so Aftertalk knows how to analyse your calls. Add at least one of each — you can refine them any time under Configure.",
+    "description": "Uploads need categories, speaker roles, an analysis template, and a speech-to-text and a language-model provider, so Aftertalk knows how to analyse your calls and what to analyse them with. You can refine all of them any time under Configuration.",
     "rolesLabel": "Speaker roles",
     "templatesLabel": "Analysis templates",
     "categoriesLabel": "Categories",

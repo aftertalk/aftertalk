@@ -26,7 +26,8 @@ async function period(projectId: string, from: string, to: string): Promise<Row>
 
 export async function getDashboardMetrics(projectId: string, input?: DateRangeInput): Promise<DashboardMetrics> {
   const { from, to, range } = await dashboardScope(projectId, input);
-  // "All time" has no period before it to compare with.
+  // "All time" has no period before it to compare with, and nor has a period before the first call:
+  // growth from nothing is not "+100%". The page shows no chip for 0.
   const allTime = range.from.getTime() === 0;
   const previous = getPreviousPeriod(range);
   const [current, before, [pending]] = await Promise.all([
@@ -41,9 +42,9 @@ export async function getDashboardMetrics(projectId: string, input?: DateRangeIn
   const seconds = (row: Row | null) => Math.round((row?.avg_ms ?? 0) / 1000);
   return {
     totalCalls: current.calls,
-    totalCallsTrend: before ? calculateTrend(current.calls, before.calls) : 0,
+    totalCallsTrend: before?.calls ? calculateTrend(current.calls, before.calls) : 0,
     avgDurationSeconds: seconds(current),
-    avgDurationTrend: before ? calculateTrend(seconds(current), seconds(before)) : 0,
+    avgDurationTrend: before?.calls ? calculateTrend(seconds(current), seconds(before)) : 0,
     positiveSentimentPercent:
       current.with_sentiment > 0 ? Math.round((current.positive / current.with_sentiment) * 100) : 0,
     pendingActionItems: pending.n,

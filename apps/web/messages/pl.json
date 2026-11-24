@@ -990,7 +990,7 @@
   "uploadGate": {
     "kicker": "Przed pierwszym przesłaniem",
     "title": "Skonfiguruj ten projekt",
-    "description": "Przesyłanie wymaga kategorii, ról mówców i szablonu analizy, aby Aftertalk wiedział, jak analizować Twoje rozmowy. Dodaj przynajmniej po jednym — możesz je później doprecyzować w Konfiguracji.",
+    "description": "Przesyłanie wymaga kategorii, ról mówców, szablonu analizy oraz dostawcy rozpoznawania mowy i modelu językowego, aby Aftertalk wiedział, jak i czym analizować Twoje rozmowy. Wszystko to możesz później zmienić w Konfiguracji.",
     "rolesLabel": "Role mówców",
     "templatesLabel": "Szablony analizy",
     "categoriesLabel": "Kategorie",
