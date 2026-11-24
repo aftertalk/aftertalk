@@ -133,6 +133,18 @@ def test_max_seconds_is_limit_exceeded(tmp_path: Path) -> None:
         assert audio.duration_seconds == pytest.approx(5.0, abs=0.01)
 
 
+def test_max_seconds_is_exact_at_the_boundary(tmp_path: Path) -> None:
+    exact = make_media(tmp_path / "exact.wav", "pcm_s16le", rate=SAMPLE_RATE, seconds=2.0)
+    with decode_audio(exact, max_seconds=2.0) as audio:
+        assert audio.samples.shape[0] == 2 * SAMPLE_RATE
+    over = make_media(
+        tmp_path / "over.wav", "pcm_s16le", rate=SAMPLE_RATE, signal=np.zeros((2 * SAMPLE_RATE + 1, 1), np.int16)
+    )
+    with pytest.raises(EngineError) as info:
+        decode_audio(over, max_seconds=2.0)
+    assert info.value.code == "limit_exceeded"
+
+
 def test_close_is_idempotent_and_deletes_the_file(tmp_path: Path) -> None:
     audio = decode_audio(make_media(tmp_path / "a.wav", "pcm_s16le"))
     path = audio.path

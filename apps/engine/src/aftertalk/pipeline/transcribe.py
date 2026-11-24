@@ -10,6 +10,10 @@ Rules (`channels=mix`, the only mode until PR 2):
   language that is not allowed, or none reported when several are allowed, fails there, before the rest is paid
   for), and every later window is forced to what window 1 returned. When window 1 returned none, the rest are sent
   unforced.
+- A provider time is first bounded by the window's audio (compared in milliseconds, each word and each segment on
+  its own): an end up to `SENT_SLACK_SECONDS` past the window's end is cut to it; an end further past, or a start
+  past it, is no time (the text is kept). So a turn never takes in the next window's words by a time the provider
+  overshot, nor ends after the audio.
 - Every time is shifted by the window's start plus the audio's start offset in the file, rounded to milliseconds:
   times are seconds from the start of the original file. The windows' segments are joined in order and regrouped
   into the turns of one speaker (`turns.py`); the turns are the transcript's segments, its text is their texts
@@ -54,6 +58,7 @@ EventKind = Literal["started", "progress", "finished"]
 _FORMATS = ("verbose_json", "verbose_json_segments", "json")
 _HASH_CHUNK = 1024 * 1024
 _SPEAKER = Speaker(id="s1", label="Speaker 1")
+SENT_SLACK_SECONDS = 1.0  # how far past the audio sent a provider's end time may be and still be cut to it
 
 
 @dataclass(frozen=True)
@@ -153,23 +158,33 @@ def _shift(t: float | None, offset: float) -> float | None:
     return None if t is None else round(t + offset, 3)
 
 
-def _shifted(segments: Sequence[Segment], offset: float) -> list[Segment]:
-    """The segments with every time moved by `offset` seconds onto the file's timeline."""
-    return [
-        seg.model_copy(
-            update={
-                "start": _shift(seg.start, offset),
-                "end": _shift(seg.end, offset),
-                "words": [
-                    Word(
-                        text=w.text, start=_shift(w.start, offset), end=_shift(w.end, offset), probability=w.probability
-                    )
-                    for w in seg.words
-                ],
-            }
-        )
-        for seg in segments
-    ]
+def _bounded(start: float | None, end: float | None, sent: float) -> tuple[float | None, float | None]:
+    """A provider time bounded by the `sent` seconds of audio, compared in milliseconds: an end up to
+    `SENT_SLACK_SECONDS` past it is cut to it; one further, or a start past it, is no time."""
+    if start is None or end is None:
+        return start, end
+    start_ms, end_ms, sent_ms = round(start * 1000), round(end * 1000), round(sent * 1000)
+    if end_ms <= sent_ms:
+        return start, end
+    if start_ms > sent_ms or end_ms > sent_ms + round(SENT_SLACK_SECONDS * 1000):
+        return None, None
+    return start, max(start, sent)  # max: a start equal to `sent` in milliseconds may be a hair above it
+
+
+def _shifted(segments: Sequence[Segment], offset: float, sent: float) -> list[Segment]:
+    """The segments with every time bounded by the `sent` seconds of audio (`_bounded`), each word and each
+    segment on its own, then moved by `offset` seconds onto the file's timeline."""
+    out: list[Segment] = []
+    for seg in segments:
+        start, end = _bounded(seg.start, seg.end, sent)
+        words = []
+        for w in seg.words:
+            w_start, w_end = _bounded(w.start, w.end, sent)
+            words.append(
+                Word(text=w.text, start=_shift(w_start, offset), end=_shift(w_end, offset), probability=w.probability)
+            )
+        out.append(seg.model_copy(update={"start": _shift(start, offset), "end": _shift(end, offset), "words": words}))
+    return out
 
 
 async def transcribe_file(
@@ -198,7 +213,10 @@ async def transcribe_file(
         error = EngineError("internal", state.usage())  # a bug of ours; its text is not shown
     # Raised outside the except block: nothing is chained to it.
     log("info", "transcribe failed", step=state.step, error_code=error.code, duration_ms=_ms_since(started))
-    raise error
+    try:
+        raise error
+    finally:
+        del error  # its traceback holds this frame: no cycle that keeps the decoded audio mapped
 
 
 async def _run(
@@ -247,7 +265,8 @@ async def _run(
                 part = await _window(speech, samples, window, i, options, language, deadline, state.totals)
                 if i == 0:
                     language = forced or part.language
-                segments.extend(_shifted(part.segments, window.start / SAMPLE_RATE + audio.start_offset_seconds))
+                offset = window.start / SAMPLE_RATE + audio.start_offset_seconds
+                segments.extend(_shifted(part.segments, offset, (window.stop - window.start) / SAMPLE_RATE))
                 emit(PipelineEvent("transcribe", "progress", i + 1, len(windows), audio.duration_seconds))
 
             turns = build_turns(segments, speaker=_SPEAKER.id)
@@ -311,6 +330,9 @@ async def _window(
     if failure is not None or part is None:
         failure = failure or EngineError("internal")
         failure.usage = totals.usage()
-        raise failure  # outside the except block: nothing from the provider is chained to it
+        try:
+            raise failure  # outside the except block: nothing from the provider is chained to it
+        finally:
+            del failure  # its traceback holds this frame, and the frame holds the map
     totals.add(usage)
     return part

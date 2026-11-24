@@ -1,6 +1,7 @@
 import asyncio
 import dataclasses
 import hashlib
+import json
 import math
 import os
 import tempfile
@@ -9,18 +10,19 @@ import time
 from pathlib import Path
 from typing import BinaryIO
 
+import numpy as np
 import pytest
-from audio_tools import make_media, make_tone
+from audio_tools import make_media, make_tone, tone
 from fake_speech import FakeSpeech, Forced, error_body, reply
 
 from aftertalk.audio import decode
 from aftertalk.audio.decode import SAMPLE_RATE, _Decoded
 from aftertalk.models.connections import SpeechConnection
 from aftertalk.models.errors import EngineError
-from aftertalk.models.transcript import Transcript, timing_level
+from aftertalk.models.transcript import Segment, Transcript, Word, timing_level
 from aftertalk.models.usage import JobLimits, StepUsage
 from aftertalk.pipeline import PipelineEvent, TranscribeOptions, TranscribeResult, transcribe_file
-from aftertalk.pipeline.transcribe import _Totals
+from aftertalk.pipeline.transcribe import SENT_SLACK_SECONDS, _shifted, _Totals
 from aftertalk.providers.net import make_client
 from aftertalk.providers.speech.openai_compatible import OpenAICompatibleSpeech
 
@@ -112,6 +114,24 @@ async def test_turn_text_is_joined_with_one_space(fake_speech: FakeSpeech, twelv
     assert "  " not in t.text
 
 
+async def test_each_window_uploads_its_own_slice_of_the_file(fake_speech: FakeSpeech, tmp_path: Path) -> None:
+    signal = np.concatenate(
+        [tone(5.0, SAMPLE_RATE, 440, 6000), tone(5.0, SAMPLE_RATE, 1000, 12000), tone(2.0, SAMPLE_RATE, 2500, 3000)]
+    )
+    source = make_media(tmp_path / "three.wav", "pcm_s16le", rate=SAMPLE_RATE, signal=signal[:, None])
+    await run(fake_speech, source, TranscribeOptions(audio_format="wav"), window=5.0)
+    assert len(fake_speech.seen) == 3
+    sent = []
+    for seen in fake_speech.seen:
+        assert seen.file is not None
+        sent.append(np.frombuffer(seen.file.data[44:], dtype="<i2"))  # after the WAV header
+    with decode.decode_audio(source) as audio:
+        decoded = audio.mono()
+    assert sum(len(part) for part in sent) == len(decoded)
+    assert np.array_equal(np.concatenate(sent), decoded)
+    assert not np.array_equal(sent[1], decoded[: len(sent[1])])  # not the start of the file again
+
+
 # ---- language ----
 
 
@@ -119,6 +139,19 @@ async def test_language_is_detected_on_window_one_and_forced_after(fake_speech: 
     result = await run(fake_speech, twelve, window=5.0)
     assert [seen.values("language") for seen in fake_speech.seen] == [[], ["pl"], ["pl"]]
     assert result.transcript.language == "pl"
+
+
+async def test_the_transcript_language_is_window_ones_and_later_ones_are_forced_to_it(
+    fake_speech: FakeSpeech, twelve: Path
+) -> None:
+    fake_speech.forced = [
+        reply(["one"], language="polish"),
+        reply(["two"], language="english"),
+        reply(["three"], language="german"),
+    ]
+    result = await run(fake_speech, twelve, window=5.0)
+    assert result.transcript.language == "pl"
+    assert [seen.values("language") for seen in fake_speech.seen] == [[], ["pl"], ["pl"]]
 
 
 async def test_a_forced_language_goes_to_every_window(fake_speech: FakeSpeech, twelve: Path) -> None:
@@ -195,17 +228,112 @@ async def test_a_text_only_window_in_the_middle_is_one_untimed_turn(fake_speech:
     assert (t.segments[2].start, t.segments[2].end) == pytest.approx((10.0, 10.4), abs=0.01)
 
 
+# ---- provider times past the end of the window ----
+
+
+def nested(*segments: dict, language: str = "polish") -> Forced:
+    """A 200 answer with these segments, words nested in them (whisper.cpp style)."""
+    text = " ".join(s["text"] for s in segments)
+    return Forced(200, json.dumps({"text": text, "language": language, "segments": list(segments)}))
+
+
+def sseg(text: str, start: float | None, end: float | None, words: list[tuple[str, float, float]]) -> dict:
+    return {
+        "text": f" {text}",
+        "start": start,
+        "end": end,
+        "words": [{"word": x, "start": a, "end": b} for x, a, b in words],
+    }
+
+
+def test_sent_slack_constant() -> None:
+    assert SENT_SLACK_SECONDS == 1.0
+
+
+@pytest.mark.parametrize(
+    ("start", "end", "expected"),
+    [
+        (4.0, 5.0, (14.0, 15.0)),  # end <= D: unchanged
+        (4.5, 5.6, (14.5, 15.0)),  # end within 1 s past D: cut to D
+        (4.5, 6.0, (14.5, 15.0)),  # exactly D + 1: still cut
+        (5.0, 5.8, (15.0, 15.0)),  # start at D: zero length
+        (4.5, 6.2, (None, None)),  # end more than 1 s past D: no time
+        (5.2, 5.4, (None, None)),  # starts past D: no time
+        (None, None, (None, None)),
+    ],
+)
+def test_a_time_past_the_window_is_bounded_or_dropped(
+    start: float | None, end: float | None, expected: tuple[float | None, float | None]
+) -> None:
+    # A word (its segment inside the window) and a segment (no words), each on its own.
+    word = Segment(text="x", start=0.0, end=1.0, words=[Word(text="x", start=start, end=end)])
+    alone = Segment(text="x", start=start, end=end)
+    shifted_word, shifted_seg = _shifted([word, alone], 10.0, 5.0)
+    assert (shifted_word.words[0].start, shifted_word.words[0].end) == expected
+    assert (shifted_word.start, shifted_word.end, shifted_word.text) == (10.0, 11.0, "x")
+    assert (shifted_seg.start, shifted_seg.end, shifted_seg.text) == (*expected, "x")  # text kept
+
+
+def test_the_bound_compares_at_milliseconds() -> None:
+    sent = 79_999 / SAMPLE_RATE  # 4.9999375 s: 5.000 at millisecond precision
+    (out,) = _shifted([Segment(text="x y", start=4.0, end=5.0, words=[Word(text="x", start=5.0, end=5.0)])], 0.0, sent)
+    assert (out.start, out.end) == (4.0, 5.0) and (out.words[0].start, out.words[0].end) == (5.0, 5.0)
+
+
+def test_a_segment_that_overshoots_keeps_its_words_inside() -> None:
+    words = [Word(text="a", start=0.5, end=1.0), Word(text="b", start=4.0, end=4.9)]
+    far, near = _shifted(
+        [Segment(text="a b", start=0.5, end=7.0, words=words), Segment(text="a b", start=0.5, end=5.5, words=words)],
+        0.0,
+        5.0,
+    )
+    assert (far.start, far.end) == (None, None) and (near.start, near.end) == (0.5, 5.0)
+    assert far.words == words and near.words == words  # the table applies to the segment alone
+
+
+async def test_a_word_past_window_one_does_not_join_window_two(fake_speech: FakeSpeech, twelve: Path) -> None:
+    # 598-650 s of a 600 s window, scaled: window 1 (5 s) returns a word at 4.9-6.5, window 2 one just after its start.
+    fake_speech.forced = [
+        nested(sseg("one two", 0.0, 6.5, [("one", 0.0, 0.4), ("two", 4.9, 6.5)])),
+        nested(sseg("three", 0.1, 0.5, [("three", 0.1, 0.5)])),
+        nested(sseg("four", 1.6, 2.5, [("four", 1.6, 2.5)])),  # the last window is 2 s: its end is cut to 12
+    ]
+    t = (await run(fake_speech, twelve, window=5.0)).transcript
+    assert [s.text for s in t.segments] == ["one two", "three", "four"]
+    two = t.segments[0].words[1]
+    assert (two.text, two.start, two.end) == ("two", None, None)
+    assert (t.segments[0].start, t.segments[0].end) == (0.0, 0.4)
+    assert (t.segments[1].start, t.segments[1].end) == (5.1, 5.5)
+    assert (t.segments[2].start, t.segments[2].end) == (11.6, 12.0)
+    assert t.duration_seconds is not None
+    assert all(s.end is None or s.end <= t.duration_seconds for s in t.segments)
+    assert t.timing == timing_level(t.segments)
+    assert Transcript.model_validate_json(t.model_dump_json()) == t
+
+
+async def test_negative_provider_times_are_no_time_through_the_pipeline(
+    fake_speech: FakeSpeech, tmp_path: Path
+) -> None:
+    source = make_tone(tmp_path / "two.wav", seconds=2.0, rate=16000, channels=1)
+    fake_speech.forced = [nested(sseg("a b", -1.0, 1.0, [("a", -0.5, 0.3), ("b", 0.4, 0.8)]))]
+    t = (await run(fake_speech, source)).transcript
+    (turn,) = t.segments
+    assert [(x.text, x.start, x.end) for x in turn.words] == [("a", None, None), ("b", 0.4, 0.8)]
+    assert (turn.start, turn.end) == (0.4, 0.8)
+
+
 # ---- containers, offsets, channels ----
 
 
 async def test_start_offset_lands_in_word_times(fake_speech: FakeSpeech, tmp_path: Path) -> None:
-    source = make_media(tmp_path / "late.mp4", "aac", seconds=2.0, video="mpeg4", video_seconds=50, audio_offset=45)
+    # 3 s of audio: the fake's answer runs to 2.6 s, and a time past the audio sent would be dropped.
+    source = make_media(tmp_path / "late.mp4", "aac", seconds=3.0, video="mpeg4", video_seconds=50, audio_offset=45)
     t = (await run(fake_speech, source)).transcript
     assert t.source is not None and t.source.kind == "video" and t.source.container == "mp4"
     assert t.source.start_offset_seconds == pytest.approx(45.0, abs=0.05)
     words = t.segments[0].words
     assert [w.start for w in words] == pytest.approx([45.0, 45.6, 46.4, 47.1], abs=0.05)  # 45 + the provider's times
-    assert t.duration_seconds == pytest.approx(47.0, abs=0.1)  # where the audio ends in the file
+    assert t.duration_seconds == pytest.approx(48.0, abs=0.1)  # where the audio ends in the file
 
 
 async def test_mpegts_goes_through(fake_speech: FakeSpeech, tmp_path: Path) -> None:

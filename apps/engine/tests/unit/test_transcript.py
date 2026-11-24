@@ -222,6 +222,20 @@ def test_source_sha256() -> None:
         Source(kind="audio", start_offset_seconds=-1)
     with pytest.raises(ValidationError):
         Source(kind="call")
+    schema = Source.model_json_schema()["properties"]["sha256"]["anyOf"][0]
+    assert schema["pattern"] == "^[0-9a-f]{64}$"  # in the contract, not only in a validator
+
+
+def test_source_channels_at_least_one() -> None:
+    with pytest.raises(ValidationError, match="channels"):
+        Source(kind="audio", channels=0)
+    assert Source(kind="audio", channels=1).channels == 1
+
+
+def test_segment_id_not_empty() -> None:
+    with pytest.raises(ValidationError, match="id"):
+        Segment(id="", text="")
+    assert Segment(text="").id is None
 
 
 def _segments(timed: int, word_timed: int, untimed: int) -> list[Segment]:

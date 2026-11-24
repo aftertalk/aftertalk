@@ -115,6 +115,14 @@ def _remove(path: Path | None, own_dir: Path | None) -> None:
         shutil.rmtree(own_dir, ignore_errors=True)
 
 
+def _discard(handle: int, path: Path | None, own_dir: Path | None) -> None:
+    """Close the descriptor from `mkstemp` that no file object took over, then delete the temp file."""
+    if handle >= 0:
+        with contextlib.suppress(OSError):
+            os.close(handle)
+    _remove(path, own_dir)
+
+
 def _private_dir(directory: Path, uid: int | None) -> bool:
     """Create `directory` (or accept it) when it is a real directory we own; False when it cannot be trusted."""
     try:
@@ -270,20 +278,24 @@ def decode_audio(
     target: Path | None = None
     own_dir: Path | None = None
     handle = -1
+    out: BinaryIO | None = None
     try:
         directory, fallback = _audio_dir()
         own_dir = directory if fallback else None
         handle, name = tempfile.mkstemp(suffix=".pcm", prefix="aftertalk-", dir=directory)
         target = Path(name)
+        out = open(handle, "wb")
     except OSError:
         pass
-    if target is None:
-        _remove(None, own_dir)
+    except BaseException:
+        _discard(handle, target, own_dir)
+        raise
+    if out is None:
+        _discard(handle, target, own_dir)
         raise EngineError("internal")  # not the file's fault; outside the except block, so nothing is chained
     code: ErrorCode | None = None
     info: _Decoded | None = None
     closed = True
-    out = open(handle, "wb")
     try:
         try:
             info = _convert(path, out, max_seconds, cancelled)

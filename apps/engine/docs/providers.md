@@ -109,7 +109,9 @@ update the table above.
   before a call is paid for. When a reported language is refused, the error names it (`detected_language`).
 - Without word times a transcript still has words: a segment with no usable word list gets its text split on
   whitespace into words without `start` and `end`. A word time is never estimated or copied from its segment.
-- Times are never estimated. A segment the provider gave no usable time for joins the turn before it, as words
+- Times are never estimated or moved, except that an end is bounded by the audio sent in its window: an end up to
+  1 s past it is cut to it, and a time that starts past it, or ends further past it, is dropped (its text is kept).
+  A segment the provider gave no usable time for joins the turn before it, as words
   without times, only when that turn goes on anyway: the next timed word starts less than 1.5 s after the turn's last
   one, so the turn's span holds it. Otherwise (at the start, before a pause of 1.5 s or more, at the end) it is a turn
   of its own with `start` and `end` `None`, so a window answered in plain text (up to 10 minutes of speech) is never
@@ -117,4 +119,13 @@ update the table above.
   in time is unknown. Treat `None` as "no playback for this segment". The timing level is set on the turns, so a
   window that came back without times can lower it for the whole file. Subtitle output skips untimed turns and says
   how many.
+- Subtitles need timestamps. `aftertalk transcribe --format vtt` or `--format srt` is refused after the run when the
+  provider returned no times (`timing: none`, for example `gpt-4o-transcribe`): the command exits 1 and writes
+  nothing, and the audio is already billed. Segment times are enough; word times are not needed. Check the
+  `timestamps:` value (`timing` in `--json` output) of `providers test --kind speech` first, or use
+  `--format json --output <file>`, which is never refused for lack of times.
+- If any window fails after its retries, `aftertalk transcribe` exits 1 and writes nothing in any format; the windows
+  already sent are billed. `--format json` does not help here. There is no resume yet: a rerun sends every window
+  again, until the transcript cache (a later milestone). No command turns a saved JSON transcript into vtt or srt; the
+  JSON only keeps the transcript.
 - Windows (the operating system) is not a supported platform in M2.

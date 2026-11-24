@@ -46,6 +46,14 @@ def test_gap_of_exactly_1_5_starts_a_turn() -> None:
     check(turns, source)
 
 
+def test_gap_of_exactly_1_5_in_milliseconds_starts_a_turn_despite_float_noise() -> None:
+    assert 2.002 - 0.502 < TURN_GAP_SECONDS  # 1.4999999999999998
+    source = [seg(w("a", 0, 0.502)), seg(w("b", 2.002, 3))]
+    assert texts(build_turns(source)) == ["a", "b"]
+    source = [seg(w("a", 0, 0.502)), untimed("so"), seg(w("b", 2.002, 3))]  # so the untimed segment does not join
+    assert texts(build_turns(source)) == ["a", "so", "b"]
+
+
 def test_gap_of_1_49_does_not() -> None:
     source = [seg(w("a", 0, 1)), seg(w("b", 2.49, 3))]
     turns = build_turns(source)
@@ -108,11 +116,120 @@ def test_untimed_word_stays_with_word_before() -> None:
     check(turns, source)
 
 
-def test_untimed_word_at_segment_start_joins_previous_turn_across_a_gap() -> None:
+def bare(*words: Word) -> Segment:
+    """A segment with words (some timed) but no times of its own."""
+    return Segment(text=" ".join(x.text for x in words), words=list(words))
+
+
+def test_untimed_word_at_segment_start_stays_in_its_timed_segment() -> None:
     source = [seg(w("a", 0, 1)), seg(w("so"), w("b", 10, 11), start=10, end=11)]
     turns = build_turns(source)
-    assert texts(turns) == ["a so", "b"]
+    assert texts(turns) == ["a", "so b"]
+    assert (turns[1].start, turns[1].end) == (10, 11)
     check(turns, source)
+
+
+def test_untimed_word_at_the_start_of_a_segment_without_times_joins_the_previous_turn() -> None:
+    # Rule 7: no own times, so today's behaviour: the leading word stays with the word before it.
+    source = [seg(w("a", 0, 1)), bare(w("so"), w("b", 10, 11))]
+    turns = build_turns(source)
+    assert texts(turns) == ["a so", "b"]
+    assert [(t.start, t.end) for t in turns] == [(0, 1), (10, 11)]
+    check(turns, source)
+
+
+def test_rule_1_leading_untimed_words_go_to_the_first_timed_word_and_widen_its_start() -> None:
+    source = [seg(w("x", 0, 0.4)), seg(w("well"), w("so"), w("a", 3, 4), start=2.5, end=4)]
+    turns = build_turns(source)
+    assert texts(turns) == ["x", "well so a"]  # not "x well so", "a"
+    assert [(t.start, t.end) for t in turns] == [(0, 0.4), (2.5, 4)]
+    check(turns, source)
+
+
+def test_rule_2_trailing_untimed_words_widen_the_end() -> None:
+    source = [seg(w("a", 0, 1), w("um"), w("uh"), start=0, end=3), seg(w("b", 4.2, 5))]
+    (turn,) = build_turns(source)  # "b" is 1.2 s after the segment's end, not 3.2 s after "a"
+    assert turn.text == "a um uh b" and (turn.start, turn.end) == (0, 5)
+    check([turn], source)
+
+
+def test_rule_3_untimed_words_in_the_middle_change_no_span() -> None:
+    source = [seg(w("a", 0, 1), w("um"), w("b", 5, 6), start=0, end=6)]
+    turns = build_turns(source)
+    assert texts(turns) == ["a um", "b"]
+    assert [(t.start, t.end) for t in turns] == [(0, 1), (5, 6)]
+    check(turns, source)
+
+
+def test_rule_4_no_untimed_word_at_an_edge_no_extension() -> None:
+    source = [seg(w("a", 1, 2), w("b", 3, 4), start=0, end=10), seg(w("c", 5, 5.5))]
+    (turn,) = build_turns(source)  # "c" 1 s after "b": the segment's end 10 is not used
+    assert (turn.start, turn.end) == (1, 5.5)
+    check([turn], source)
+
+
+def test_rule_5_segment_times_that_contradict_the_words_only_widen() -> None:
+    source = [seg(w("so"), w("a", 3, 4), w("um"), start=3.5, end=3.8)]
+    (turn,) = build_turns(source)
+    assert (turn.start, turn.end) == (3, 4)  # the words win
+    check([turn], source)
+
+
+def test_rule_6_one_timed_word_with_untimed_words_on_both_sides_is_one_unit_of_the_segment() -> None:
+    source = [seg(w("well"), w("a", 3, 4), w("um"), start=2, end=6)]
+    (turn,) = build_turns(source)
+    assert turn.text == "well a um" and (turn.start, turn.end) == (2, 6)
+    assert [(x.start, x.end) for x in turn.words] == [(None, None), (3, 4), (None, None)]  # rule 8
+    check([turn], source)
+
+
+def test_rule_7_a_segment_without_own_times_is_unchanged() -> None:
+    source = [seg(w("x", 0, 0.4)), bare(w("well"), w("a", 3, 4), w("um")), seg(w("b", 5, 6))]
+    turns = build_turns(source)
+    assert texts(turns) == ["x well", "a um b"]
+    assert [(t.start, t.end) for t in turns] == [(0, 0.4), (3, 6)]
+    check(turns, source)
+
+
+def test_rule_8_word_times_are_never_changed() -> None:
+    source = [seg(w("so"), w("a", 3, 4), w("um"), w("b", 4.5, 5), w("eh"), start=1, end=9)]
+    (turn,) = build_turns(source)
+    assert turn.words == source[0].words  # the same words, each with its own times or none
+    assert (turn.start, turn.end) == (1, 9)
+
+
+def test_a_segment_timed_only_on_its_first_word_spans_the_segment() -> None:
+    first = seg(w("first", 100, 100.5), w("rest"), w("of"), w("it"), start=100, end=110)
+    source = [first, seg(w("next", 110.2, 111))]
+    (turn,) = build_turns(source)  # no false gap from 100.5 to 110.2
+    assert (turn.start, turn.end) == (100, 111)
+    check([turn], source)
+
+
+def test_a_leading_untimed_word_stays_in_its_segment_only_with_segment_times() -> None:
+    source = [seg(w("a", 1, 2)), seg(w("b"), w("c", 21, 22), start=20, end=22)]
+    turns = build_turns(source)
+    assert [(t.id, t.start, t.end, t.text) for t in turns] == [("t1", 1, 2, "a"), ("t2", 20, 22, "b c")]
+    check(turns, source)
+    source = [seg(w("a", 1, 2)), bare(w("b"), w("c", 21, 22))]
+    turns = build_turns(source)
+    assert [(t.id, t.text) for t in turns] == [("t1", "a b"), ("t2", "c")]
+    check(turns, source)
+
+
+def test_an_untimed_segment_joins_by_the_widened_start() -> None:
+    # "b" is 2 s after "a", but its segment starts 1.2 s after: the turn goes on, so "x" joins it.
+    source = [seg(w("a", 0, 1)), untimed("x"), seg(w("so"), w("b", 3, 4), start=2.2, end=4)]
+    (turn,) = build_turns(source)
+    assert turn.text == "a x so b" and (turn.start, turn.end) == (0, 4)
+    check([turn], source)
+
+
+def test_a_widened_unit_is_never_split() -> None:
+    source = [seg(w("um"), w("a", 50, 51), w("uh"), start=0, end=90)]
+    (turn,) = build_turns(source)
+    assert (turn.start, turn.end) == (0, 90)
+    check([turn], source)
 
 
 def test_untimed_word_stays_with_word_before_through_a_split() -> None:

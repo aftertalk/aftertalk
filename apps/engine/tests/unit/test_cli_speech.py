@@ -32,7 +32,7 @@ def step(data: dict, name: str) -> dict:
 
 @pytest.fixture
 def audio_file(tmp_path: Path) -> Path:
-    return make_tone(tmp_path / "call.wav", seconds=1.5)
+    return make_tone(tmp_path / "call.wav", seconds=3.0)  # the fake's answer runs to 2.6 s: all of it inside
 
 
 # ---- aftertalk transcribe ----
@@ -47,7 +47,7 @@ def test_json_output_has_transcript_and_usage(fake_speech: FakeSpeech, tmp_path:
     assert data["transcript"]["timing"] == "word" and data["transcript"]["language"] == "pl"
     assert [u["step"] for u in data["usage"]] == ["decode", "transcribe"]
     assert step(data, "transcribe")["requests"] == 1 and step(data, "transcribe")["audio_seconds"] == pytest.approx(
-        1.5, abs=0.05
+        3.0, abs=0.05
     )
     assert fake_speech.seen[0].headers["authorization"] == f"Bearer {KEY}"
     upload = fake_speech.seen[0].file
@@ -84,7 +84,7 @@ def test_progress_goes_to_stderr_without_transcript_text(
     fake_speech: FakeSpeech, tmp_path: Path, audio_file: Path
 ) -> None:
     result = invoke(setup(tmp_path, fake_speech.base_url), "transcribe", str(audio_file))
-    for line in ("decoding audio", "audio length 0:02", "transcribing window 1/1"):
+    for line in ("decoding audio", "audio length 0:03", "transcribing window 1/1"):
         assert line in result.stderr
     assert "Kenobi" not in result.stderr and KEY not in result.output
 
@@ -303,10 +303,9 @@ def test_audio_over_the_upload_limit_goes_in_windows(fake_speech: FakeSpeech, tm
 
 
 @pytest.mark.parametrize("fmt", ["vtt", "srt"])
-def test_subtitles_skip_untimed_segments_and_say_so(
-    fake_speech: FakeSpeech, tmp_path: Path, audio_file: Path, fmt: str
-) -> None:
-    fake_speech.shape = "untimed"
+def test_subtitles_skip_untimed_segments_and_say_so(fake_speech: FakeSpeech, tmp_path: Path, fmt: str) -> None:
+    fake_speech.shape = "untimed"  # segments up to 28 s: the audio covers them, so no time is past the audio sent
+    audio_file = make_tone(tmp_path / "call.wav", seconds=30.0)
     result = invoke(setup(tmp_path, fake_speech.base_url), "transcribe", str(audio_file), "-f", fmt)
     assert result.exit_code == 0
     assert "no times here" not in result.stdout and result.stdout.count("-->") == 9

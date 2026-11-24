@@ -4,7 +4,6 @@ A provider answer has segments as the provider cut them, and no ids, speakers or
 source, the speakers, and segments that are the turns, each with an id and a speaker. Both validate as `Transcript`.
 """
 
-import re
 from collections.abc import Sequence
 from typing import Annotated, Literal
 
@@ -64,9 +63,6 @@ def timing_level(segments: "Sequence[Segment]") -> TimingLevel:
     return "word"
 
 
-_SHA256 = re.compile(r"[0-9a-f]{64}")
-
-
 class Source(BaseModel):
     """Where the transcript comes from. All times in the transcript are already on the original file's timeline."""
 
@@ -74,10 +70,10 @@ class Source(BaseModel):
 
     kind: Literal["audio", "video", "text"]  # the medium only; "call" or "meeting" is not a kind
     name: str | None = None  # file name only, never a path
-    sha256: str | None = None  # of the original bytes, 64 lowercase hex characters: the file's identity
+    sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")  # of the original bytes: the file's identity
     url: str | None = None
     container: str | None = None
-    channels: int | None = None  # in the original audio stream
+    channels: int | None = Field(default=None, ge=1)  # in the original audio stream
     channel_mode: Literal["mix", "split"] | None = None
     start_offset_seconds: Seconds = 0  # where the audio starts in the file; already added to all times
 
@@ -85,8 +81,6 @@ class Source(BaseModel):
     def _fields(self) -> "Source":
         if self.name is not None and ("/" in self.name or "\\" in self.name):
             raise ValueError("source name is a file name, not a path")
-        if self.sha256 is not None and not _SHA256.fullmatch(self.sha256):
-            raise ValueError("source sha256 must be 64 lowercase hex characters")
         return self
 
 
@@ -126,7 +120,7 @@ class Segment(BaseModel):
 
     model_config = _CONFIG
 
-    id: str | None = None  # "t1", "t2": all segments of a transcript have one, or none do
+    id: str | None = Field(default=None, min_length=1)  # "t1", "t2": all segments of a transcript have one, or none do
     speaker: str | None = None  # a `Speaker.id` of the transcript
     text: str
     start: Seconds | None = None

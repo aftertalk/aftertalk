@@ -132,7 +132,10 @@ class OpenAICompatibleSpeech:
             rung = lower
         error = response_error(response, usage())
         if error is not None:
-            raise error
+            try:
+                raise error
+            finally:
+                del error  # its traceback holds the caller's frames: no cycle that keeps the decoded audio mapped
         data: Any = None
         valid = True
         try:

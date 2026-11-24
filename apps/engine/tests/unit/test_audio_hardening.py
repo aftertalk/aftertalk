@@ -90,6 +90,23 @@ def test_a_full_disk_is_internal_and_leaves_nothing(
     assert list((tmp_path / "tmp").rglob("*")) == ([audio_dir] if audio_dir.exists() else [])
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="/dev/fd")
+def test_a_temp_file_that_cannot_be_opened_is_internal_and_leaves_nothing(
+    tmp_path: Path, audio_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def refuse(*args: object, **kwargs: object) -> BinaryIO:
+        raise OSError(24, "Too many open files")
+
+    source = make_tone(tmp_path / "a.wav")
+    fds = len(os.listdir("/dev/fd"))
+    monkeypatch.setattr(decode, "open", refuse, raising=False)
+    with pytest.raises(EngineError) as info:
+        decode_audio(source)
+    assert info.value.code == "internal" and info.value.__context__ is None
+    assert len(os.listdir("/dev/fd")) == fds  # the descriptor from mkstemp is closed
+    assert list(audio_dir.iterdir()) == []
+
+
 def test_ctrl_c_in_the_cli_exits_130_and_leaves_nothing(
     tmp_path: Path, audio_dir: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

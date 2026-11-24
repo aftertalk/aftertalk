@@ -21,6 +21,7 @@ class Upload:
     filename: str | None
     content_type: str
     size: int
+    data: bytes = b""  # the uploaded bytes, kept in memory on the fake only
 
 
 @dataclass
@@ -179,7 +180,7 @@ class FakeSpeech:
                     filename = part.get_filename()
                     payload = part.get_payload(decode=True) or b""
                     if filename is not None:
-                        upload = Upload(filename, part.get_content_type(), len(payload))
+                        upload = Upload(filename, part.get_content_type(), len(payload), payload)
                     else:
                         fields.append((str(name), payload.decode()))
                 headers = {k.lower(): v for k, v in self.headers.items()}
