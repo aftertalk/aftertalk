@@ -522,3 +522,15 @@ async def test_a_languages_list_counts_as_reported(fake_speech: FakeSpeech) -> N
     fake_speech.language = "polish"
     transcript, _ = await run(fake_speech, allowed_languages=["pl", "en"])
     assert transcript.language == "pl"
+
+
+async def test_an_answer_without_text_never_fails_the_allowed_languages(fake_speech: FakeSpeech) -> None:
+    """A window of silence: no text and no language, with several allowed, is not a refusal."""
+    fake_speech.always = Forced(200, json.dumps({"text": ""}))
+    transcript, usage = await run(fake_speech, allowed_languages=["pl", "en"])
+    assert transcript.text == "" and transcript.language is None and usage.requests == 1
+    fake_speech.always = Forced(
+        200, json.dumps({"text": "  ", "segments": [{"id": 0, "start": 0, "end": 1, "text": " "}]})
+    )
+    transcript, _ = await run(fake_speech, allowed_languages=["pl", "en"])
+    assert transcript.text.strip() == ""

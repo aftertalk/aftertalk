@@ -179,3 +179,63 @@ def test_video_without_audio_stream(tmp_path: Path) -> None:
     with pytest.raises(EngineError) as info:
         decode_audio(path)
     assert info.value.code == "audio_unreadable"
+
+
+# ---- a colon in a relative name, streams without channels, audio too short ----
+
+
+def test_a_relative_name_with_a_colon_is_a_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from aftertalk.audio.decode import probe_duration
+
+    make_media(tmp_path / "meeting: monday.wav", "pcm_s16le", seconds=1.0, rate=16000)
+    monkeypatch.chdir(tmp_path)
+    relative = Path("meeting: monday.wav")
+    assert not relative.is_absolute()
+    assert probe_duration(relative) == pytest.approx(1.0, abs=0.05)
+    with decode_audio(relative) as audio:
+        assert audio.duration_seconds == pytest.approx(1.0, abs=0.01) and audio.container == "wav"
+
+
+class _Stream:
+    def __init__(self, codec_channels: int | None, layout_channels: tuple[object, ...]) -> None:
+        self.codec_context = type("Codec", (), {"channels": codec_channels})()
+        self.layout = type("Layout", (), {"channels": layout_channels})()
+
+
+def test_channel_count() -> None:
+    from aftertalk.audio.decode import channel_count
+
+    assert channel_count(_Stream(0, ())) == 0
+    assert channel_count(_Stream(None, ())) == 0
+    assert channel_count(_Stream(0, ("FL", "FR"))) == 2  # the layout's when the codec does not say
+    assert channel_count(_Stream(1, ("FL", "FR"))) == 1  # the codec's first
+
+
+def test_a_stream_without_channels_is_unreadable(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from aftertalk.audio import decode
+
+    source = make_media(tmp_path / "a.wav", "pcm_s16le", seconds=1.0, rate=16000)
+    monkeypatch.setattr(decode, "channel_count", lambda stream: 0)
+    with pytest.raises(EngineError) as info:
+        decode_audio(source)
+    assert info.value.code == "audio_unreadable" and info.value.__context__ is None
+
+
+@pytest.mark.parametrize("frames", [1, 1500, 1599])
+def test_audio_shorter_than_a_tenth_of_a_second_is_unreadable(tmp_path: Path, frames: int) -> None:
+    signal = tone(1.0, SAMPLE_RATE)[:frames, None]
+    source = make_media(tmp_path / "short.wav", "pcm_s16le", rate=SAMPLE_RATE, signal=signal)
+    with pytest.raises(EngineError) as info:
+        decode_audio(source)
+    assert info.value.code == "audio_unreadable"
+
+
+@pytest.mark.parametrize("frames", [1600, 4000])
+def test_a_tenth_of_a_second_decodes(tmp_path: Path, frames: int) -> None:
+    from aftertalk.audio.decode import MIN_SECONDS
+
+    assert MIN_SECONDS == 0.1
+    signal = tone(1.0, SAMPLE_RATE)[:frames, None]
+    source = make_media(tmp_path / "short.wav", "pcm_s16le", rate=SAMPLE_RATE, signal=signal)
+    with decode_audio(source) as audio:
+        assert audio.samples.shape == (frames, 1)

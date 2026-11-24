@@ -91,3 +91,6 @@ known-first-party = ["aftertalk"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 testpaths = ["tests"]
+markers = [
+    "audio_extra: needs the [audio] extra (torch and silero-vad) and runs the real model",
+]

@@ -10,9 +10,15 @@ Rules:
   the first frame; more than `_MAX_PAD_SECONDS` of it in one file is refused. There is no rule against more silence
   than audio.
 - Playlists, concat lists and network inputs are refused; only plain files are opened.
+- The path is made absolute before FFmpeg sees it, so a relative name with a colon ("meeting: monday.wav") is a file,
+  not a protocol.
+- A stream that reports no channels, or audio shorter than `MIN_SECONDS`, is `audio_unreadable`: providers reject
+  uploads that short, and nothing is sent.
 - Errors are fixed codes raised outside `except` blocks, so no FFmpeg text is chained to them. A source that cannot
   be read or decoded is `audio_unreadable`; a temp file that cannot be written (disk full) is `internal`, as it is
   not the file's fault. The temp file is removed on every failure, an interrupt included, and by `close()`.
+- Where a file cannot be deleted while it is still mapped (Windows), `close()` keeps it in a list that
+  `retry_removals()` empties once the caller has dropped the map; the pipeline calls it at the end of every run.
 """
 
 import asyncio
@@ -29,14 +35,16 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import TracebackType
-from typing import BinaryIO, NamedTuple
+from typing import Any, BinaryIO, NamedTuple
 
 import av
 import numpy as np
 
+from aftertalk.logging import log
 from aftertalk.models.errors import EngineError, ErrorCode
 
 SAMPLE_RATE = 16000
+MIN_SECONDS = 0.1  # shorter decoded audio is refused: OpenAI's documented minimum upload
 
 # Inputs that make FFmpeg open other files or network streams: playlists, concat lists, raw network protocols.
 _BLOCKED_DEMUXERS = frozenset({"hls", "applehttp", "concat", "ffconcat", "sdp", "rtp", "rtsp", "image2", "tee", "data"})
@@ -106,13 +114,38 @@ class DecodedAudio:
         self.close()
 
 
+_PENDING: dict[Path, Path | None] = {}  # temp files that could not be deleted yet, and their fallback directory
+_PENDING_LOCK = threading.Lock()
+
+
 def _remove(path: Path | None, own_dir: Path | None) -> None:
-    """Delete the temp file; on POSIX a live memory map keeps working until it is dropped."""
+    """Delete the temp file; on POSIX a live memory map keeps working until it is dropped.
+
+    Windows refuses to delete a file that is still mapped: it is then kept for `retry_removals()`.
+    """
     if path is not None:
-        with contextlib.suppress(OSError):
+        try:
             path.unlink(missing_ok=True)
+        except OSError:
+            with _PENDING_LOCK:
+                _PENDING[path] = own_dir
+            return
     if own_dir is not None:
         shutil.rmtree(own_dir, ignore_errors=True)
+
+
+def retry_removals() -> int:
+    """Delete the temp files `close()` could not delete; returns how many are still left (and logs it)."""
+    with _PENDING_LOCK:
+        todo = list(_PENDING.items())
+        _PENDING.clear()
+    for path, own_dir in todo:
+        _remove(path, own_dir)
+    with _PENDING_LOCK:
+        left = len(_PENDING)
+    if left:
+        log("warning", "temp audio file not removed yet", step="decode")
+    return left
 
 
 def _discard(handle: int, path: Path | None, own_dir: Path | None) -> None:
@@ -172,13 +205,15 @@ def _convert(source: Path, out: BinaryIO, max_seconds: float | None, cancelled: 
     padded = 0  # of which inserted silence
     limit = None if max_seconds is None else max_seconds * SAMPLE_RATE
 
-    with av.open(str(source), options={"protocol_whitelist": "file"}) as inp:
+    with av.open(os.path.abspath(source), options={"protocol_whitelist": "file"}) as inp:
         if _blocked(inp):
             raise ValueError("input type not allowed")
         if not inp.streams.audio:
             raise ValueError("no audio stream")
         stream = inp.streams.audio[0]
-        channels = stream.codec_context.channels or len(stream.layout.channels)
+        channels = channel_count(stream)
+        if channels < 1:
+            raise ValueError("no channels")
         stored = 2 if channels == 2 else 1
         resampler = av.AudioResampler(format="s16", layout="stereo" if stored == 2 else "mono", rate=SAMPLE_RATE)
         has_video = any(not (video.disposition & av.stream.Disposition.attached_pic) for video in inp.streams.video)
@@ -224,9 +259,14 @@ def _convert(source: Path, out: BinaryIO, max_seconds: float | None, cancelled: 
         for resampled in resampler.resample(None):
             put(resampled.to_ndarray(), resampled.samples)
         container = _container_name(inp)
-    if written == 0:
-        raise ValueError("no audio samples")
+    if written < MIN_SECONDS * SAMPLE_RATE:
+        raise ValueError("no audio samples, or too few")
     return _Decoded(written, stored, channels, container, has_video, offset or 0.0)
+
+
+def channel_count(stream: Any) -> int:
+    """The audio stream's channel count: the codec's, else the layout's; 0 when neither says."""
+    return int(stream.codec_context.channels or len(stream.layout.channels) or 0)
 
 
 def _close(out: BinaryIO) -> bool:
@@ -251,7 +291,7 @@ def probe_duration(path: Path) -> float | None:
     """
     seconds: float | None = None
     try:
-        with av.open(str(path), options={"protocol_whitelist": "file"}) as inp:
+        with av.open(os.path.abspath(path), options={"protocol_whitelist": "file"}) as inp:
             if not _blocked(inp):
                 if inp.duration is not None and inp.duration > 0:
                     seconds = inp.duration / av.time_base

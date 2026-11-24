@@ -43,7 +43,7 @@ def test_json_output_has_transcript_and_usage(fake_speech: FakeSpeech, tmp_path:
     result = invoke(env, "transcribe", str(audio_file), "--format", "json")
     assert result.exit_code == 0, result.output
     data = json.loads(result.stdout)
-    assert set(data) == {"transcript", "usage"}
+    assert set(data) == {"transcript", "usage", "dropped_segments"} and data["dropped_segments"] == 0
     assert data["transcript"]["timing"] == "word" and data["transcript"]["language"] == "pl"
     assert [u["step"] for u in data["usage"]] == ["decode", "transcribe"]
     assert step(data, "transcribe")["requests"] == 1 and step(data, "transcribe")["audio_seconds"] == pytest.approx(
@@ -63,11 +63,14 @@ def test_default_format_is_text(fake_speech: FakeSpeech, tmp_path: Path, audio_f
 def test_vtt_and_srt(fake_speech: FakeSpeech, tmp_path: Path, audio_file: Path) -> None:
     env = setup(tmp_path, fake_speech.base_url)
     vtt = invoke(env, "transcribe", str(audio_file), "--format", "vtt")
-    # The fake's two segments are 0.2 s apart, so they are one turn.
-    turn = "Hello there. General Kenobi."
-    assert vtt.exit_code == 0 and vtt.stdout == f"WEBVTT\n\n00:00:00.000 --> 00:00:02.600\n{turn}\n"
+    # The fake's two segments are 0.2 s apart, so they are one turn; its first sentence lasts 1.2 s and ends a cue.
+    assert vtt.exit_code == 0 and vtt.stdout == (
+        "WEBVTT\n\n00:00:00.000 --> 00:00:01.200\nHello there.\n\n00:00:01.400 --> 00:00:02.600\nGeneral Kenobi.\n"
+    )
     srt = invoke(env, "transcribe", str(audio_file), "--format", "srt")
-    assert srt.exit_code == 0 and srt.stdout == f"1\n00:00:00,000 --> 00:00:02,600\n{turn}\n"
+    assert srt.exit_code == 0 and srt.stdout == (
+        "1\n00:00:00,000 --> 00:00:01,200\nHello there.\n\n2\n00:00:01,400 --> 00:00:02,600\nGeneral Kenobi.\n"
+    )
 
 
 def test_output_file(fake_speech: FakeSpeech, tmp_path: Path, audio_file: Path) -> None:

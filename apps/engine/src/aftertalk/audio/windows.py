@@ -35,6 +35,16 @@ class Window:
     stop: int  # sample index, exclusive
 
 
+def _budget(max_bytes: int) -> int:
+    """How many 16-bit mono samples fit `max_bytes` as WAV, with the FLAC margin and room for headers."""
+    return (int(max_bytes / _FLAC_MARGIN) - _HEADER_BYTES) // 2
+
+
+def max_window_seconds(max_bytes: int | None) -> float:
+    """The longest mono window, in seconds, that fits `max_bytes` (infinite without a limit)."""
+    return float("inf") if max_bytes is None else max(0, _budget(max_bytes)) / SAMPLE_RATE
+
+
 def plan_mix_windows(audio: DecodedAudio, *, max_bytes: int | None, max_seconds: float = 600.0) -> list[Window]:
     """Windows over `audio.mono()` that each fit one upload."""
     # Two seconds at least: a cut keeps a second on each side of it.
@@ -43,7 +53,7 @@ def plan_mix_windows(audio: DecodedAudio, *, max_bytes: int | None, max_seconds:
     longest = int(max_seconds * SAMPLE_RATE)
     total = audio.samples.shape[0]
     if max_bytes is not None:
-        budget = (int(max_bytes / _FLAC_MARGIN) - _HEADER_BYTES) // 2
+        budget = _budget(max_bytes)
         if budget < 2 * _MIN_SECONDS * SAMPLE_RATE and total > budget:  # a track that fits needs no cut
             raise EngineError("audio_too_long")
         longest = min(longest, budget)

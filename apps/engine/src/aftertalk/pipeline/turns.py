@@ -27,6 +27,7 @@ in exactly one turn, in the input order. Times are never estimated or copied ont
 or none, and only a unit's span takes its segment's edge.
 """
 
+import heapq
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 
@@ -43,6 +44,15 @@ class _Unit:
     start: float
     end: float
     words: list[Word] = field(default_factory=list)
+    window: int | None = None  # the speech segment it came from (`split`); None for mixed audio
+
+
+@dataclass
+class _Untimed:
+    """The words of an untimed segment that is a turn by itself, and the speech segment it came from."""
+
+    words: list[Word]
+    window: int | None = None
 
 
 def _is_gap(end: float, start: float) -> bool:
@@ -50,16 +60,27 @@ def _is_gap(end: float, start: float) -> bool:
     return start - end >= TURN_GAP_SECONDS - _TIE
 
 
-# Timed units (a turn before long turns are split), or the words of an untimed segment that is a turn by itself.
-_Group = list[_Unit] | list[Word]
+def _breaks(prev: _Unit, unit: _Unit) -> bool:
+    """Whether `unit` starts a new turn after `prev`: a gap, and for `split` only where a speech segment ends."""
+    if prev.window is not None and prev.window == unit.window:
+        return False
+    return _is_gap(prev.end, unit.start)
 
 
-def _groups(segments: Sequence[Segment]) -> list[_Group]:
-    """The input cut into groups at gaps and at untimed segments that do not join a turn, in order."""
+# Timed units (a turn before long turns are split), or an untimed segment that is a turn by itself.
+_Group = list[_Unit] | _Untimed
+
+
+def _groups(segments: Sequence[Segment], windows: Sequence[int] | None = None) -> list[_Group]:
+    """The input cut into groups at gaps and at untimed segments that do not join a turn, in order.
+
+    `windows`, one per segment, names the speech segment each came from (`split`): a gap then only ends a turn where
+    one speech segment ends and the next begins.
+    """
     groups: list[_Group] = []
     current: list[_Unit] = []
     leading: list[Word] = []  # untimed words with no word before them in this turn: they go to the next unit
-    pending: list[list[Word]] = []  # untimed segments after the open turn, until the next unit decides where they go
+    pending: list[_Untimed] = []  # untimed segments after the open turn, until the next unit decides where they go
     waiting: list[Word] = []  # untimed words that came after the pending segments, kept behind them
 
     def close() -> None:
@@ -71,20 +92,21 @@ def _groups(segments: Sequence[Segment]) -> list[_Group]:
     def add(unit: _Unit) -> None:
         nonlocal leading, pending, waiting
         if pending:  # only with a turn open
-            if not _is_gap(current[-1].end, unit.start):  # the turn goes on, so its span holds them
-                current[-1].words.extend([w for words in pending for w in words] + waiting)
+            if not _breaks(current[-1], unit):  # the turn goes on, so its span holds them
+                current[-1].words.extend([w for item in pending for w in item.words] + waiting)
             else:
                 close()
                 groups.extend(pending)
                 leading = waiting
             pending, waiting = [], []
-        if current and _is_gap(current[-1].end, unit.start):
+        if current and _breaks(current[-1], unit):
             close()
         unit.words[:0] = leading
         leading = []
         current.append(unit)
 
-    for seg in segments:
+    for index, seg in enumerate(segments):
+        window = None if windows is None else windows[index]
         if not seg.text.strip():
             continue
         words = list(seg.words) or split_words(seg.text)
@@ -95,7 +117,7 @@ def _groups(segments: Sequence[Segment]) -> list[_Group]:
             first, last = timed[0][0], timed[-1][0]
             for i, w in enumerate(words):
                 if w.start is not None and w.end is not None:
-                    unit = _Unit(w.start, w.end, [w])
+                    unit = _Unit(w.start, w.end, [w], window)
                     if own and seg.start is not None and i == first and first > 0:
                         unit.start = min(min(start for _, start, _ in timed), seg.start)
                         unit.words[:0] = words[:first]  # before `add`, so they never wait behind pending segments
@@ -111,11 +133,11 @@ def _groups(segments: Sequence[Segment]) -> list[_Group]:
                 else:
                     leading.append(w)
         elif seg.start is not None and seg.end is not None:
-            add(_Unit(seg.start, seg.end, words))
+            add(_Unit(seg.start, seg.end, words, window))
         elif current:  # the next unit decides whether it joins this turn
-            pending.append(words)
+            pending.append(_Untimed(words, window))
         else:
-            groups.append(words)
+            groups.append(_Untimed(words, window))
     # A segment with a timed word always places its leading and waiting untimed words on that word: none are left.
     assert not leading and not waiting
     close()
@@ -152,12 +174,85 @@ def build_turns(segments: Sequence[Segment], *, speaker: str | None = None) -> l
     """
     spans: list[tuple[list[Word], float | None, float | None]] = []
     for group in _groups(segments):
-        if not isinstance(group[0], _Unit):
-            spans.append((group, None, None))
+        if isinstance(group, _Untimed):
+            spans.append((group.words, None, None))
             continue
         for part in _split(group):
             spans.append(([w for u in part for w in u.words], min(u.start for u in part), max(u.end for u in part)))
     return [
         Segment(id=f"t{i}", speaker=speaker, text=" ".join(w.text for w in words), start=start, end=end, words=words)
         for i, (words, start, end) in enumerate(spans, start=1)
+    ]
+
+
+@dataclass(frozen=True)
+class ChannelPart:
+    """One speech segment's answer on one channel (`split`), times already on the file's timeline."""
+
+    speaker: str  # the channel's `Speaker.id`
+    channel: int
+    window: int  # the speech segment's index within its channel
+    start: float  # where the speech segment starts: orders an untimed answer among the other channel's turns
+    segments: Sequence[Segment]
+
+
+def build_channel_turns(parts: Sequence[ChannelPart]) -> list[Segment]:
+    """The turns of several speakers, one per channel (spec: Turns). Pure: the input is not changed.
+
+    Each channel is grouped as for one speaker (`build_turns`), except that a gap ends a turn only where one speech
+    segment ends and the next begins: within a speech segment the turn goes on. The channels are then merged by
+    start time (ties: the lower channel first), each channel keeping its own order, and a turn is a run of
+    consecutive units of one channel's group: when two speakers overlap, their speech splits into alternating turns.
+    An untimed answer that is a turn by itself is placed by its speech segment's start. A turn longer than
+    `MAX_TURN_SECONDS` is split as for one speaker. Ids are "t1", "t2"... in the merged order.
+    """
+    by_channel: dict[int, list[ChannelPart]] = {}
+    for part in parts:
+        by_channel.setdefault(part.channel, []).append(part)
+    # (sort start, channel, group key, item): each channel's items in that channel's order.
+    streams: list[list[tuple[float, int, int, _Unit | _Untimed]]] = []
+    speakers: dict[int, str] = {}
+    for channel in sorted(by_channel):
+        chan = sorted(by_channel[channel], key=lambda p: p.window)
+        speakers[channel] = chan[0].speaker
+        starts = {p.window: p.start for p in chan}
+        segments = [seg for p in chan for seg in p.segments]
+        windows = [p.window for p in chan for _ in p.segments]
+        items: list[tuple[float, int, int, _Unit | _Untimed]] = []
+        for key, group in enumerate(_groups(segments, windows)):
+            if isinstance(group, _Untimed):
+                assert group.window is not None
+                items.append((starts[group.window], channel, key, group))
+            else:
+                items.extend((unit.start, channel, key, unit) for unit in group)
+        streams.append(items)
+    merged = heapq.merge(*streams, key=lambda item: (item[0], item[1]))
+
+    spans: list[tuple[str, list[Word], float | None, float | None]] = []
+    run: list[_Unit] = []
+    run_key: tuple[int, int] | None = None
+
+    def flush() -> None:
+        nonlocal run
+        if run and run_key is not None:
+            for part in _split(run):
+                words = [w for u in part for w in u.words]
+                start, end = min(u.start for u in part), max(u.end for u in part)
+                spans.append((speakers[run_key[0]], words, start, end))
+        run = []
+
+    for _, channel, key, item in merged:
+        if isinstance(item, _Untimed):
+            flush()
+            run_key = None
+            spans.append((speakers[channel], item.words, None, None))
+            continue
+        if run_key != (channel, key):
+            flush()
+            run_key = (channel, key)
+        run.append(item)
+    flush()
+    return [
+        Segment(id=f"t{i}", speaker=speaker, text=" ".join(w.text for w in words), start=start, end=end, words=words)
+        for i, (speaker, words, start, end) in enumerate(spans, start=1)
     ]

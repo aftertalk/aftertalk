@@ -81,6 +81,10 @@ class OpenAICompatibleSpeech:
         self._clock = clock
         limit = conn.max_upload_mb * 1024 * 1024 if max_upload_bytes is None else max_upload_bytes
         self.capabilities = replace(type(self).capabilities, max_upload_bytes=limit)
+        # The request form the server last accepted: later uploads of the same run start there, so a server that
+        # rejects word timestamps does not get every window uploaded up to three times.
+        self._rung = 0
+        self._temperature = True
 
     async def transcribe(
         self,
@@ -114,8 +118,8 @@ class OpenAICompatibleSpeech:
             raise EngineError("audio_too_long", usage())
         body = audio.read()
 
-        rung = 0
-        temperature = True  # sent as 0 until the server rejects the field
+        rung = self._rung
+        temperature = self._temperature  # sent as 0 until the server rejects the field
         while True:
             counters.format = RUNGS[rung]
             response = await self._send(
@@ -131,6 +135,8 @@ class OpenAICompatibleSpeech:
                 break
             rung = lower
         error = response_error(response, usage())
+        if error is None:
+            self._rung, self._temperature = rung, temperature
         if error is not None:
             try:
                 raise error
@@ -154,7 +160,8 @@ class OpenAICompatibleSpeech:
             pass
         if transcript is None:
             raise EngineError("provider_bad_response", usage())
-        if forced is None and allowed_languages is not None:
+        has_text = bool(transcript.text.strip()) or any(seg.text.strip() for seg in transcript.segments)
+        if forced is None and allowed_languages is not None and has_text:  # a window without text never fails here
             allowed = {code for item in allowed_languages if (code := normalize_language(item)) is not None}
             if reported_language(data) is None and len(allowed) == 1:
                 # One allowed language is a forced one (#15): a provider that says nothing is not contradicting it.
