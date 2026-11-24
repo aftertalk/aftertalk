@@ -19,8 +19,9 @@ interface OrganizationPageProps {
 }
 
 export default async function OrganizationPage({ params }: OrganizationPageProps) {
-  const [{ organizationId }, projects, organizations] = await Promise.all([
-    params,
+  // Stored ids are lower case; the layout accepts a UUID in either case.
+  const organizationId = (await params).organizationId.toLowerCase();
+  const [projects, organizations] = await Promise.all([
     getProjects().catch(() => []),
     getOrganizations().catch(() => []),
   ]);

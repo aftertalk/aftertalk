@@ -506,6 +506,8 @@ export const i18n = {
       title: 'calls.empty.title',
       description: 'calls.empty.description',
       uploadButton: 'calls.empty.uploadButton',
+      periodTitle: 'calls.empty.periodTitle',
+      periodDescription: 'calls.empty.periodDescription',
     },
     pagination: {
       showing: 'calls.pagination.showing',

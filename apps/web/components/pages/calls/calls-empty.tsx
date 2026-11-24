@@ -1,6 +1,6 @@
 'use client';
 
-import { AudioLines, SearchX } from 'lucide-react';
+import { AudioLines, CalendarX, SearchX } from 'lucide-react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 
@@ -25,6 +25,21 @@ export function CallsEmpty({ projectId }: { projectId: string }) {
             <Link href={`/${projectId}/upload`}>{t(i18n.calls.empty.uploadButton)}</Link>
           </Button>
         }
+      />
+    </Surface>
+  );
+}
+
+/** A date range with no calls, in a project that may have many outside it. */
+export function CallsEmptyPeriod() {
+  const t = useTranslations();
+
+  return (
+    <Surface pad="lg">
+      <EmptyState
+        icon={CalendarX}
+        title={t(i18n.calls.empty.periodTitle)}
+        description={t(i18n.calls.empty.periodDescription)}
       />
     </Surface>
   );

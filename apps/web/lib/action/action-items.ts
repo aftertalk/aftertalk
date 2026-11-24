@@ -1,6 +1,7 @@
 'use server';
 
 import { and, eq, type SQL, sql } from 'drizzle-orm';
+import type { PgUpdateSetSource } from 'drizzle-orm/pg-core';
 
 import { i18n } from '@/i18n/constants';
 import { requireProjectAccess } from '@/lib/access';
@@ -67,7 +68,7 @@ export async function listActionItems(projectId: string, params?: ListActionItem
   const order = typeof p.sortBy === 'string' && Object.hasOwn(ORDER, p.sortBy) ? ORDER[p.sortBy] : ORDER.CREATED_AT;
   const direction = p.sortDir === 'ASC' ? sql`asc` : sql`desc`;
 
-  const [rows, [counts]] = await Promise.all([
+  const [rows, [counts], [any]] = await Promise.all([
     db.execute<ActionItemRow>(sql`
       select ${ACTION_ITEM_COLUMNS} ${ACTION_ITEM_JOINS}
       where ${where}
@@ -81,6 +82,10 @@ export async function listActionItems(projectId: string, params?: ListActionItem
              count(*) filter (where ai.status = 'CANCELLED')::int as cancelled
       from app.action_items ai join app.calls c on c.id = ai.call_id
       where ${sql.join(base, sql` and `)}`),
+    // Unfiltered, so a search that matches nothing is not mistaken for a project without tasks.
+    db.execute<{ has: boolean }>(
+      sql`select exists (select 1 from app.action_items where project_id = ${projectId}) as has`
+    ),
   ]);
   return {
     items: rows.map(toActionItem),
@@ -90,6 +95,7 @@ export async function listActionItems(projectId: string, params?: ListActionItem
     doneCount: counts.done,
     cancelledCount: counts.cancelled,
     overdueCount: 0,
+    projectHasTasks: any.has,
   };
 }
 
@@ -109,11 +115,12 @@ async function updateItem(
   await requireProjectAccess(uuid(projectId), 'EDITOR');
   const id = uuid(actionItemId);
   const r = request ?? ({} as UpdateActionItemRequest);
-  const patch: Partial<typeof actionItems.$inferInsert> = {};
+  const patch: PgUpdateSetSource<typeof actionItems> = {};
   if (r.status !== undefined) {
     if (!oneOf(r.status, ACTION_ITEM_STATUSES)) await invalid(i18n.errors.invalidInput);
     patch.status = r.status;
-    patch.completedAt = r.status === 'DONE' ? new Date() : null;
+    // Setting DONE again (a re-click, a retry) keeps the first completion time.
+    patch.completedAt = r.status === 'DONE' ? sql`coalesce(${actionItems.completedAt}, now())` : null;
   }
   if (r.priority !== undefined) {
     if (!oneOf(r.priority, ACTION_ITEM_PRIORITIES)) await invalid(i18n.errors.invalidInput);

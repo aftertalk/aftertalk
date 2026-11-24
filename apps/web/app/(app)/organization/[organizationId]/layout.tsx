@@ -16,10 +16,10 @@ interface OrganizationLayoutProps {
 }
 
 export default async function OrganizationLayout({ children, params }: OrganizationLayoutProps) {
-  if (!isUuid((await params).organizationId)) notFound();
-  const [user, { organizationId }, projects, organizations] = await Promise.all([
+  const organizationId = (await params).organizationId.toLowerCase();
+  if (!isUuid(organizationId)) notFound();
+  const [user, projects, organizations] = await Promise.all([
     getCurrentUser(),
-    params,
     getProjects().catch(() => []),
     getOrganizations().catch(() => []),
   ]);

@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 
-import { CallsEmpty, CallsNoResults } from '@/components/pages/calls/calls-empty';
+import { CallsEmpty, CallsEmptyPeriod, CallsNoResults } from '@/components/pages/calls/calls-empty';
 import { CallsHeader } from '@/components/pages/calls/calls-header';
 import { CallsNavigation, CallsResults } from '@/components/pages/calls/calls-navigation';
 import { CallsPagination } from '@/components/pages/calls/calls-pagination';
@@ -69,6 +69,8 @@ export default async function CallsPage({ params, searchParams }: CallsPageProps
                   filterQuery={list.filterQuery.toString()}
                 />
               </>
+            ) : list.dateRange.preset !== 'allTime' ? (
+              <CallsEmptyPeriod />
             ) : (
               <CallsEmpty projectId={projectId} />
             )}

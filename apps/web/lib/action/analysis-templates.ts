@@ -152,12 +152,16 @@ export async function updateAnalysisTemplate(
           .set({ ...patch, updatedAt: new Date() })
           .where(eq(analysisTemplates.id, current.id));
         if (!fields) return;
-        // A field whose label did not change keeps its id, so stored answers still find their
-        // question. Stored results name fields by id (the result is kept as the engine sent it).
-        const byLabel = new Map(current.fields.map((f) => [f.label, f.id]));
+        // A field whose label, answer type and options did not change keeps its id, so stored
+        // answers still find their question. Stored results name fields by id (the result is kept as
+        // the engine sent it), so a field that now asks for another kind of answer gets a new id:
+        // an old `true` must not show under a CHOICE of 'yes' / 'partly' / 'no'.
+        const shape = (f: { label: string; answerType: string; options?: string[] | null }) =>
+          JSON.stringify([f.label, f.answerType, f.answerType === 'CHOICE' ? (f.options ?? []) : null]);
+        const byShape = new Map(current.fields.map((f) => [shape(f), f.id]));
         const kept = new Set<string>();
         for (const f of fields) {
-          const keepId = byLabel.get(f.label);
+          const keepId = byShape.get(shape(f));
           if (keepId && !kept.has(keepId)) {
             kept.add(keepId);
             await tx.update(analysisTemplateFields).set(f).where(eq(analysisTemplateFields.id, keepId));

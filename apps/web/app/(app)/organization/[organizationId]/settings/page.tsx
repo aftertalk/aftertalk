@@ -18,7 +18,7 @@ interface OrganizationSettingsPageProps {
 }
 
 export default async function OrganizationSettingsPage({ params }: OrganizationSettingsPageProps) {
-  const { organizationId } = await params;
+  const organizationId = (await params).organizationId.toLowerCase();
   const organization = await getOrganization(organizationId).catch(() => null);
 
   if (!organization) redirect(`/organization/${organizationId}`);

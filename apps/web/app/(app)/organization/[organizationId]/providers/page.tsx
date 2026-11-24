@@ -20,7 +20,7 @@ interface ProvidersPageProps {
 
 // Provider connections (item 37d): organisation owners and admins only. The actions check again.
 export default async function ProvidersPage({ params }: ProvidersPageProps) {
-  const { organizationId } = await params;
+  const organizationId = (await params).organizationId.toLowerCase();
   const organization = await getOrganization(organizationId).catch(() => null);
 
   if (!organization) redirect(`/organization/${organizationId}`);

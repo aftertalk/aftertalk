@@ -6,7 +6,7 @@ import 'server-only';
 import { createReadStream, createWriteStream } from 'node:fs';
 import { mkdir, readdir, rename as fsRename, rm, stat } from 'node:fs/promises';
 import path from 'node:path';
-import { Readable } from 'node:stream';
+import { Readable, type Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 
 import { env } from '@/env';
@@ -18,10 +18,11 @@ function resolve(relative: string): string {
   return full;
 }
 
-export async function putStream(relative: string, stream: Readable): Promise<void> {
+/** Writes `source` through `through` to the file. One pipeline, so an error in any stage destroys all. */
+export async function putStream(relative: string, source: Readable, through: Transform): Promise<void> {
   const full = resolve(relative);
   await mkdir(path.dirname(full), { recursive: true });
-  await pipeline(stream, createWriteStream(full, { mode: 0o600 }));
+  await pipeline(source, through, createWriteStream(full, { mode: 0o600 }));
 }
 
 export async function rename(from: string, to: string): Promise<void> {

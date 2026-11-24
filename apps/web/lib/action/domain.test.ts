@@ -206,6 +206,11 @@ describe('the seeded calls as pages load them', () => {
     expect(
       (await listActionItems(w.projectId, { search: 'ENGINEER', sortBy: 'PRIORITY', sortDir: 'ASC' })).items
     ).toHaveLength(1);
+    // A search that matches nothing is not a project without tasks (the page keeps its search box).
+    expect(await listActionItems(w.projectId, { search: 'zzz' })).toMatchObject({
+      totalCount: 0,
+      projectHasTasks: true,
+    });
     const metrics = await getDashboardMetrics(w.projectId, { preset: 'last7days' });
     expect(metrics).toMatchObject({ totalCalls: 3, positiveSentimentPercent: 50, pendingActionItems: 3 });
     const sentiment = await getDashboardSentiment(w.projectId, { preset: 'last7days' });
@@ -300,6 +305,23 @@ describe('who may do what', () => {
     });
     expect(done).toMatchObject({ ok: true, data: { status: 'DONE' } });
     expect(done.ok && done.data.completedAt).toBeTruthy();
+    // DONE again (a re-click, a retry) keeps the first completion time; leaving DONE clears it.
+    await new Promise((r) => setTimeout(r, 20));
+    const again = await updateActionItem(w.projectId, task.id, {
+      status: 'DONE',
+      clearNotes: false,
+      clearDeadline: false,
+    });
+    expect(again.ok && done.ok && again.data.completedAt).toEqual(done.ok && done.data.completedAt);
+    const reopened = await updateActionItem(w.projectId, task.id, {
+      status: 'PENDING',
+      clearNotes: false,
+      clearDeadline: false,
+    });
+    expect(reopened.ok && reopened.data.completedAt).toBeFalsy();
+    expect(
+      await updateActionItem(w.projectId, task.id, { status: 'DONE', clearNotes: false, clearDeadline: false })
+    ).toMatchObject({ ok: true });
     // Deleting a call needs a project admin (#46), and so do project settings.
     await expect(deleteTranscript(w.projectId, w.callIds[0])).rejects.toBeInstanceOf(ForbiddenError);
     expect(await updateProject(w.projectId, { retentionDays: 30 })).toMatchObject({ ok: false });
@@ -531,13 +553,13 @@ describe('providers and readiness', () => {
 });
 
 describe('templates and call reasons', () => {
-  test('a field keeps its id when its label stays, so stored answers still find it', async () => {
+  test('a field keeps its id when its label and answer stay, so stored answers still find it', async () => {
     await signIn(w.editor.email);
     const [template] = await getAnalysisTemplates(w.projectId);
     const [resolved, mood] = template.fields;
     const updated = await updateAnalysisTemplate(w.projectId, template.id, {
       fields: [
-        { label: mood.label, prompt: 'Changed prompt', answerType: 'CHOICE', options: ['Good', 'Bad'] },
+        { label: mood.label, prompt: 'Changed prompt', answerType: mood.answerType, options: mood.options },
         { label: 'A new question', prompt: 'Anything?', answerType: 'TEXT' },
       ],
     });
@@ -548,6 +570,19 @@ describe('templates and call reasons', () => {
     // The removed question leaves the stored scorecard; the kept one stays.
     const call = (await getCallById(w.projectId, w.callIds[0]))!;
     expect(call.templateAnalysis!.results.map((r) => r.label)).toEqual([mood.label]);
+
+    // The same label with another answer type, or other options, is another question: a new id, so
+    // an old answer never shows under a definition it does not fit.
+    const [kept, added] = updated.data.fields;
+    const retyped = await updateAnalysisTemplate(w.projectId, template.id, {
+      fields: [
+        { label: kept.label, prompt: kept.prompt, answerType: 'CHOICE', options: ['Yes', 'Partly', 'No'] },
+        { label: added.label, prompt: added.prompt, answerType: 'BOOLEAN' },
+      ],
+    });
+    if (!retyped.ok) throw new Error(retyped.error);
+    expect(retyped.data.fields[0].id).not.toBe(kept.id);
+    expect(retyped.data.fields[1].id).not.toBe(added.id);
 
     expect(
       await updateAnalysisTemplate(w.projectId, template.id, {

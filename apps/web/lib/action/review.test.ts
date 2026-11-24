@@ -161,6 +161,10 @@ describe('against the database', () => {
       ok: true,
       data: { hasApiKey: true },
     });
+    // Same host, another scheme or port: the key would go in clear text, or to another service.
+    for (const baseUrl of ['http://api.openai.com/v2', 'https://api.openai.com:8443/v2']) {
+      expect(await updateProviderConnection(made.data.id, { baseUrl })).toMatchObject({ ok: false });
+    }
     expect(await updateProviderConnection(made.data.id, { baseUrl: 'http://127.0.0.1:9000/v1' })).toMatchObject({
       ok: false,
     });

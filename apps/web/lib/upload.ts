@@ -117,8 +117,7 @@ export async function storeUpload(input: StoreUploadInput): Promise<{ callId: st
 
   try {
     const source = Readable.fromWeb(input.body as Parameters<typeof Readable.fromWeb>[0]);
-    source.on('error', (e) => meter.destroy(e));
-    await putStream(tmp, source.pipe(meter));
+    await putStream(tmp, source, meter);
     if (bytes === 0) throw new UploadError('empty', 400);
     // A body cut short on the way (a proxy limit, a dropped connection) must not become a call.
     if (input.declaredBytes !== null && input.declaredBytes !== bytes) throw new UploadError('incomplete', 400);

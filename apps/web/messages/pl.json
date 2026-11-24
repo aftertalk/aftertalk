@@ -505,7 +505,9 @@
     "empty": {
       "title": "Brak rozmów",
       "description": "Prześlij pierwszy plik audio, aby rozpocząć transkrypcję i analizę rozmów.",
-      "uploadButton": "Prześlij pliki"
+      "uploadButton": "Prześlij pliki",
+      "periodTitle": "Brak rozmów w tym okresie",
+      "periodDescription": "Wybierz inny zakres dat."
     },
     "pagination": {
       "showing": "Pokazano {start}–{end} z {total, plural, one {# rozmowy} few {# rozmów} many {# rozmów} other {# rozmowy}}",

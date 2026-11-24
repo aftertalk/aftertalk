@@ -147,10 +147,11 @@ export async function updateProviderConnection(
         // The last test was of another address.
         patch.wordTimes = null;
         // A stored key is sent to whatever address the connection names. Moving a connection to
-        // another host must not carry a key the person changing it may never have seen, so the
-        // key has to be typed again (or removed) in the same change.
-        const sameHost = new URL(patch.baseUrl).host === new URL(current.baseUrl).host;
-        if (!sameHost && current.hasKey && !input.apiKey && input.removeKey !== true) {
+        // another origin (scheme, host or port: https to http would send it in clear text) must not
+        // carry a key the person changing it may never have seen, so the key has to be typed again
+        // (or removed) in the same change.
+        const sameOrigin = new URL(patch.baseUrl).origin === new URL(current.baseUrl).origin;
+        if (!sameOrigin && current.hasKey && !input.apiKey && input.removeKey !== true) {
           await invalid(i18n.providers.errors.keyAgain);
         }
       }

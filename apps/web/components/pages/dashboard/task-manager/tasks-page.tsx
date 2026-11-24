@@ -181,7 +181,7 @@ export function TasksPageClient({ projectId, projectName, initialData, initialSt
   const sortOption = SORT_OPTIONS.find((o) => o.value === currentSortValue) ?? SORT_OPTIONS[0];
   const priorityOption = PRIORITY_OPTIONS.find((o) => o.value === currentPriorityValue) ?? PRIORITY_OPTIONS[0];
 
-  // The backend's counts are per status, not per search, so the tab's count is the pager's upper bound.
+  // The counts per status include the search and filters, so the tab's count is the list's total.
   const listTotal = tabCounts[activeTab];
   const showPagination = listTotal > PAGE_SIZE && (tm.currentPage > 0 || tm.items.length === PAGE_SIZE);
   const rangeFrom = tm.currentPage * PAGE_SIZE + 1;
@@ -191,7 +191,7 @@ export function TasksPageClient({ projectId, projectName, initialData, initialSt
 
   const visibleItems = overdueOnly ? tm.items.filter((i) => i.isOverdue) : tm.items;
   const isFiltering = tm.hasActiveFilters || overdueOnly;
-  const projectHasNoTasks = tm.totalCount === 0;
+  const projectHasNoTasks = !tm.projectHasTasks;
 
   // The detail pane is driven by its own copy of the opened task — set when opened and patched on
   // every edit — so it stays open and current even when a status change filters the task out of the

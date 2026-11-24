@@ -56,6 +56,8 @@ export interface ActionItemsPage {
   doneCount: number;
   cancelledCount: number;
   overdueCount: number;
+  /** Whether the project has any task at all, whatever the filters. */
+  projectHasTasks: boolean;
 }
 
 export type ListActionItemsParams = {

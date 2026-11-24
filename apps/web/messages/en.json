@@ -505,7 +505,9 @@
     "empty": {
       "title": "No calls yet",
       "description": "Upload your first audio file to get started with call transcription and analysis.",
-      "uploadButton": "Upload files"
+      "uploadButton": "Upload files",
+      "periodTitle": "No calls in this period",
+      "periodDescription": "Pick another date range."
     },
     "pagination": {
       "showing": "Showing {start}–{end} of {total, plural, one {# call} other {# calls}}",

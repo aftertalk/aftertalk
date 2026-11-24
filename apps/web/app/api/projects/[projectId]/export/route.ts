@@ -49,15 +49,22 @@ export async function GET(request: Request, { params }: { params: Promise<{ proj
       },
       // One call per pull, so a slow reader holds back the queries instead of filling memory.
       async pull(controller) {
-        while (next < ids.length) {
-          const call = await exportCall(projectId, ids[next++]);
-          if (!call) continue;
-          controller.enqueue(encoder.encode((first ? '' : ',') + JSON.stringify(call)));
-          first = false;
-          return;
+        try {
+          while (next < ids.length) {
+            const call = await exportCall(projectId, ids[next++]);
+            if (!call) continue;
+            controller.enqueue(encoder.encode((first ? '' : ',') + JSON.stringify(call)));
+            first = false;
+            return;
+          }
+          controller.enqueue(encoder.encode(']}'));
+          controller.close();
+        } catch (e) {
+          // The 200 is already sent, so the download must fail visibly, not end as a cut-off file
+          // that looks complete: erroring the stream aborts the response mid-body.
+          log('error', 'export failed part way', { project_id: projectId, user_id: user.id });
+          controller.error(e);
         }
-        controller.enqueue(encoder.encode(']}'));
-        controller.close();
       },
     });
     const day = new Date().toISOString().slice(0, 10);

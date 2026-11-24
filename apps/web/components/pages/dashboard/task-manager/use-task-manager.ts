@@ -198,6 +198,7 @@ export function useTaskManager(
     filters,
     currentPage,
     totalCount: page.totalCount,
+    projectHasTasks: page.projectHasTasks,
     // Not tied to the status transition's pending state: that spans the write and would blank the list.
     isLoading,
     hasActiveFilters,
