@@ -24,6 +24,12 @@ def invoke(env: dict[str, str], *args: str):
     return CliRunner().invoke(app, [*args], env=env)
 
 
+def step(data: dict, name: str) -> dict:
+    """The usage entry of one step, looked up by name: only the order test relies on positions."""
+    (entry,) = [u for u in data["usage"] if u["step"] == name]
+    return entry
+
+
 @pytest.fixture
 def audio_file(tmp_path: Path) -> Path:
     return make_tone(tmp_path / "call.wav", seconds=1.5)
@@ -39,7 +45,10 @@ def test_json_output_has_transcript_and_usage(fake_speech: FakeSpeech, tmp_path:
     data = json.loads(result.stdout)
     assert set(data) == {"transcript", "usage"}
     assert data["transcript"]["timing"] == "word" and data["transcript"]["language"] == "pl"
-    assert data["usage"]["step"] == "transcribe" and data["usage"]["requests"] == 1
+    assert [u["step"] for u in data["usage"]] == ["decode", "transcribe"]
+    assert step(data, "transcribe")["requests"] == 1 and step(data, "transcribe")["audio_seconds"] == pytest.approx(
+        1.5, abs=0.05
+    )
     assert fake_speech.seen[0].headers["authorization"] == f"Bearer {KEY}"
     upload = fake_speech.seen[0].file
     assert upload is not None and (upload.filename, upload.content_type) == ("audio.flac", "audio/flac")
@@ -54,9 +63,11 @@ def test_default_format_is_text(fake_speech: FakeSpeech, tmp_path: Path, audio_f
 def test_vtt_and_srt(fake_speech: FakeSpeech, tmp_path: Path, audio_file: Path) -> None:
     env = setup(tmp_path, fake_speech.base_url)
     vtt = invoke(env, "transcribe", str(audio_file), "--format", "vtt")
-    assert vtt.exit_code == 0 and vtt.stdout.startswith("WEBVTT\n\n00:00:00.000 --> 00:00:01.200\nHello there.")
+    # The fake's two segments are 0.2 s apart, so they are one turn.
+    turn = "Hello there. General Kenobi."
+    assert vtt.exit_code == 0 and vtt.stdout == f"WEBVTT\n\n00:00:00.000 --> 00:00:02.600\n{turn}\n"
     srt = invoke(env, "transcribe", str(audio_file), "--format", "srt")
-    assert srt.exit_code == 0 and srt.stdout.startswith("1\n00:00:00,000 --> 00:00:01,200\nHello there.")
+    assert srt.exit_code == 0 and srt.stdout == f"1\n00:00:00,000 --> 00:00:02,600\n{turn}\n"
 
 
 def test_output_file(fake_speech: FakeSpeech, tmp_path: Path, audio_file: Path) -> None:
@@ -73,8 +84,8 @@ def test_progress_goes_to_stderr_without_transcript_text(
     fake_speech: FakeSpeech, tmp_path: Path, audio_file: Path
 ) -> None:
     result = invoke(setup(tmp_path, fake_speech.base_url), "transcribe", str(audio_file))
-    for word in ("decoding", "uploading", "transcribing"):
-        assert word in result.stderr.lower()
+    for line in ("decoding audio", "audio length 0:02", "transcribing window 1/1"):
+        assert line in result.stderr
     assert "Kenobi" not in result.stderr and KEY not in result.output
 
 
@@ -99,7 +110,7 @@ def test_fallback_is_reported_on_stderr(fake_speech: FakeSpeech, tmp_path: Path,
     result = invoke(setup(tmp_path, fake_speech.base_url), "transcribe", str(audio_file), "-f", "json")
     assert result.exit_code == 0
     data = json.loads(result.stdout)
-    assert data["transcript"]["timing"] == "none" and data["usage"]["speech_format"] == "json"
+    assert data["transcript"]["timing"] == "none" and step(data, "transcribe")["speech_format"] == "json"
     assert "timestamps" in result.stderr.lower()
 
 
@@ -267,12 +278,28 @@ def test_output_file_is_private(fake_speech: FakeSpeech, tmp_path: Path, audio_f
     assert result.exit_code == 0 and stat.S_IMODE(target.stat().st_mode) == 0o600
 
 
-def test_connection_upload_limit_stops_the_conversion(fake_speech: FakeSpeech, tmp_path: Path) -> None:
+def test_audio_over_the_upload_limit_goes_in_windows(fake_speech: FakeSpeech, tmp_path: Path) -> None:
     big = make_tone(tmp_path / "big.wav", seconds=60.0, rate=16000, channels=1)
     env = setup(tmp_path, fake_speech.base_url, ", audio_format: wav, max_upload_mb: 1")
-    result = invoke(env, "--json", "transcribe", str(big))  # 60 s of 16 kHz s16 is 1.9 MB
-    assert result.exit_code == 1 and json.loads(result.stdout)["code"] == "audio_too_long"
-    assert fake_speech.seen == []
+    result = invoke(env, "transcribe", str(big), "-f", "json")  # 60 s of 16 kHz s16 is 1.9 MB; 1 MiB is ~32 s
+    assert result.exit_code == 0, result.output
+    assert "transcribing window 1/2" in result.stderr and "transcribing window 2/2" in result.stderr
+    assert len(fake_speech.seen) == 2
+    assert all(seen.file is not None and seen.file.size <= 1024 * 1024 for seen in fake_speech.seen)
+    data = json.loads(result.stdout)
+    usage = step(data, "transcribe")
+    assert usage["requests"] == 2 and usage["attempts"] == 2 and usage["audio_seconds"] == pytest.approx(60.0)
+    starts = [seg["start"] for seg in data["transcript"]["segments"]]
+    assert (
+        starts[0] == 0.0
+        and starts[1] > 30.0
+        and [seg["id"] for seg in data["transcript"]["segments"]]
+        == [
+            "t1",
+            "t2",
+        ]
+    )
+    assert "Kenobi" not in result.stderr
 
 
 @pytest.mark.parametrize("fmt", ["vtt", "srt"])
@@ -357,3 +384,75 @@ def test_language_not_allowed_shows_the_detected_language(
     assert data == {"ok": False, "code": "language_not_allowed", "detected_language": "uk"}
     text = invoke(env, "transcribe", str(audio_file))
     assert text.exit_code == 1 and "language_not_allowed" in text.stderr and "(detected: uk)" in text.stderr
+
+
+# ---- the default timeout follows the file's duration ----
+
+
+def test_default_timeout_rule() -> None:
+    from aftertalk.cli import default_timeout
+
+    assert default_timeout(None) == 3600
+    assert default_timeout(60.0) == 3600
+    assert default_timeout(1800.0) == 3600
+    assert default_timeout(1800.4) == 3601
+    assert default_timeout(3 * 3600.0) == 6 * 3600
+
+
+def test_probe_duration(tmp_path: Path) -> None:
+    from aftertalk.audio.decode import probe_duration
+
+    assert probe_duration(make_tone(tmp_path / "a.wav", seconds=2.0)) == pytest.approx(2.0, abs=0.05)
+    junk = tmp_path / "junk.mp3"
+    junk.write_bytes(b"not audio" * 100)
+    assert probe_duration(junk) is None
+    assert probe_duration(tmp_path / "missing.wav") is None
+    make_tone(tmp_path / "secret.mp3", seconds=1.0, codec="mp3")
+    playlist = tmp_path / "list.m3u8"
+    playlist.write_text("#EXTM3U\n#EXT-X-TARGETDURATION:2\n#EXTINF:1.0,\nsecret.mp3\n#EXT-X-ENDLIST\n")
+    assert probe_duration(playlist) is None
+
+
+@pytest.mark.parametrize(
+    ("given", "probed", "expected"), [(None, 4000.0, 8000), (None, None, 3600), ("90", 4000.0, 90)]
+)
+def test_timeout_reaches_the_pipeline(
+    tmp_path: Path,
+    audio_file: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    given: str | None,
+    probed: float | None,
+    expected: int,
+) -> None:
+    import aftertalk.pipeline
+    from aftertalk.models.errors import EngineError
+
+    seen: list[object] = []
+
+    async def capture(path: object, speech: object, options: object, limits: object, on_event: object) -> None:
+        seen.append(limits)
+        raise EngineError("internal")
+
+    monkeypatch.setattr(aftertalk.pipeline, "transcribe_file", capture)
+    monkeypatch.setattr("aftertalk.audio.decode.probe_duration", lambda path: probed)
+    args = ["transcribe", str(audio_file), *(["--timeout", given] if given else [])]
+    invoke(setup(tmp_path, "http://127.0.0.1:1/v1"), *args)
+    assert [getattr(limits, "timeout_seconds") for limits in seen] == [expected]
+
+
+def test_timeout_help_states_the_rule(tmp_path: Path) -> None:
+    result = invoke({"AFTERTALK_HOME": str(tmp_path), "COLUMNS": "200"}, "transcribe", "--help")
+    assert "3600, or twice the file's duration" in result.stdout and '"usage": [...]' in result.stdout
+
+
+def test_logs_and_stderr_hold_no_transcript_text(
+    fake_speech: FakeSpeech, tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    caplog.set_level("DEBUG")
+    long = make_tone(tmp_path / "long.wav", seconds=40.0, rate=16000, channels=1)
+    env = setup(tmp_path, fake_speech.base_url, ", max_upload_mb: 1")
+    result = invoke(env, "transcribe", str(long), "--prompt", "Skywalker", "-f", "json")
+    assert result.exit_code == 0 and "Kenobi" in result.stdout
+    assert "transcribing window 2/2" in result.stderr
+    for text in ("Hello", "Kenobi", "Skywalker", "long.wav", "polish", KEY):
+        assert text not in result.stderr and text not in caplog.text

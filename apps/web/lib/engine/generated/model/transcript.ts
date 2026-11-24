@@ -5,10 +5,17 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { Segment } from './segment';
+import type { Source } from './source';
+import type { Speaker } from './speaker';
 import type { TranscriptTiming } from './transcriptTiming';
 
 /**
- * A transcript. The adapter sets `timing` from what the provider actually returned.
+ * A transcript. The adapter sets `timing` from what the provider actually returned; the pipeline recomputes it
+ * on the turns with `timing_level`.
+ *
+ * A provider answer has no ids, speakers or source. In a pipeline result the segments are the turns: every segment
+ * has an id ("t1", "t2"... in order) and a speaker from `speakers`, and a word is addressed as (segment id, word
+ * index). Speaker ids are unique, at most one speaker has each role, and segment ids are unique.
  *
  * At every timing level: non-blank text is in segments, every segment with text has words, and the words spell the
  * segment's text (letters and digits, lower-cased). A segment or a word has start and end, or neither: times are
@@ -18,6 +25,11 @@ import type { TranscriptTiming } from './transcriptTiming';
  * a start and end. `word`: that too, and at least 90% of the segments with text have times on all their words.
  * `none` is text only (or too few times to use). A consumer that needs a time for a word uses the word's time, else
  * its segment's time, else there is none (no playback).
+ *
+ * `text`: in a pipeline result, the turn texts joined with one space, with no turn or speaker structure; read
+ * `segments` for that. `duration_seconds`: in a pipeline result, where the audio ends on the file's timeline
+ * (`source.start_offset_seconds` plus the decoded length), not the container's duration; the audio's own length is
+ * the difference, and the billed length is in the usage. In a provider answer it is the upload's length.
  */
 export interface Transcript {
   text: string;
@@ -25,4 +37,6 @@ export interface Transcript {
   duration_seconds?: number | null;
   timing: TranscriptTiming;
   segments?: Segment[];
+  source?: Source | null;
+  speakers?: Speaker[];
 }

@@ -185,7 +185,7 @@ class SpeechConnection(BaseModel):
     api_key: ApiKey | None = None
     model: ModelName
     audio_format: Literal["flac", "wav"] = "flac"
-    max_upload_mb: PositiveInt = 25  # the provider's upload ceiling in MiB; longer audio fails with audio_too_long
+    max_upload_mb: PositiveInt = 25  # the provider's upload ceiling in MiB; windows are cut to fit it
     extra_headers: dict[str, HeaderValue] = {}
 
     _no_auth_headers = field_validator("extra_headers")(_check_extra_headers)

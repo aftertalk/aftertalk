@@ -26,14 +26,14 @@ Or the whole stack: `docker compose -f docker-compose.dev.yml up -d --build`.
 ```
 src/aftertalk/
   cli.py       the `aftertalk` command (Typer)
-  audio/       decode and re-encode audio for providers (PyAV)
+  audio/       decode, cut into windows, encode for providers (PyAV)
   assets/      bundled test clip (test-2s.wav)
   render.py    a transcript as text, WebVTT or SRT
   models/      data models and error codes shared with web (through openapi.json)
   config/      the CLI connections file (~/.aftertalk/connections.yaml)
   api/         HTTP: app, job contract (OpenAPI), signing and callbacks
-  pipeline/    step runner, transcript cache, turns
-  steps/       audio, vad, transcribe, analyses/, quotes
+  pipeline/    a file to a transcript: windows, stitching, turns
+  steps/       reserved for analyses and quotes (empty)
   providers/   speech, diarization and LLM adapters
   pii/         pattern rules, name detector, redaction
   logging.py   JSON logs with a fixed set of fields

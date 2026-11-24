@@ -1,19 +1,17 @@
-"""Decode any audio or video file and encode it the way speech-to-text services want it.
+"""Encode decoded audio the way speech-to-text services want it: mono, 16 kHz, 16-bit FLAC or WAV, in memory.
 
-The output is mono, 16 kHz, 16-bit: what Whisper-family models use internally, and small enough to upload.
+That is what Whisper-family models use internally, and small enough to upload. `encode_pcm` encodes one window of
+`decode.DecodedAudio`; `open_encoded` decodes and encodes a whole (short) file for `providers test` and the CLI.
+The output has no padding block or encoder tag, so a WAV is exactly 44 header bytes plus two bytes per sample and
+FLAC of noise stays within about 0.5% of that (the window planner allows 1%).
 """
 
 import asyncio
 import contextlib
-import os
-import stat
-import tempfile
-import threading
-import time
+import io
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
-from fractions import Fraction
 from pathlib import Path
 from types import TracebackType
 from typing import Literal
@@ -21,16 +19,22 @@ from typing import Literal
 import av
 import numpy as np
 
-from aftertalk.models.errors import EngineError, ErrorCode
+from aftertalk.audio.decode import SAMPLE_RATE, open_decoded, to_mono
+from aftertalk.models.errors import EngineError
+
+__all__ = ["SAMPLE_RATE", "AudioFormat", "EncodedAudio", "encode_pcm", "open_encoded", "wav_size"]
 
 AudioFormat = Literal["flac", "wav"]
 
-SAMPLE_RATE = 16000
 _FORMATS: dict[str, tuple[str, str, str]] = {
     # format: (codec, filename, content type)
     "flac": ("flac", "audio.flac", "audio/flac"),
     "wav": ("pcm_s16le", "audio.wav", "audio/wav"),
 }
+_CHUNK = SAMPLE_RATE * 10  # samples handed to the encoder at a time
+# No 8 KiB FLAC padding block and no "Lavf" tag in the WAV header: sizes stay predictable for the window planner.
+_MUX_OPTIONS = {"metadata_header_padding": "0", "fflags": "+bitexact"}
+_WAV_HEADER_BYTES = 44
 
 
 @dataclass
@@ -65,213 +69,49 @@ class EncodedAudio:
         self.close()
 
 
-class _TooLarge(Exception):
-    pass
+def wav_size(samples: int) -> int:
+    """Bytes of `samples` mono 16-bit samples as WAV from `encode_pcm`."""
+    return _WAV_HEADER_BYTES + 2 * samples
 
 
-class _Cancelled(Exception):
-    """The caller stopped waiting; raised between frames so the decoder does not run on."""
-
-
-# Inputs that make FFmpeg open other files or network streams: playlists, concat lists, raw network protocols.
-_BLOCKED_DEMUXERS = frozenset({"hls", "applehttp", "concat", "ffconcat", "sdp", "rtp", "rtsp", "image2", "tee", "data"})
-_GAP_SECONDS = 0.1  # a hole in the timestamps longer than this is filled with silence
-_START_SECONDS = 0.02  # audio that starts later than this is shifted: output time 0 is media time 0
-# Silence padding (hours of padding would be billed as audio):
-_MAX_START_SECONDS = 30  # a stream that starts later than this is measured from its first frame, not media time 0
-_MAX_PAD_SECONDS = 1800  # more inserted silence than this in one file is refused
-_TS_DISCONT = 0x200  # FFmpeg's AVFMT_TS_DISCONT: the container's clock is arbitrary (MPEG-TS, MPEG-PS)
-_SWEEP_AFTER_SECONDS = 3600
-
-
-def _private_dir(directory: Path, uid: int | None) -> bool:
-    """Create `directory` (or accept it) when it is a real directory we own; False when it cannot be trusted."""
-    try:
-        directory.mkdir(mode=0o700, exist_ok=True)
-        info = directory.lstat()
-        if not stat.S_ISDIR(info.st_mode):
-            return False  # a symlink or a file: someone else may control where it points
-        if uid is not None:
-            if info.st_uid != uid:
-                return False
-            directory.chmod(0o700)
-    except OSError:
-        return False
-    return True
-
-
-def _audio_dir() -> Path:
-    """A private per-user directory for temp files, so a crash leaves them in one place that is swept later.
-
-    POSIX: `aftertalk-audio-<uid>`, mode 0700. Windows (no `os.getuid`): `aftertalk-audio`, as its temp directory
-    is already per user. If the name is taken by another user or is not a real directory, a fresh private directory
-    with a random name is used instead; it is not swept, but every file in it is deleted on close.
-    """
-    uid = os.getuid() if hasattr(os, "getuid") else None
-    name = "aftertalk-audio" if uid is None else f"aftertalk-audio-{uid}"
-    directory = Path(tempfile.gettempdir()) / name
-    if not _private_dir(directory, uid):
-        return Path(tempfile.mkdtemp(prefix="aftertalk-audio-"))
-    cutoff = time.time() - _SWEEP_AFTER_SECONDS
-    for old in directory.glob("aftertalk-*"):
-        with contextlib.suppress(OSError):
-            if old.is_file() and old.stat().st_mtime < cutoff:
-                old.unlink()
-    return directory
-
-
-def _convert(
-    source: Path, target: Path, fmt: AudioFormat, max_bytes: int | None, cancelled: threading.Event | None = None
-) -> float:
-    """Decode `source`, write `target`; returns the duration in seconds.
-
-    Holes in the timestamps are filled with silence, measured from `origin`: media time 0, or the first frame's time
-    when the container's clock is arbitrary or the first frame is later than `_MAX_START_SECONDS` (or negative).
-    Padding over `_MAX_PAD_SECONDS` in total is refused. There is no rule against more silence than audio: recorders
-    that write no packets while a call is on hold produce exactly that.
-    """
-    codec, _, _ = _FORMATS[fmt]
-    written = 0  # output samples so far
-    padded = 0  # of which inserted silence
-    size = 0
-
-    with av.open(str(source), options={"protocol_whitelist": "file"}) as inp:
-        names = set(inp.format.name.split(","))
-        if names & _BLOCKED_DEMUXERS or any("pipe" in name for name in names):
-            raise ValueError("input type not allowed")
-        if not inp.streams.audio:
-            raise ValueError("no audio stream")
-        arbitrary_clock = bool(inp.format.flags & _TS_DISCONT)
-        resampler = av.AudioResampler(format="s16", layout="mono", rate=SAMPLE_RATE)
-        with av.open(str(target), "w", format=fmt) as out:
-            stream = out.add_stream(codec, rate=SAMPLE_RATE, layout="mono")
-
-            def put(frame: av.AudioFrame | None) -> None:
-                nonlocal written, size
-                if frame is not None:
-                    frame.pts = written
-                    frame.time_base = Fraction(1, SAMPLE_RATE)
-                    written += frame.samples
-                for packet in stream.encode(frame):
-                    size += packet.size
-                    out.mux(packet)
-                if max_bytes is not None and size > max_bytes:
-                    raise _TooLarge
-
-            def silence(seconds: float) -> None:
-                nonlocal padded
-                remaining = round(seconds * SAMPLE_RATE)
-                if (padded + remaining) / SAMPLE_RATE > _MAX_PAD_SECONDS:
-                    raise ValueError("too much silence to insert")
-                while remaining > 0:
-                    chunk = min(remaining, SAMPLE_RATE)
-                    blank = av.AudioFrame.from_ndarray(
-                        np.zeros((1, chunk), dtype=np.int16), format="s16", layout="mono"
-                    )
-                    blank.sample_rate = SAMPLE_RATE
-                    put(blank)
-                    padded += chunk
-                    remaining -= chunk
-
-            origin: float | None = None
-            for frame in inp.decode(inp.streams.audio[0]):
-                if cancelled is not None and cancelled.is_set():
-                    raise _Cancelled
-                if frame.pts is not None and frame.time_base is not None:
-                    at = float(frame.pts * frame.time_base)
-                    if origin is None:
-                        late = arbitrary_clock or at > _MAX_START_SECONDS or at < 0
-                        origin = at if late else 0.0
-                    gap = (at - origin) - written / SAMPLE_RATE
-                    if gap > (_START_SECONDS if written == 0 else _GAP_SECONDS):
-                        silence(gap)
-                for resampled in resampler.resample(frame):
-                    put(resampled)
-            for resampled in resampler.resample(None):
-                put(resampled)
-            put(None)
-    if written == 0:
-        raise ValueError("no audio samples")
-    return written / SAMPLE_RATE
-
-
-def encode_for_speech(
-    path: Path, *, fmt: AudioFormat, max_bytes: int | None = None, cancelled: threading.Event | None = None
-) -> EncodedAudio:
-    """Mono 16 kHz FLAC or WAV in a temp file. Raises `audio_unreadable` for anything PyAV cannot decode.
-
-    Playlists, concat lists and network inputs are refused. Conversion stops with `audio_too_long` once the output
-    is larger than `max_bytes`. The temp file is removed if anything, an interrupt included, ends the conversion.
-    Setting `cancelled` stops the decoder at the next frame. A temp directory that cannot be used is `internal`.
-    From async code use `open_encoded`.
-    """
-    _, filename, content_type = _FORMATS[fmt]
-    target: Path | None = None
-    try:
-        handle, name = tempfile.mkstemp(suffix=f".{fmt}", prefix="aftertalk-", dir=_audio_dir())
-        os.close(handle)
-        target = Path(name)
-    except OSError:
-        pass
-    if target is None:
-        raise EngineError("internal")  # not the file's fault; outside the except block, so nothing is chained
-    code: ErrorCode | None = None
-    duration = 0.0
-    try:
-        duration = _convert(path, target, fmt, max_bytes, cancelled)
-    except _TooLarge:
-        code = "audio_too_long"
-    except _Cancelled:
-        target.unlink(missing_ok=True)
-        raise
-    except Exception:  # av raises FFmpegError, ValueError, OSError and more; none of them is worth showing
-        code = "audio_unreadable"
-    except BaseException:
-        target.unlink(missing_ok=True)
-        raise
-    if code is not None:
-        target.unlink(missing_ok=True)
-        raise EngineError(code)  # outside the except block: nothing is chained to it
+def encode_pcm(samples: np.ndarray, fmt: AudioFormat) -> EncodedAudio:
+    """Mono int16 samples at 16 kHz as FLAC or WAV bytes. An empty array is a ValueError."""
+    if samples.ndim != 1 or len(samples) == 0:
+        raise ValueError("encode_pcm needs a non-empty 1-D array")
+    codec, filename, content_type = _FORMATS[fmt]
+    buffer = io.BytesIO()
+    with av.open(buffer, "w", format=fmt, options=_MUX_OPTIONS) as out:
+        stream = out.add_stream(codec, rate=SAMPLE_RATE, layout="mono")
+        for start in range(0, len(samples), _CHUNK):
+            chunk = np.ascontiguousarray(samples[start : start + _CHUNK], dtype=np.int16).reshape(1, -1)
+            frame = av.AudioFrame.from_ndarray(chunk, format="s16", layout="mono")
+            frame.sample_rate = SAMPLE_RATE
+            for packet in stream.encode(frame):
+                out.mux(packet)
+        for packet in stream.encode(None):
+            out.mux(packet)
+    data = buffer.getvalue()
     return EncodedAudio(
         filename=filename,
         content_type=content_type,
-        duration_seconds=duration,
-        size_bytes=target.stat().st_size,
-        path=target,
-        owns_file=True,
+        duration_seconds=len(samples) / SAMPLE_RATE,
+        size_bytes=len(data),
+        data=data,
     )
 
 
 @asynccontextmanager
 async def open_encoded(path: Path, *, fmt: AudioFormat, max_bytes: int | None = None) -> AsyncIterator[EncodedAudio]:
-    """Encode in a worker thread; the temp file is gone after the block, also when the await is cancelled.
+    """The whole file, mixed to mono, as one upload; over `max_bytes` is `audio_too_long`.
 
-    Use this, not `to_thread(encode_for_speech)`: a cancelled await would leave the file. The thread and the
-    awaiting task decide under one lock who closes the file, so it does not depend on the event loop still running,
-    and a cancelled encoder stops at the next frame.
+    Decoding and encoding run in worker threads. The decoded temp file is gone after the block, also when the await
+    is cancelled (see `open_decoded`); the encoded bytes live only in memory.
     """
-    cancelled = threading.Event()
-    lock = threading.Lock()
-    holder: list[EncodedAudio] = []
-
-    def work() -> EncodedAudio:
-        audio = encode_for_speech(path, fmt=fmt, max_bytes=max_bytes, cancelled=cancelled)
-        with lock:
-            if cancelled.is_set():
-                audio.close()  # nobody is waiting for it any more
-            else:
-                holder.append(audio)
-        return audio
-
-    try:
-        audio = await asyncio.to_thread(work)
-    except BaseException:
-        with lock:
-            cancelled.set()
-            for held in holder:
-                held.close()
-        raise
-    try:
-        yield audio
-    finally:
-        audio.close()
+    async with open_decoded(path) as decoded:
+        if fmt == "wav" and max_bytes is not None and wav_size(decoded.samples.shape[0]) > max_bytes:
+            raise EngineError("audio_too_long")  # the WAV size is known up front: do not spend the encode on it
+        samples = decoded.samples  # the thread keeps the map alive even if the block is left early
+        audio = await asyncio.to_thread(lambda: encode_pcm(to_mono(samples), fmt))
+    if max_bytes is not None and audio.size_bytes > max_bytes:
+        raise EngineError("audio_too_long")
+    yield audio
