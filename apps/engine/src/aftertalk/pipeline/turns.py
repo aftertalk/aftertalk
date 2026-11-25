@@ -27,11 +27,12 @@ in exactly one turn, in the input order. Times are never estimated or copied ont
 or none, and only a unit's span takes its segment's edge.
 """
 
+import bisect
 import heapq
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 
-from aftertalk.models.transcript import Segment, Word, split_words
+from aftertalk.models.transcript import Segment, Speaker, Word, split_words
 
 TURN_GAP_SECONDS = 1.5
 MAX_TURN_SECONDS = 60.0
@@ -45,6 +46,7 @@ class _Unit:
     end: float
     words: list[Word] = field(default_factory=list)
     window: int | None = None  # the speech segment it came from (`split`); None for mixed audio
+    speaker: str | None = None  # the diarization speaker (`build_speaker_turns`); None otherwise
 
 
 @dataclass
@@ -61,7 +63,10 @@ def _is_gap(end: float, start: float) -> bool:
 
 
 def _breaks(prev: _Unit, unit: _Unit) -> bool:
-    """Whether `unit` starts a new turn after `prev`: a gap, and for `split` only where a speech segment ends."""
+    """Whether `unit` starts a new turn after `prev`: another diarization speaker, or a gap (for `split` only where a
+    speech segment ends)."""
+    if prev.speaker != unit.speaker:
+        return True
     if prev.window is not None and prev.window == unit.window:
         return False
     return _is_gap(prev.end, unit.start)
@@ -71,12 +76,23 @@ def _breaks(prev: _Unit, unit: _Unit) -> bool:
 _Group = list[_Unit] | _Untimed
 
 
-def _groups(segments: Sequence[Segment], windows: Sequence[int] | None = None) -> list[_Group]:
+SpeakerOf = Callable[[float, float], str]
+
+
+def _groups(
+    segments: Sequence[Segment], windows: Sequence[int] | None = None, speaker_of: SpeakerOf | None = None
+) -> list[_Group]:
     """The input cut into groups at gaps and at untimed segments that do not join a turn, in order.
 
     `windows`, one per segment, names the speech segment each came from (`split`): a gap then only ends a turn where
-    one speech segment ends and the next begins.
+    one speech segment ends and the next begins. `speaker_of` (diarized mixed audio) names the speaker of each unit
+    from its own times when it is made (a word's, or a segment-only unit's segment), before any edge widening; a
+    change of speaker ends a turn.
     """
+
+    def unit_of(start: float, end: float, words: list[Word], window: int | None) -> _Unit:
+        return _Unit(start, end, words, window, None if speaker_of is None else speaker_of(start, end))
+
     groups: list[_Group] = []
     current: list[_Unit] = []
     leading: list[Word] = []  # untimed words with no word before them in this turn: they go to the next unit
@@ -117,7 +133,7 @@ def _groups(segments: Sequence[Segment], windows: Sequence[int] | None = None) -
             first, last = timed[0][0], timed[-1][0]
             for i, w in enumerate(words):
                 if w.start is not None and w.end is not None:
-                    unit = _Unit(w.start, w.end, [w], window)
+                    unit = unit_of(w.start, w.end, [w], window)
                     if own and seg.start is not None and i == first and first > 0:
                         unit.start = min(min(start for _, start, _ in timed), seg.start)
                         unit.words[:0] = words[:first]  # before `add`, so they never wait behind pending segments
@@ -133,7 +149,7 @@ def _groups(segments: Sequence[Segment], windows: Sequence[int] | None = None) -
                 else:
                     leading.append(w)
         elif seg.start is not None and seg.end is not None:
-            add(_Unit(seg.start, seg.end, words, window))
+            add(unit_of(seg.start, seg.end, words, window))
         elif current:  # the next unit decides whether it joins this turn
             pending.append(_Untimed(words, window))
         else:
@@ -256,3 +272,104 @@ def build_channel_turns(parts: Sequence[ChannelPart]) -> list[Segment]:
         Segment(id=f"t{i}", speaker=speaker, text=" ".join(w.text for w in words), start=start, end=end, words=words)
         for i, (speaker, words, start, end) in enumerate(spans, start=1)
     ]
+
+
+@dataclass(frozen=True)
+class SpeakerSpan:
+    """One diarization segment on the file's timeline: `speaker` is the provider's label, only a grouping key."""
+
+    start: float
+    end: float
+    speaker: str
+
+
+class _SpeakerIndex:
+    """Which span a unit belongs to, in whole milliseconds (as the pipeline compares times).
+
+    The span that covers the unit's midpoint, a span being [start, end): a midpoint on a shared edge belongs to the
+    span that starts there. Several cover it (pyannote's spans can overlap): the one that overlaps the unit most, then
+    the shorter, then the earlier start, then the earlier in the input. None covers it: the nearest by the distance from
+    the midpoint to its edge, a tie going to the earlier one (spec item 68), with no limit.
+    """
+
+    def __init__(self, spans: Sequence[SpeakerSpan]) -> None:
+        items = sorted(
+            ((round(s.start * 1000), round(s.end * 1000), i, s.speaker) for i, s in enumerate(spans)),
+            key=lambda item: (item[0], item[2]),
+        )
+        self._items = items
+        self._starts = [item[0] for item in items]
+        # The latest end among items[:i + 1], and the first item that has it: stops the backward scan, and is the
+        # nearest span before a midpoint that nothing covers.
+        self._reach: list[tuple[int, int]] = []
+        best = (-1, -1)
+        for k, item in enumerate(items):
+            if item[1] > best[0]:
+                best = (item[1], k)
+            self._reach.append(best)
+
+    def __call__(self, start: float, end: float) -> str:
+        lo, hi = round(start * 1000), round(end * 1000)
+        mid = (lo + hi) / 2
+        k = bisect.bisect_right(self._starts, mid)  # items[:k] start at or before the midpoint
+        best: tuple[int, int, int, int] | None = None  # (-overlap, length, start, index)
+        choice = ""
+        i = k - 1
+        while i >= 0 and self._reach[i][0] > mid:
+            s, e, index, speaker = self._items[i]
+            if e > mid:
+                key = (-(min(e, hi) - max(s, lo)), e - s, s, index)
+                if best is None or key < best:
+                    best, choice = key, speaker
+            i -= 1
+        if best is not None:
+            return choice
+        before = self._items[self._reach[k - 1][1]] if k > 0 else None
+        after = self._items[k] if k < len(self._items) else None
+        if after is None or (before is not None and mid - before[1] <= after[0] - mid):
+            assert before is not None
+            return before[3]
+        return after[3]
+
+
+def build_speaker_turns(
+    segments: Sequence[Segment], spans: Sequence[SpeakerSpan]
+) -> tuple[list[Segment], list[Speaker], bool]:
+    """The turns of mixed audio with diarization: `(turns, speakers, diarized)`. Pure: the input is not changed.
+
+    Grouped as for one speaker (`build_turns`: a gap of `TURN_GAP_SECONDS` ends a turn, a turn over `MAX_TURN_SECONDS`
+    is split), and each unit takes its speaker from `spans` (`_SpeakerIndex`): a timed word by its own times, a segment
+    without word times by the segment's, as one unit. A change of speaker ends a turn. An untimed word stays on the unit
+    beside it and takes its speaker. An untimed segment joins the open turn only when the next unit has the same speaker
+    and follows within the gap; a turn by itself takes the speaker of the turn before it, else of the one after.
+
+    Speakers are "s1", "s2"... labelled "Speaker 1", "Speaker 2"... in order of first speech in the turns; a span
+    speaker who got no word is not listed. With no span, or no timed unit to place, it is one speaker as without
+    diarization, and `diarized` is False.
+    """
+    groups = _groups(segments, speaker_of=_SpeakerIndex(spans)) if spans else []
+    if not any(not isinstance(group, _Untimed) for group in groups):
+        speaker = Speaker(id="s1", label="Speaker 1")
+        return build_turns(segments, speaker=speaker.id), [speaker], False
+    timed = [group[0].speaker if not isinstance(group, _Untimed) else None for group in groups]
+    spans_out: list[tuple[str, list[Word], float | None, float | None]] = []
+    previous: str | None = None
+    for index, group in enumerate(groups):
+        if isinstance(group, _Untimed):
+            label = previous or next(s for s in timed[index + 1 :] if s is not None)
+            spans_out.append((label, group.words, None, None))
+            continue
+        assert group[0].speaker is not None
+        previous = group[0].speaker
+        for part in _split(group):
+            words = [w for u in part for w in u.words]
+            spans_out.append((previous, words, min(u.start for u in part), max(u.end for u in part)))
+    ids: dict[str, str] = {}
+    for label, _, _, _ in spans_out:
+        ids.setdefault(label, f"s{len(ids) + 1}")
+    speakers = [Speaker(id=sid, label=f"Speaker {sid[1:]}") for sid in ids.values()]
+    turns = [
+        Segment(id=f"t{i}", speaker=ids[label], text=" ".join(w.text for w in words), start=start, end=end, words=words)
+        for i, (label, words, start, end) in enumerate(spans_out, start=1)
+    ]
+    return turns, speakers, True

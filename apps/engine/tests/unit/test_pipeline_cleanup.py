@@ -9,6 +9,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 from audio_tools import make_stereo, make_tone, nonzero_runs
+from fake_pyannote import FakePyannote
 from fake_speech import FakeSpeech, Forced, error_body, reply
 
 from aftertalk.audio import decode
@@ -270,3 +271,64 @@ async def test_cancelling_a_run_still_retries_the_removals(
         with pytest.raises(asyncio.CancelledError):
             await task
     assert retried == [1]
+
+
+# ---- diarization (mixed audio): the streamed upload holds no map past the run ----
+
+
+async def _diarized(fake_speech: FakeSpeech, fake_pyannote: FakePyannote, path: Path) -> None:
+    from aftertalk.models.connections import DiarizationConnection
+    from aftertalk.providers.diarization.pyannote import PyannoteDiarization
+
+    conn = SpeechConnection.model_validate({"base_url": fake_speech.base_url, "model": "whisper-1"})
+    dconn = DiarizationConnection.model_validate({"base_url": fake_pyannote.base_url, "api_key": "k"})
+    window = math.ceil((2.0 * SAMPLE_RATE * 2 + 4096) * 1.01) + 2  # 2 s windows
+    async with make_client(block_private=False) as client:
+        speech = OpenAICompatibleSpeech(conn, client, retry_waits=(0.0, 0.0), max_upload_bytes=window)
+        diarizer = PyannoteDiarization(dconn, client, poll_interval=0.01, retry_waits=(0.0, 0.0))
+        await transcribe_file(path, speech, TranscribeOptions(), diarizer=diarizer)
+
+
+@pytest.mark.parametrize("outcome", ["success", "job failed", "window failed", "cancelled"])
+@pytest.mark.parametrize("hold", [False, True], ids=["dropped", "held"])
+async def test_on_windows_a_diarized_run_leaves_no_map_and_no_temp_file(
+    fake_speech: FakeSpeech,
+    fake_pyannote: FakePyannote,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    outcome: str,
+    hold: bool,
+) -> None:
+    maps, _ = _windows_unlink(monkeypatch, hold=hold)
+    temps = _remember_temps(monkeypatch)
+    path = make_tone(tmp_path / "talk.wav", seconds=5.0, rate=16000, channels=1)
+    fake_speech.forced = [reply(["one"]), reply(["two"]), reply(["three"])]
+    if outcome == "job failed":
+        fake_pyannote.statuses = ["running", "failed"]
+    elif outcome == "window failed":
+        fake_speech.forced = [reply(["one"])] + [Forced(500, error_body())] * 3
+        fake_pyannote.statuses = ["running"]
+    elif outcome == "cancelled":
+        fake_pyannote.statuses = ["running"]
+    gc.collect()
+    gc.disable()
+    try:
+        if outcome == "success":
+            await _diarized(fake_speech, fake_pyannote, path)
+        elif outcome == "cancelled":
+            task = asyncio.ensure_future(_diarized(fake_speech, fake_pyannote, path))
+            while not fake_pyannote.jobs:
+                await asyncio.sleep(0.01)
+            task.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await task
+            del task
+        else:
+            with pytest.raises(EngineError):
+                await _diarized(fake_speech, fake_pyannote, path)
+        assert len(fake_pyannote.uploads) == 1
+        assert len(maps) == 1 and maps[0]() is None
+        assert len(temps) == 1 and not temps[0].exists()
+        assert decode._PENDING == {}
+    finally:
+        gc.enable()

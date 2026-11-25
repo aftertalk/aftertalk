@@ -30,3 +30,25 @@ def test_exception_message_is_not_logged() -> None:
     out = JsonFormatter().format(record)
     assert "secret body" not in out
     assert json.loads(out)["exc_type"] == "RuntimeError"
+
+
+@pytest.mark.parametrize("level", ["info", "debug"])
+def test_http_clients_never_log_request_urls(fake_pyannote, capsys: pytest.CaptureFixture[str], level: str) -> None:
+    """A presigned upload URL carries its signature: the HTTP client's own request lines must not reach the logs."""
+    import asyncio
+
+    from fake_pyannote import SIG
+
+    from aftertalk.providers.net import make_client
+
+    setup_logging(level)  # type: ignore[arg-type]
+
+    async def put() -> None:
+        async with make_client(block_private=False) as client:
+            await client.put(f"{fake_pyannote.origin}/upload/1?sig={SIG}", content=b"x")
+
+    asyncio.run(put())
+    out = capsys.readouterr()
+    assert SIG not in out.out and SIG not in out.err
+    for name in ("httpx", "httpx2", "httpcore", "httpcore2"):
+        assert not logging.getLogger(name).isEnabledFor(logging.INFO)

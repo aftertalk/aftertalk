@@ -10,7 +10,7 @@ from typing import Any
 import yaml
 from pydantic import BaseModel, ConfigDict, ValidationError
 
-from aftertalk.models.connections import LLMConnection, ModelTiers, SpeechConnection
+from aftertalk.models.connections import DiarizationConnection, LLMConnection, ModelTiers, SpeechConnection
 
 
 class ProfileError(Exception):
@@ -22,6 +22,7 @@ class Profile(BaseModel):
 
     llm: ModelTiers | None = None
     speech: SpeechConnection | None = None
+    diarization: DiarizationConnection | None = None
 
 
 _MAX_DEPTH = 20
@@ -72,7 +73,11 @@ def _interpolate(node: Any, env: Mapping[str, str], where: str, path: Path, dept
 
 
 _KNOWN_KEYS = sorted(
-    {name for model in (Profile, ModelTiers, LLMConnection, SpeechConnection) for name in model.model_fields}
+    {
+        name
+        for model in (Profile, ModelTiers, LLMConnection, SpeechConnection, DiarizationConnection)
+        for name in model.model_fields
+    }
 )
 
 

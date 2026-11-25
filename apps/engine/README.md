@@ -39,6 +39,22 @@ segment, which can be hundreds for a 30-minute call, so check your provider's ra
 drops likely filler; `--format json` reports the count as `dropped_segments`, and stderr says it too. Formats:
 `text`, `md`, `vtt`, `srt`, `json`. Details and limits: `docs/providers.md`.
 
+A mixed track has one speaker unless you add a diarization connection. With `diarization:` in the connections file,
+`transcribe` identifies the speakers of mixed audio on its own:
+
+```yaml
+diarization:
+  api_key: ${PYANNOTE_API_KEY}   # pyannote.ai; base_url defaults to https://api.pyannote.ai/v1
+```
+
+This uploads the whole recording to pyannote.ai, and stderr says so (`identifying speakers (uploading the recording to
+<host>)`). `--no-diarize` turns it off; `--diarize` without a connection exits 2. A real `--channels split` (a
+two-channel file) never diarizes; split's fallback to a mixed track does. Speakers come out as "Speaker 1", "Speaker
+2"..., with no roles, and `source.diarized` in the JSON is true. When it was skipped (the speech provider gave no
+timestamps, the recording is over the diarization limits, or no speakers were found) stderr says why and the file has one
+speaker. A two-channel file that was mixed and diarized gets a hint to use `--channels split`. Costs, limits and the
+flow: `docs/providers.md`.
+
 ## Layout
 
 ```
@@ -50,7 +66,7 @@ src/aftertalk/
   models/      data models and error codes shared with web (through openapi.json)
   config/      the CLI connections file (~/.aftertalk/connections.yaml)
   api/         HTTP: app, job contract (OpenAPI), signing and callbacks
-  pipeline/    a file to a transcript: windows, stitching, filter, turns
+  pipeline/    a file to a transcript: windows, stitching, filter, turns, speakers
   steps/       reserved for analyses and quotes (empty)
   providers/   speech, diarization and LLM adapters
   pii/         pattern rules, name detector, redaction

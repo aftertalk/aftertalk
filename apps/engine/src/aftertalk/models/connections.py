@@ -26,9 +26,18 @@ LLMAdapter = Literal["openai-compatible", "anthropic", "google"]
 LLMPreset = Literal["openai", "ollama", "vllm", "openrouter", "groq", "azure", "litellm"]
 OutputMode = Literal["auto", "tool", "native", "prompted"]
 SpeechAdapter = Literal["openai-compatible"]
+DiarizationAdapter = Literal["pyannote-ai"]
 ModelTier = Literal["default", "fast", "smart"]
 
-_RESOURCE_PATHS = ("/chat/completions", "/completions", "/audio/transcriptions", "/models", "/responses")
+_RESOURCE_PATHS = (
+    "/chat/completions",
+    "/completions",
+    "/audio/transcriptions",
+    "/models",
+    "/responses",
+    "/diarize",
+    "/media/input",
+)
 _AUTH_HEADERS = frozenset(
     {
         "authorization",
@@ -106,6 +115,7 @@ ApiKey = Annotated[
     BeforeValidator(_secret_cleaner("api_key is empty; leave it out for a server without a key")),
     _secret_serializer,
 ]
+RequiredApiKey = Annotated[SecretStr, BeforeValidator(_secret_cleaner("api_key is empty")), _secret_serializer]
 HeaderValue = Annotated[SecretStr, BeforeValidator(_secret_cleaner("header value is empty")), _secret_serializer]
 
 
@@ -189,6 +199,16 @@ class SpeechConnection(BaseModel):
     extra_headers: dict[str, HeaderValue] = {}
 
     _no_auth_headers = field_validator("extra_headers")(_check_extra_headers)
+
+
+class DiarizationConnection(BaseModel):
+    """A speaker diarization service (pyannote.ai). The key is required."""
+
+    model_config = _CONFIG
+
+    adapter: DiarizationAdapter = "pyannote-ai"
+    base_url: BaseUrl = "https://api.pyannote.ai/v1"
+    api_key: RequiredApiKey
 
 
 class ModelTiers(BaseModel):
