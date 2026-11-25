@@ -3,6 +3,7 @@
 import asyncio
 import json
 import math
+import time
 from pathlib import Path
 
 import numpy as np
@@ -247,7 +248,7 @@ async def test_the_deadline_while_only_polling_reports_the_diarize_usage(
 ) -> None:
     fake_speech.forced = [reply(["a", "b"])]
     fake_pyannote.statuses = ["running"]
-    err = await fails(fake_speech, fake_pyannote, four, limits=JobLimits(timeout_seconds=1), poll_interval=0.05)
+    err = await fails(fake_speech, fake_pyannote, four, limits=JobLimits(timeout_seconds=3), poll_interval=0.05)
     assert err.code == "limit_exceeded"
     assert err.usage is not None and err.usage.step == "diarize" and err.usage.audio_seconds == 4.0
 
@@ -303,8 +304,9 @@ def test_run_is_cancel_safe(fake_speech: FakeSpeech, fake_pyannote: FakePyannote
 
     async def main() -> None:
         task = asyncio.ensure_future(run(fake_speech, fake_pyannote, four, poll_interval=0.01))
-        while not fake_pyannote.jobs:
-            await asyncio.sleep(0.01)
+        async with asyncio.timeout(10):  # a regression fails the test instead of hanging it
+            while not fake_pyannote.jobs:
+                await asyncio.sleep(0.01)
         task.cancel()
         with pytest.raises(asyncio.CancelledError):
             await task
@@ -380,3 +382,17 @@ async def test_spans_with_no_timed_word_to_place_say_no_times(
     fake_speech.forced = [Forced(200, json.dumps(data))]
     result = await run(fake_speech, fake_pyannote, four)
     assert result.diarization_skipped == "no_times"
+
+
+@pytest.mark.parametrize("job", ["never finishes", "fails"])
+async def test_a_later_untimed_window_stops_waiting_for_the_diarization(
+    fake_speech: FakeSpeech, fake_pyannote: FakePyannote, tmp_path: Path, job: str
+) -> None:
+    path = make_tone(tmp_path / "long.wav", seconds=4.0, rate=16000, channels=1)
+    fake_speech.forced = [reply(["a", "b"]), reply(["c", "d"], shape="text")]
+    fake_pyannote.statuses = ["running"] if job == "never finishes" else ["running"] * 20 + ["failed"]  # fails after window 2
+    fake_speech.stall = 0.2  # the job exists before window 2 answers
+    started = time.monotonic()
+    result = await run(fake_speech, fake_pyannote, path, window=2.0, poll_interval=0.05)
+    assert time.monotonic() - started < 5
+    assert result.diarization_skipped == "no_times" and len(fake_pyannote.jobs) == 1

@@ -39,7 +39,8 @@ meanwhile. A failure on either side cancels the other and fails the run (spec #1
 side's usage, the windows' when both failed, and diarize's for a deadline once only diarization is left. Diarization
 times are shifted by the start offset, and the turns come from `turns.build_speaker_turns` (speakers "Speaker 1",
 "Speaker 2"... by first speech; `source.diarized`). It is skipped, with one speaker and `diarization_skipped` saying
-why, when that first window has no times (`no_times`), the track is over the diarizer's limits (`too_long`, nothing
+why, when a window with text has no times (`no_times`: the first one uploads nothing; a later one cancels the
+diarization, which is not used though a job may already be billed), the track is over the diarizer's limits (`too_long`, nothing
 sent) or the diarizer found no speakers (`no_speakers`); a file without text sends it no audio.
 
 `channels="split"` (a two-channel file; anything else falls back to `mix`, with speakers that have no role and the
@@ -473,6 +474,11 @@ class _Gate:
         self.event = asyncio.Event()
         self.go = False
         self.reason: DiarizationSkipped | None = None
+        self.on_abandon: Callable[[], None] | None = None
+
+    def abandon(self) -> None:
+        if self.on_abandon is not None:
+            self.on_abandon()
 
     def decide(self, *, go: bool, reason: DiarizationSkipped | None = "no_times") -> None:
         self.go = go
@@ -589,9 +595,10 @@ class _Run:
         turns: list[Segment] | None = None
         speakers = [_MIX_SPEAKER]
         diarized = False
-        if output is not None and self.untimed_text:
+        if diarizer is not None and self.untimed_text and skipped is None:
             # A later window came back without times (the request form moved down mid-run): its words cannot be placed,
-            # so the whole file keeps one speaker rather than a guess for part of it. The job is already paid.
+            # so the whole file keeps one speaker rather than a guess for part of it. The diarization was cancelled or
+            # is not used; a job already created may still be billed.
             output, skipped = None, "no_times"
         if output is not None:
             spans = self._spans(output)
@@ -640,6 +647,8 @@ class _Run:
             self._times(part, 0)
             if _has_text(part) and part.timing == "none":
                 self.untimed_text = True
+                if gate is not None and gate.go:
+                    gate.abandon()  # diarization already running will not be used: stop waiting for it
             if gate is not None and not gate.event.is_set() and _has_text(part):
                 gate.decide(go=part.timing != "none")
             offset = window.start / SAMPLE_RATE + self.offset
@@ -679,7 +688,7 @@ class _Run:
 
         async def run_windows() -> None:
             await self._mix_windows(windows, segments, gate)
-            if gate.go:
+            if gate.go and not self.untimed_text:
                 self.state.step = "diarize"  # only diarization is left: a deadline now reports its usage
 
         async def run_diarize() -> DiarizationOutput | None:
@@ -694,6 +703,7 @@ class _Run:
             return output
 
         diarizing = asyncio.ensure_future(run_diarize())
+        gate.on_abandon = diarizing.cancel  # a job already created runs on at the provider and may be billed
         transcribing = asyncio.ensure_future(run_windows())
         tasks = [transcribing, diarizing]
         try:
@@ -721,7 +731,8 @@ class _Run:
                 raise failed
             finally:
                 del failed
-        output = diarizing.result()
+        output = None if diarizing.cancelled() else diarizing.result()  # cancelled: abandoned after an untimed window
+        gate.on_abandon = None
         del tasks, transcribing, diarizing
         return output, gate.reason
 

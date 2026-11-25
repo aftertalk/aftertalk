@@ -195,8 +195,8 @@ update the table above.
   - Turns: a new turn on a change of speaker, after a gap of 1.5 s inside one speaker, and at the 60 s split. The gap
     rule inside one speaker is a deliberate departure from spec line 1151 and #60.
   - Skipped, with one speaker and `source.diarized` false (`diarization_skipped` in the library, a line on stderr):
-    `no_times` (a window with text has no times at all; segment times are enough; a later one discards a diarization
-    already paid for), `too_long`, and
+    `no_times` (a window with text has no times at all; segment times are enough; a later one cancels the diarization,
+    though a job already created may be billed), `too_long`, and
     `no_speakers` (pyannote.ai returned no segments). Whether a file was diarized is `source.diarized`.
   - Security: the presigned upload goes through the same HTTP client, so `BLOCK_PRIVATE_ADDRESSES` checks its host too.
     It must be https unless `base_url` is http, and it carries no `Authorization` header. Without

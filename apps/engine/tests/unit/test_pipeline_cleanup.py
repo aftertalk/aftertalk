@@ -317,8 +317,9 @@ async def test_on_windows_a_diarized_run_leaves_no_map_and_no_temp_file(
             await _diarized(fake_speech, fake_pyannote, path)
         elif outcome == "cancelled":
             task = asyncio.ensure_future(_diarized(fake_speech, fake_pyannote, path))
-            while not fake_pyannote.jobs:
-                await asyncio.sleep(0.01)
+            async with asyncio.timeout(10):  # a regression fails the test instead of hanging it
+                while not fake_pyannote.jobs:
+                    await asyncio.sleep(0.01)
             task.cancel()
             with pytest.raises(asyncio.CancelledError):
                 await task
