@@ -54,7 +54,13 @@ class _Counters:
 
 
 class OpenAICompatibleSpeech:
-    """Not tied to a client's lifetime: the caller closes `client` (see `open_speech`)."""
+    """Not tied to a client's lifetime: the caller closes `client` (see `open_speech`).
+
+    One instance per run (one file, one job): it remembers the request form the server accepted, so the later
+    windows of the run start there. That form only ever moves down (word timestamps, then segments, then plain
+    text; `temperature` dropped once refused), also when two channels finish in any order. Shared across jobs, one
+    job's downgrade would stay for the next ones.
+    """
 
     capabilities = SpeechCapabilities(
         word_times=True,
@@ -136,7 +142,9 @@ class OpenAICompatibleSpeech:
             rung = lower
         error = response_error(response, usage())
         if error is None:
-            self._rung, self._temperature = rung, temperature
+            # Only ever down: a window that started on the full form and finishes after another one downgraded does not
+            # undo it.
+            self._rung, self._temperature = max(self._rung, rung), self._temperature and temperature
         if error is not None:
             try:
                 raise error
@@ -286,7 +294,7 @@ def _next_rung(response: httpx2.Response, rung: int) -> int | None:
 
 @asynccontextmanager
 async def open_speech(conn: SpeechConnection, *, block_private: bool) -> AsyncIterator[OpenAICompatibleSpeech]:
-    """The provider with its own HTTP client, which is always closed."""
+    """The provider with its own HTTP client, which is always closed. One per run: see `OpenAICompatibleSpeech`."""
     client = make_client(block_private=block_private, proxy=get_cli_settings().provider_proxy)
     try:
         yield OpenAICompatibleSpeech(conn, client)

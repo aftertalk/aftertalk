@@ -1,3 +1,4 @@
+import asyncio
 import json
 import time
 from pathlib import Path
@@ -534,3 +535,46 @@ async def test_an_answer_without_text_never_fails_the_allowed_languages(fake_spe
     )
     transcript, _ = await run(fake_speech, allowed_languages=["pl", "en"])
     assert transcript.text.strip() == ""
+
+
+# ---- the remembered request form (one adapter per run) ----
+
+
+async def test_a_new_adapter_starts_from_the_full_form(fake_speech: FakeSpeech) -> None:
+    """The downgrade is remembered per instance: a new run (a new adapter) asks for word timestamps again."""
+    fake_speech.reject_granularities = True
+    async with make_client(block_private=False) as client:
+        first = OpenAICompatibleSpeech(conn(fake_speech), client, retry_waits=(0.0, 0.0))
+        await first.transcribe(audio(), language=None, prompt=None, deadline=None)
+        await first.transcribe(audio(), language=None, prompt=None, deadline=None)
+        fake_speech.reject_granularities = False
+        second = OpenAICompatibleSpeech(conn(fake_speech), client, retry_waits=(0.0, 0.0))
+        await second.transcribe(audio(), language=None, prompt=None, deadline=None)
+    asked = [bool(seen.values("timestamp_granularities[]")) for seen in fake_speech.seen]
+    assert asked == [True, False, False, True]  # rejected, lower rung, remembered; then a fresh instance
+
+
+async def test_a_window_that_finishes_late_never_undoes_a_downgrade(fake_speech: FakeSpeech) -> None:
+    """Two channels share the adapter: one request on the full form is slow and succeeds, another is refused word
+    timestamps and goes down meanwhile. The slow one finishing last keeps the lower form for what follows."""
+    calls = {"granular": 0}
+
+    def answer(seen):  # type: ignore[no-untyped-def]
+        if seen.values("timestamp_granularities[]"):
+            calls["granular"] += 1
+            if calls["granular"] == 1:
+                time.sleep(0.5)  # the slow one, accepted on the full form
+                return Forced(200, json.dumps({"text": "a", "language": "polish", "segments": []}))
+            return Forced(400, error_body("not supported", param="timestamp_granularities[]"))
+        return Forced(200, json.dumps({"text": "b", "language": "polish", "segments": []}))
+
+    fake_speech._answer = answer  # type: ignore[method-assign]
+    async with make_client(block_private=False) as client:
+        speech = OpenAICompatibleSpeech(conn(fake_speech), client, retry_waits=(0.0, 0.0))
+        slow = asyncio.ensure_future(speech.transcribe(audio(), language=None, prompt=None, deadline=None))
+        await asyncio.sleep(0.15)
+        await speech.transcribe(audio(), language=None, prompt=None, deadline=None)  # refused, then segments
+        await slow
+        before = len(fake_speech.seen)
+        await speech.transcribe(audio(), language=None, prompt=None, deadline=None)
+    assert not fake_speech.seen[before].values("timestamp_granularities[]")
