@@ -1,6 +1,8 @@
 """Data models shared with web, which gets them through openapi.json."""
 
 from aftertalk.models.connections import (
+    DiarizationAdapter,
+    DiarizationConnection,
     LLMAdapter,
     LLMConnection,
     LLMPreset,
@@ -15,6 +17,8 @@ from aftertalk.models.transcript import Segment, Source, Speaker, TimingLevel, T
 from aftertalk.models.usage import JobLimits, StepUsage
 
 __all__ = [
+    "DiarizationAdapter",
+    "DiarizationConnection",
     "EngineError",
     "ErrorCode",
     "JobLimits",

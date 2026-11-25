@@ -9,13 +9,22 @@ from typing import Any
 from pydantic import BaseModel
 from pydantic.json_schema import JsonSchemaMode, models_json_schema
 
-from aftertalk.models import JobLimits, LLMConnection, ModelTiers, SpeechConnection, StepUsage, Transcript
+from aftertalk.models import (
+    DiarizationConnection,
+    JobLimits,
+    LLMConnection,
+    ModelTiers,
+    SpeechConnection,
+    StepUsage,
+    Transcript,
+)
 from aftertalk.models.errors import JobError
 
 # Models web sends are listed as they validate; models the engine produces, as they serialize.
 SHARED_MODELS: list[tuple[type[BaseModel], JsonSchemaMode]] = [
     (LLMConnection, "validation"),
     (SpeechConnection, "validation"),
+    (DiarizationConnection, "validation"),
     (ModelTiers, "validation"),
     (JobLimits, "validation"),
     (StepUsage, "serialization"),

@@ -172,15 +172,20 @@ async def _probe_speech(conn: Any, block_private: bool) -> tuple[int, str, bool]
     return int((time.monotonic() - started) * 1000), transcript.timing, transcript.language is not None
 
 
-def _speech_connection(file: Path | None) -> Any:
-    """The profile's speech connection; exits 2 with a message when there is none."""
+def _profile(file: Path | None) -> Any:
+    """The connections file; exits 2 with a message when it is invalid."""
     from aftertalk.config.profiles import ProfileError, load_profile
 
     try:
-        profile = load_profile(file)
+        return load_profile(file)
     except ProfileError as exc:
         typer.echo(str(exc), err=True)
         raise typer.Exit(2)
+
+
+def _speech_connection(file: Path | None, profile: Any = None) -> Any:
+    """The profile's speech connection; exits 2 with a message when there is none."""
+    profile = profile if profile is not None else _profile(file)
     if profile.speech is None:
         typer.echo("no speech connection is configured; add speech to the connections file", err=True)
         raise typer.Exit(2)
@@ -298,9 +303,13 @@ def _clock(seconds: float) -> str:
     return f"{hours}:{minutes:02d}:{secs:02d}" if hours else f"{minutes}:{secs:02d}"
 
 
-def _progress(event: Any) -> None:
+def _progress(event: Any, diarization_host: str | None = None) -> None:
     """Progress lines on stderr: steps, the audio length and window counts, never text."""
-    if event.step == "decode" and event.kind == "started":
+    if event.step == "diarize" and event.kind == "started":
+        # The host of the connection the user configured (not the upload address pyannote picks): the recording now
+        # goes to a second company.
+        typer.echo(f"identifying speakers (uploading the recording to {diarization_host or 'the diarizer'})", err=True)
+    elif event.step == "decode" and event.kind == "started":
         typer.echo("decoding audio", err=True)
     elif event.step == "decode" and event.kind == "finished" and event.audio_seconds is not None:
         typer.echo(f"audio length {_clock(event.audio_seconds)}", err=True)
@@ -312,14 +321,32 @@ def _progress(event: Any) -> None:
             typer.echo(f"transcribing window {done + 1}/{total}", err=True)
 
 
-async def _transcribe(conn: Any, path: Path, options: Any, block_private: bool, timeout: int) -> Any:
+async def _transcribe(
+    conn: Any, path: Path, options: Any, block_private: bool, timeout: int, diarization: Any = None
+) -> Any:
     """Run the pipeline within `timeout` seconds, decoding included; running out is `limit_exceeded`."""
+    from contextlib import AsyncExitStack
+    from urllib.parse import urlsplit
+
     from aftertalk.models.usage import JobLimits
     from aftertalk.pipeline import transcribe_file
+    from aftertalk.providers.diarization.pyannote import open_diarization
     from aftertalk.providers.speech.openai_compatible import open_speech
 
-    async with open_speech(conn, block_private=block_private) as provider:
-        return await transcribe_file(path, provider, options, JobLimits(timeout_seconds=timeout), _progress)
+    host = urlsplit(diarization.base_url).hostname if diarization is not None else None
+    async with AsyncExitStack() as stack:
+        provider = await stack.enter_async_context(open_speech(conn, block_private=block_private))
+        diarizer = None
+        if diarization is not None:
+            diarizer = await stack.enter_async_context(open_diarization(diarization, block_private=block_private))
+        return await transcribe_file(
+            path,
+            provider,
+            options,
+            JobLimits(timeout_seconds=timeout),
+            lambda event: _progress(event, host),
+            diarizer=diarizer,
+        )
 
 
 @app.command()
@@ -350,6 +377,15 @@ def transcribe(
             help="With --channels split: agent or customer per channel, channel 0 first. Default: customer,agent."
         ),
     ] = None,
+    diarize: Annotated[
+        bool | None,
+        typer.Option(
+            "--diarize/--no-diarize",
+            show_default=False,
+            help="Find the speakers of mixed audio with the diarization connection (it uploads the whole recording "
+            "there). Default: when the connections file has diarization. A real --channels split never diarizes.",
+        ),
+    ] = None,
     output: Annotated[Path | None, typer.Option("--output", "-o", help="Write here instead of stdout.")] = None,
     connections: Annotated[
         Path | None, typer.Option(help="Connections file (default ~/.aftertalk/connections.yaml).")
@@ -368,7 +404,8 @@ def transcribe(
 
     Any length: long audio is sent in windows of at most 10 minutes. Progress goes to stderr.
     `--format json` writes {"transcript": ..., "usage": [...], "dropped_segments": n}, with one usage entry per step
-    (decode, vad for split, transcribe). `--channels split` sends each speech segment of each channel on its own.
+    (decode, vad for split, transcribe, diarize). `--channels split` sends each speech segment of each channel on its
+    own.
     """
     from aftertalk.audio.decode import probe_duration
     from aftertalk.audio.vad import INSTALL_HINT, silero_available
@@ -405,7 +442,12 @@ def transcribe(
     if split and not silero_available():
         typer.echo(f"--channels split needs voice detection: {INSTALL_HINT}", err=True)
         raise typer.Exit(2)
-    conn = _speech_connection(connections)
+    profile = _profile(connections)
+    conn = _speech_connection(connections, profile)
+    diarization = profile.diarization if diarize is not False else None
+    if diarize and diarization is None:
+        typer.echo("--diarize needs a diarization connection; add diarization to the connections file", err=True)
+        raise typer.Exit(2)
     block_private = _cli_settings().block_private_addresses
     seconds = timeout if timeout is not None else default_timeout(probe_duration(audio_file))
     options = TranscribeOptions(
@@ -421,7 +463,7 @@ def transcribe(
     no_times = False
     result: Any = None
     try:
-        result = asyncio.run(_transcribe(conn, audio_file, options, block_private, seconds))
+        result = asyncio.run(_transcribe(conn, audio_file, options, block_private, seconds, diarization))
     except TimesUnavailable:
         no_times = True
     except Exception as exc:
@@ -430,15 +472,35 @@ def transcribe(
         typer.echo(times_needed(format.value), err=True)  # the same words as when the renderer refuses
         raise typer.Exit(1)
     if failure is not None:
+        from aftertalk.providers.diarization.pyannote import PollingTimeout
+
         # Only the code and its fixed sentence are printed, never what the provider sent.
         if as_json:
             typer.echo(_failure_json(failure))
         else:
+            if isinstance(failure, PollingTimeout):
+                typer.echo(
+                    "the diarization provider did not finish in time; a longer --timeout does not help", err=True
+                )
             typer.echo(_failure_text(failure), err=True)
         raise typer.Exit(1)
     transcript = result.transcript
-    if split and transcript.source is not None and transcript.source.channel_mode == "mix":
-        typer.echo("the file does not have two channels; it was transcribed as one mixed track", err=True)
+    source = transcript.source
+    diarized = source is not None and source.diarized
+    if split and source is not None and source.channel_mode == "mix":
+        how = " and its speakers identified by diarization" if diarized else ""
+        typer.echo(f"the file does not have two channels; it was transcribed as one mixed track{how}", err=True)
+    elif diarized and source is not None and source.channels == 2:
+        typer.echo(
+            "the file has two channels: --channels split gives one speaker per channel without diarization", err=True
+        )
+    skipped = {
+        "no_times": "the speech provider returned no timestamps",
+        "too_long": "the recording is longer than the diarization provider accepts",
+        "no_speakers": "the diarization provider found none",
+    }.get(result.diarization_skipped or "")
+    if skipped is not None:
+        typer.echo(f"speakers were not identified: {skipped}", err=True)
     if result.dropped_segments:
         typer.echo(f"dropped {result.dropped_segments} segment(s) as likely hallucinations", err=True)
     speech_format = next((u.speech_format for u in result.usage if u.step == "transcribe"), None)

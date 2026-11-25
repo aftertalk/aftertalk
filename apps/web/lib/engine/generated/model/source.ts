@@ -20,4 +20,5 @@ export interface Source {
   channel_mode?: SourceChannelMode;
   /** @minimum 0 */
   start_offset_seconds?: number;
+  diarized?: boolean;
 }

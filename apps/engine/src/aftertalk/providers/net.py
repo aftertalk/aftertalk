@@ -10,6 +10,7 @@ The connection is pinned: the request goes to the address that passed the check,
 
 import asyncio
 import ipaddress
+import logging
 import socket
 from collections.abc import Awaitable, Callable
 
@@ -25,6 +26,11 @@ _IPAddress = ipaddress.IPv4Address | ipaddress.IPv6Address
 _NAT64 = ipaddress.ip_network("64:ff9b::/96")
 _LOCAL_SUFFIXES = (".localhost", ".internal")
 _LIMITS = httpx2.Limits(max_connections=1000, max_keepalive_connections=100)
+
+# HTTP clients log every request URL at INFO and more at DEBUG. A presigned upload URL carries its signature, so these
+# loggers only ever pass warnings and errors, whatever logging the process sets up (`logging.setup_logging` too).
+for _name in ("httpx", "httpx2", "httpcore", "httpcore2"):
+    logging.getLogger(_name).setLevel(logging.WARNING)
 
 
 class BlockedAddressError(Exception):

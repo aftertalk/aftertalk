@@ -5,6 +5,7 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from './diarizationConnection';
 export * from './healthzHealthzGet200';
 export * from './jobError';
 export * from './jobErrorCode';

@@ -30,6 +30,35 @@
   },
   "components": {
     "schemas": {
+      "DiarizationConnection": {
+        "additionalProperties": false,
+        "description": "A speaker diarization service (pyannote.ai). The key is required.",
+        "properties": {
+          "adapter": {
+            "const": "pyannote-ai",
+            "default": "pyannote-ai",
+            "title": "Adapter",
+            "type": "string"
+          },
+          "base_url": {
+            "default": "https://api.pyannote.ai/v1",
+            "format": "uri",
+            "title": "Base Url",
+            "type": "string"
+          },
+          "api_key": {
+            "format": "password",
+            "title": "Api Key",
+            "type": "string",
+            "writeOnly": true
+          }
+        },
+        "required": [
+          "api_key"
+        ],
+        "title": "DiarizationConnection",
+        "type": "object"
+      },
       "JobError": {
         "description": "A failure as web receives it: the code, whether a retry may help, and what the run used.",
         "properties": {
@@ -515,6 +544,11 @@
             "minimum": 0,
             "title": "Start Offset Seconds",
             "type": "number"
+          },
+          "diarized": {
+            "default": false,
+            "title": "Diarized",
+            "type": "boolean"
           }
         },
         "required": [

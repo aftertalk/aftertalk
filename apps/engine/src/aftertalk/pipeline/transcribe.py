@@ -20,8 +20,9 @@ Rules for both modes:
 - The turns are the transcript's segments; its text is their texts joined with one space, and its timing level is
   recomputed on them (it can be lower than any single window's).
 - Usage is one `StepUsage` per step: `decode` and (for `split`) `vad` carry time only, `transcribe` all windows summed,
-  with the lowest `speech_format` any window needed. An entry without a `provider` is a step that was not billed, and
-  `audio_seconds` is only on the `transcribe` entry. A failure raises an `EngineError` with a fixed code; one that
+  with the lowest `speech_format` any window needed, and `diarize` (mixed audio with a diarizer, whenever it sent a
+  request) the diarizer's requests. An entry without a `provider` is a step that was not billed; `audio_seconds` is on
+  the `transcribe` entry, and on `diarize` once a diarization job was asked for. A failure raises an `EngineError` with a fixed code; one that
   comes from a window carries the transcribe step's usage so far, that window's included (a request still in flight
   when the run stops counts as one attempt, not a request, with its audio). A window that was never sent adds no
   audio. Nothing from the provider is chained to it.
@@ -30,6 +31,17 @@ Rules for both modes:
 `channels="mix"` (the default): all channels mixed to mono, one speaker "Speaker 1". The track is cut into windows
 (`audio/windows.py`) of at most 600 s that fit `speech.capabilities.max_upload_bytes`, sent one at a time, in order,
 each with only the caller's prompt. Language: window 1, 2... in order until one has text.
+
+`mix` with a `diarizer` (a real two-channel `split` never diarizes; its fallback to `mix` does): a request that sends
+no audio checks the diarizer's key before window 1. The whole track, mixed to mono (`audio.encode.MonoWav`, streamed),
+goes to the diarizer once, after the first window with text passed the language and times checks; the windows go on
+meanwhile. A failure on either side cancels the other and fails the run (spec #14); its error carries the failing
+side's usage, the windows' when both failed, and diarize's for a deadline once only diarization is left. Diarization
+times are shifted by the start offset, and the turns come from `turns.build_speaker_turns` (speakers "Speaker 1",
+"Speaker 2"... by first speech; `source.diarized`). It is skipped, with one speaker and `diarization_skipped` saying
+why, when a window with text has no times (`no_times`: the first one uploads nothing; a later one cancels the
+diarization, which is not used though a job may already be billed), the track is over the diarizer's limits (`too_long`, nothing
+sent) or the diarizer found no speakers (`no_speakers`); a file without text sends it no audio.
 
 `channels="split"` (a two-channel file; anything else falls back to `mix`, with speakers that have no role and the
 default label, and `source.channel_mode` says "mix"): one speaker per channel, channel 0 first, with the caller's
@@ -56,7 +68,7 @@ from typing import Literal
 import numpy as np
 
 from aftertalk.audio.decode import SAMPLE_RATE, DecodedAudio, open_decoded, retry_removals, to_mono
-from aftertalk.audio.encode import AudioFormat, EncodedAudio, encode_pcm
+from aftertalk.audio.encode import AudioFormat, EncodedAudio, MonoWav, encode_pcm, wav_size
 from aftertalk.audio.vad import INSTALL_HINT, MAX_SPEECH_SECONDS, AudioExtraMissing, SpeechDetector, load_detector
 from aftertalk.audio.windows import Window, max_window_seconds, plan_mix_windows
 from aftertalk.logging import log
@@ -64,13 +76,15 @@ from aftertalk.models.errors import EngineError
 from aftertalk.models.transcript import Segment, Source, Speaker, Transcript, Word, timing_level
 from aftertalk.models.usage import JobLimits, StepUsage
 from aftertalk.pipeline.filter import fails_scores, filter_hallucinations
-from aftertalk.pipeline.turns import ChannelPart, build_channel_turns, build_turns
+from aftertalk.pipeline.turns import ChannelPart, SpeakerSpan, build_channel_turns, build_speaker_turns, build_turns
+from aftertalk.providers.diarization.protocols import DiarizationOutput, DiarizationProvider
 from aftertalk.providers.speech.languages import normalize_language
 from aftertalk.providers.speech.protocols import SpeechProvider
 
 __all__ = ["PipelineEvent", "TimesUnavailable", "TranscribeOptions", "TranscribeResult", "transcribe_file"]
 
-Step = Literal["decode", "vad", "transcribe"]
+Step = Literal["decode", "vad", "transcribe", "diarize"]
+DiarizationSkipped = Literal["no_times", "too_long", "no_speakers"]
 EventKind = Literal["started", "progress", "finished"]
 ChannelMode = Literal["mix", "split"]
 Role = Literal["agent", "customer"]
@@ -103,8 +117,12 @@ class TranscribeOptions:
 @dataclass(frozen=True)
 class TranscribeResult:
     transcript: Transcript
-    usage: list[StepUsage]  # one entry per step, in order: decode, vad (split only), transcribe
+    usage: list[StepUsage]  # one entry per step, in order: decode, vad (split only), transcribe, diarize (see below)
     dropped_segments: int = 0  # provider segments the hallucination filter dropped (`split` only)
+    # With a diarizer on mixed audio, why the speakers did not come from it (None when they did, or when there was no
+    # text to diarize): the speech provider returned no times, the file is over the diarizer's limits, or the
+    # diarizer found no speakers. `source.diarized` says whether they did.
+    diarization_skipped: DiarizationSkipped | None = None
 
 
 @dataclass(frozen=True)
@@ -181,9 +199,12 @@ class _Totals:
 class _State:
     step: Step = "decode"
     totals: _Totals = field(default_factory=_Totals)
+    diarizer: DiarizationProvider | None = None
 
     def usage(self) -> StepUsage | None:
-        """What a failure reports: the transcribe step's usage once it has started, else nothing."""
+        """What a failure reports: the running step's usage (transcribe, or diarize once only it is left)."""
+        if self.step == "diarize" and self.diarizer is not None:
+            return self.diarizer.usage()
         return self.totals.usage() if self.step == "transcribe" else None
 
 
@@ -329,10 +350,12 @@ async def transcribe_file(
     on_event: Callable[[PipelineEvent], None] | None = None,
     *,
     detector: SpeechDetector | None = None,
+    diarizer: DiarizationProvider | None = None,
 ) -> TranscribeResult:
-    """Transcribe `path` with `speech`. Raises `EngineError` with a fixed code on any failure, or `TimesUnavailable`
-    with `require_times`. Bad options (an unknown language among them) raise `ValueError`, and `split` without the
-    `[audio]` extra (and no `detector`) raises `AudioExtraMissing`, both before anything is read."""
+    """Transcribe `path` with `speech`, and with `diarizer` find the speakers of mixed audio (see the module docstring).
+    Raises `EngineError` with a fixed code on any failure, or `TimesUnavailable` with `require_times`. Bad options (an
+    unknown language among them) raise `ValueError`, and `split` without the `[audio]` extra (and no `detector`)
+    raises `AudioExtraMissing`, both before anything is read."""
     _check_options(options)
     if options.channels == "split" and detector is None:
         try:
@@ -344,11 +367,11 @@ async def transcribe_file(
     started = time.monotonic()
     timeout = limits.timeout_seconds if limits is not None else None
     deadline = None if timeout is None else started + timeout
-    state = _State()
+    state = _State(diarizer=diarizer)
     error: Exception | None = None
     try:
         async with asyncio.timeout(timeout):
-            result = await _run(path, speech, options, limits, deadline, on_event, state, detector)
+            result = await _run(path, speech, options, limits, deadline, on_event, state, detector, diarizer)
         log("info", "transcribe finished", step="transcribe", duration_ms=_ms_since(started))
         retry_removals()
         return result
@@ -382,6 +405,7 @@ async def _run(
     on_event: Callable[[PipelineEvent], None] | None,
     state: _State,
     detector: SpeechDetector | None,
+    diarizer: DiarizationProvider | None,
 ) -> TranscribeResult:
     def emit(event: PipelineEvent) -> None:
         if on_event is not None:
@@ -406,7 +430,7 @@ async def _run(
             usage = [StepUsage(step="decode", duration_ms=_ms_since(decode_started))]
             emit(PipelineEvent("decode", "finished", audio_seconds=audio.duration_seconds))
             name = path.name if "/" not in path.name and "\\" not in path.name else None
-            run = _Run(speech, options, deadline, state, emit, audio, _language(options))
+            run = _Run(speech, options, deadline, state, emit, audio, _language(options), diarizer)
             try:
                 if options.channels == "split" and audio.samples.shape[1] == 2 and detector is not None:
                     return await run.split(detector, usage, sha, name)
@@ -430,7 +454,7 @@ def _language(options: TranscribeOptions) -> _Language:
     return _Language(allowed=allowed or None)
 
 
-def _source(audio: DecodedAudio, sha: str, name: str | None, mode: ChannelMode) -> Source:
+def _source(audio: DecodedAudio, sha: str, name: str | None, mode: ChannelMode, diarized: bool = False) -> Source:
     return Source(
         kind="video" if audio.has_video else "audio",
         name=name,
@@ -439,7 +463,27 @@ def _source(audio: DecodedAudio, sha: str, name: str | None, mode: ChannelMode) 
         channels=audio.channels,
         channel_mode=mode,
         start_offset_seconds=round(audio.start_offset_seconds, 3),
+        diarized=diarized,
     )
+
+
+class _Gate:
+    """When diarization may start (`_Run._mix_diarized`): opened once, to go or to skip, with the reason for a skip."""
+
+    def __init__(self) -> None:
+        self.event = asyncio.Event()
+        self.go = False
+        self.reason: DiarizationSkipped | None = None
+        self.on_abandon: Callable[[], None] | None = None
+
+    def abandon(self) -> None:
+        if self.on_abandon is not None:
+            self.on_abandon()
+
+    def decide(self, *, go: bool, reason: DiarizationSkipped | None = "no_times") -> None:
+        self.go = go
+        self.reason = None if go else reason
+        self.event.set()
 
 
 class _Run:
@@ -454,8 +498,12 @@ class _Run:
         emit: Callable[[PipelineEvent], None],
         audio: DecodedAudio,
         language: _Language,
+        diarizer: DiarizationProvider | None = None,
     ) -> None:
         self.speech = speech
+        self.diarizer = diarizer
+        self.upload: MonoWav | None = None
+        self.untimed_text = False  # a window came back with text and no times at all (`mix`)
         self.options = options
         self.deadline = deadline
         self.state = state
@@ -470,6 +518,9 @@ class _Run:
         self.timed_checked: set[int] = set()  # channels whose first answer with text was checked for times
 
     def drop(self) -> None:
+        if self.upload is not None:
+            self.upload.close()
+        self.upload = None
         self.samples = None
         self.audio = None
 
@@ -523,10 +574,72 @@ class _Run:
         self.state.step = "transcribe"
         self.state.totals.started = time.monotonic()
         windows = await asyncio.to_thread(plan_mix_windows, audio, max_bytes=self.speech.capabilities.max_upload_bytes)
+        frames = audio.samples.shape[0]
         del audio
         self.total = len(windows)
+        diarizer = self.diarizer
+        skipped: DiarizationSkipped | None = None
+        if diarizer is not None:
+            caps = diarizer.capabilities
+            if (caps.max_upload_bytes is not None and wav_size(frames) > caps.max_upload_bytes) or (
+                caps.max_audio_seconds is not None and self.duration > caps.max_audio_seconds
+            ):
+                skipped, diarizer = "too_long", None  # transcribed as without a diarizer, one speaker
         self._progress("started")
         segments: list[Segment] = []
+        if diarizer is None:
+            await self._mix_windows(windows, segments, None)
+            output = None
+        else:
+            output, skipped = await self._mix_diarized(diarizer, windows, segments)
+        turns: list[Segment] | None = None
+        speakers = [_MIX_SPEAKER]
+        diarized = False
+        if diarizer is not None and self.untimed_text and skipped is None:
+            # A later window came back without times (the request form moved down mid-run): its words cannot be placed,
+            # so the whole file keeps one speaker rather than a guess for part of it. The diarization was cancelled or
+            # is not used; a job already created may still be billed.
+            output, skipped = None, "no_times"
+        if output is not None:
+            spans = self._spans(output)
+            # In a thread: thousands of overlapping spans from a broken answer must not hold the event loop (deadline).
+            turns, found, diarized = await asyncio.to_thread(build_speaker_turns, segments, spans)
+            if diarized:
+                speakers = found
+            elif any(seg.text.strip() for seg in segments):
+                skipped = "no_times" if spans else "no_speakers"  # spans but no timed word to place, or no spans
+        if not diarized:
+            turns = build_turns(segments, speaker=_MIX_SPEAKER.id)
+        assert turns is not None and self.audio is not None
+        transcript = Transcript(
+            text=" ".join(turn.text for turn in turns),
+            language=self.language.value,
+            duration_seconds=round(self.offset + self.duration, 3),
+            timing=timing_level(turns),
+            segments=turns,
+            speakers=speakers,
+            source=_source(self.audio, sha, name, "mix", diarized),
+        )
+        usage.append(self.state.totals.usage())
+        if self.diarizer is not None and self.diarizer.usage().attempts:
+            usage.append(self.diarizer.usage())
+        self._progress("finished")
+        return TranscribeResult(transcript=transcript, usage=usage, diarization_skipped=skipped)
+
+    def _spans(self, output: DiarizationOutput) -> list[SpeakerSpan]:
+        """The diarizer's segments on the file's timeline: it heard the decoded track from 0, so the start offset is
+        added; an end past the audio is cut to it, and a segment starting at or after its end is dropped."""
+        return [
+            SpeakerSpan(
+                round(seg.start + self.offset, 3), round(min(seg.end, self.duration) + self.offset, 3), seg.speaker
+            )
+            for seg in output.segments
+            if seg.start < self.duration
+        ]
+
+    async def _mix_windows(self, windows: Sequence[Window], segments: list[Segment], gate: "_Gate | None") -> None:
+        """The windows in order, each with only the caller's prompt. With a `gate`, the first window with text that
+        passed the language and times checks opens it (diarization starts); one without times closes it."""
         for window in windows:
             detecting = not self.language.decided
             part = await self._send(window, None, self.options.prompt)
@@ -534,23 +647,99 @@ class _Run:
                 self.language.decide(part, self.state.totals)
             self._times(part, 0)
             offset = window.start / SAMPLE_RATE + self.offset
-            segments.extend(_shifted(part.segments, offset, (window.stop - window.start) / SAMPLE_RATE))
+            shifted = _shifted(part.segments, offset, (window.stop - window.start) / SAMPLE_RATE)
+            if _has_text(part):
+                # Judged on the times that survive `_bounded`: a time past the audio sent is no time.
+                timed = any(seg.start is not None or any(w.start is not None for w in seg.words) for seg in shifted)
+                if not timed:
+                    self.untimed_text = True
+                    if gate is not None and gate.go:
+                        gate.abandon()  # diarization already running will not be used: stop waiting for it
+                if gate is not None and not gate.event.is_set():
+                    gate.decide(go=timed)
+            segments.extend(shifted)
             self.done += 1
             self._progress("progress")
-        turns = build_turns(segments, speaker=_MIX_SPEAKER.id)
-        assert self.audio is not None
-        transcript = Transcript(
-            text=" ".join(turn.text for turn in turns),
-            language=self.language.value,
-            duration_seconds=round(self.offset + self.duration, 3),
-            timing=timing_level(turns),
-            segments=turns,
-            speakers=[_MIX_SPEAKER],
-            source=_source(self.audio, sha, name, "mix"),
-        )
-        usage.append(self.state.totals.usage())
-        self._progress("finished")
-        return TranscribeResult(transcript=transcript, usage=usage)
+        if gate is not None and not gate.event.is_set():
+            gate.decide(go=False, reason=None)  # no window had text: nothing to diarize
+
+    async def _mix_diarized(
+        self, diarizer: DiarizationProvider, windows: Sequence[Window], segments: list[Segment]
+    ) -> tuple[DiarizationOutput | None, DiarizationSkipped | None]:
+        """Windows and diarization together (spec #14: a diarize failure fails the run).
+
+        A request that sends no audio checks the diarizer's key first. The whole mixed track is uploaded once, after
+        the first window with text passed its checks (`_Gate`), so an early speech failure, a file without text and
+        a provider without times send nothing to the diarizer. The windows go on meanwhile. A failure on either side
+        cancels the other; when both failed, the windows' error is raised. Once only diarization is left, the step is
+        `diarize`, so a deadline then reports its usage.
+        """
+        failure: EngineError | None = None
+        try:
+            await diarizer.check(deadline=self.deadline)
+        except EngineError as err:
+            failure = err
+        except Exception:
+            failure = EngineError("internal", diarizer.usage())  # a bug of ours; its text is not shown
+        if failure is not None:
+            self.state.step = "diarize"
+            try:
+                raise failure
+            finally:
+                del failure
+        assert self.samples is not None
+        self.upload = MonoWav(self.samples)
+        gate = _Gate()
+
+        async def run_windows() -> None:
+            await self._mix_windows(windows, segments, gate)
+            if gate.go and not self.untimed_text:
+                self.state.step = "diarize"  # only diarization is left: a deadline now reports its usage
+
+        async def run_diarize() -> DiarizationOutput | None:
+            await gate.event.wait()
+            if not gate.go:
+                return None
+            upload = self.upload
+            assert upload is not None
+            self.emit(PipelineEvent("diarize", "started", audio_seconds=self.duration))
+            output, _ = await diarizer.diarize(upload, deadline=self.deadline)
+            self.emit(PipelineEvent("diarize", "finished", audio_seconds=self.duration))
+            return output
+
+        diarizing = asyncio.ensure_future(run_diarize())
+        gate.on_abandon = diarizing.cancel  # a job already created runs on at the provider and may be billed
+        transcribing = asyncio.ensure_future(run_windows())
+        tasks = [transcribing, diarizing]
+        try:
+            await asyncio.wait(tasks, return_when=asyncio.FIRST_EXCEPTION)
+        finally:
+            for task in tasks:
+                task.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
+            if self.upload is not None:
+                self.upload.close()
+        failed: BaseException | None = None
+        if not transcribing.cancelled() and transcribing.exception() is not None:
+            failed = transcribing.exception()
+            self.state.step = "transcribe"
+        elif not diarizing.cancelled() and diarizing.exception() is not None:
+            failed = diarizing.exception()
+            self.state.step = "diarize"
+            if isinstance(failed, EngineError):
+                failed.usage = diarizer.usage()
+            else:
+                failed = EngineError("internal", diarizer.usage())  # a bug of ours; its text is not shown
+        if failed is not None:
+            del tasks, transcribing, diarizing
+            try:
+                raise failed
+            finally:
+                del failed
+        output = None if diarizing.cancelled() else diarizing.result()  # cancelled: abandoned after an untimed window
+        gate.on_abandon = None
+        del tasks, transcribing, diarizing
+        return output, gate.reason
 
     # ---- split ----
 

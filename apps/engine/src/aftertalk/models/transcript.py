@@ -76,6 +76,7 @@ class Source(BaseModel):
     channels: int | None = Field(default=None, ge=1)  # in the original audio stream
     channel_mode: Literal["mix", "split"] | None = None
     start_offset_seconds: Seconds = 0  # where the audio starts in the file; already added to all times
+    diarized: bool = False  # the speakers come from a diarization provider (mixed audio), not from channels
 
     @model_validator(mode="after")
     def _fields(self) -> "Source":

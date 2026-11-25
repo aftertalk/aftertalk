@@ -17,6 +17,9 @@ ALLOWED_FIELDS = frozenset(
 Level = Literal["debug", "info", "warning", "error"]
 
 _logger = logging.getLogger("aftertalk")
+# HTTP clients log every request URL at INFO and more at DEBUG: a presigned upload URL carries its signature, so they
+# only ever log warnings and errors.
+_QUIET_LOGGERS = ("httpx", "httpx2", "httpcore", "httpcore2")
 
 
 class JsonFormatter(logging.Formatter):
@@ -44,6 +47,8 @@ def setup_logging(level: Level = "info") -> None:
     for name in ("uvicorn", "uvicorn.error", "uvicorn.access"):
         logging.getLogger(name).handlers[:] = []
         logging.getLogger(name).propagate = True
+    for name in _QUIET_LOGGERS:
+        logging.getLogger(name).setLevel(logging.WARNING)
 
 
 def log(level: Level, msg: str, **fields: object) -> None:

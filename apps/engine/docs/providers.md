@@ -2,7 +2,8 @@
 
 Which servers work as a speech connection (`speech:` in `~/.aftertalk/connections.yaml`), and how well. The adapter
 is `openai-compatible`: `POST {base_url}/audio/transcriptions`. How it behaves is in
-`src/aftertalk/providers/README.md`.
+`src/aftertalk/providers/README.md`. The one diarization service, pyannote.ai, is at the end of the compatibility
+section.
 
 ## What is tested
 
@@ -17,7 +18,8 @@ Only what the local fake server proves. `tests/fake_speech.py` imitates these re
 - `temperature=0` on every request, and one resend without it when a server answers 400 naming `temperature`;
 - a server that reads the upload and then does not answer: one request only, never a second (billed) upload.
 
-Nothing below has been run against a real provider.
+Nothing below has been run against a real provider. The same goes for pyannote.ai: `tests/fake_pyannote.py` imitates
+it, and no test calls the real service. A real run is still to be done before merge.
 
 ## Compatibility
 
@@ -46,6 +48,25 @@ speech:
   model: whisper-large-v3
   audio_format: flac   # or wav
 ```
+
+### Diarization (pyannote.ai)
+
+The `diarization:` connection finds the speakers of mixed audio. The adapter is `pyannote-ai`; `base_url` defaults to
+`https://api.pyannote.ai/v1` and `api_key` is required.
+
+```yaml
+diarization:
+  api_key: ${PYANNOTE_API_KEY}
+```
+
+`aftertalk transcribe` uses it on mixed audio whenever the file has `diarization:`. `--no-diarize` turns it off;
+`--diarize` without a connection exits 2. It uploads the whole recording to pyannote.ai, so the command says so on
+stderr first. How it works is in `src/aftertalk/providers/README.md`. What the docs say, and no test confirms:
+
+- Only jobs that succeed are billed, 20 s at least. There is no cancel endpoint, so a job we stop polling (the run was
+  cancelled, timed out, or a speech window failed after the job started) runs on and may be billed.
+- An upload stays in pyannote.ai's storage for 24 to 48 hours.
+- Limits: 1 GiB and 24 hours of audio. A longer file is not diarized: it gets one speaker (`too_long`).
 
 ## Spike: word lists and punctuation from real providers
 
@@ -150,7 +171,36 @@ update the table above.
   cues by word times: a new cue starts when the cue would pass 84 characters or 7 s, or after a sentence end once the
   cue is at least 1 s long. With 2 or more speakers a cue starts with the speaker (`<v Label>` in VTT, "Label: " in
   SRT).
-- Usage has one entry per step: `decode`, `vad` (split only), `transcribe`.
+- Usage has one entry per step: `decode`, `vad` (split only), `transcribe`, `diarize` (only when a request went to
+  pyannote.ai). A run that fails carries the usage of the one step that failed, so the other side's spend is not in it.
+- Diarization (mixed audio with a `diarization:` connection; a real `--channels split` never diarizes, but split's
+  fallback to mix on a file without two channels does):
+  - A request that sends no audio checks the key before the first speech window. The whole mixed track is uploaded
+    once, as 16 kHz mono 16-bit WAV (115.2 MB an hour, streamed from the decoded temp file), only after the first
+    window with text passed the language and timestamp checks. The windows go on while pyannote.ai works. A failure on
+    either side cancels the other, and a diarize failure fails the run (spec #14). A file with no text sends no audio.
+  - Polling stops after the larger of 300 s and half the audio's length, and always at the run deadline; both are
+    `limit_exceeded`. When the cap was hit, stderr says that a longer `--timeout` does not help.
+  - Each request is tried up to 3 times on a connection error, a timeout, 408, 429 (`Retry-After` is honoured) or 5xx.
+    `/diarize` is sent again only after a failed connect or an answer of 408, 429 or 5xx; after a timeout, a dropped
+    connection or a failed write a job may exist, so it is not. A phase times out after 30 s, a connect after 5 s. The
+    upload may take the time left before the deadline (1800 s without one); an upload that used it all is not sent again.
+  - Errors: 401 and 403 on a request to `base_url` are `provider_auth`; 402 `provider_quota_exceeded`; 413 on the upload
+    `audio_too_long`; a job that failed or was cancelled, and any answer we cannot use, `provider_bad_response`.
+  - Speakers: each timed word takes the segment that covers its midpoint (`[start, end)` in ms). A segment without
+    word times is one unit, placed by its own midpoint. When several segments cover it, the one that overlaps the word
+    most wins, then the shorter, then the earlier. When none covers it, the nearest wins (spec item 68), a tie going to
+    the earlier. Speakers are `s1`, `s2`... ("Speaker 1"...) in order of first speech; a pyannote speaker with no words
+    is not listed, and there are no roles.
+  - Turns: a new turn on a change of speaker, after a gap of 1.5 s inside one speaker, and at the 60 s split. The gap
+    rule inside one speaker is a deliberate departure from spec line 1151 and #60.
+  - Skipped, with one speaker and `source.diarized` false (`diarization_skipped` in the library, a line on stderr):
+    `no_times` (a window with text has no times at all; segment times are enough; a later one cancels the diarization,
+    though a job already created may be billed), `too_long`, and
+    `no_speakers` (pyannote.ai returned no segments). Whether a file was diarized is `source.diarized`.
+  - Security: the presigned upload goes through the same HTTP client, so `BLOCK_PRIVATE_ADDRESSES` checks its host too.
+    It must be https unless `base_url` is http, and it carries no `Authorization` header. Without
+    `BLOCK_PRIVATE_ADDRESSES` the diarization server can pick any upload host: the same trust as `base_url`.
 - On Windows a temp file that is still mapped cannot be deleted at once; it is deleted at the end of the run.
   Windows remains unsupported.
 - Subtitles need timestamps. `aftertalk transcribe --format vtt` or `--format srt` fails early when the

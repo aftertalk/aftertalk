@@ -198,3 +198,38 @@ def test_unknown_top_level_key(tmp_path: Path) -> None:
     with pytest.raises(ProfileError) as e:
         load_profile(write(tmp_path, "sk-TOP: 1\n"), env={})
     assert "top level: unknown key" in str(e.value) and "sk-TOP" not in str(e.value)
+
+
+DIARIZATION_YAML = """
+diarization:
+  api_key: ${PYANNOTE_API_KEY}
+"""
+
+
+def test_diarization_section_loads_and_interpolates(tmp_path: Path) -> None:
+    prof = load_profile(write(tmp_path, DIARIZATION_YAML), env={"PYANNOTE_API_KEY": SECRET})
+    assert prof.diarization.api_key.get_secret_value() == SECRET
+    assert prof.diarization.adapter == "pyannote-ai" and prof.diarization.base_url == "https://api.pyannote.ai/v1"
+    assert SECRET not in repr(prof)
+
+
+def test_no_diarization_section_is_none(tmp_path: Path) -> None:
+    assert load_profile(write(tmp_path, YAML), env={"GROQ_API_KEY": SECRET}).diarization is None
+    assert Profile().diarization is None
+
+
+def test_diarization_unknown_key_suggests_field(tmp_path: Path) -> None:
+    text = "diarization:\n  api_key: x\n  base_ulr: https://a.test/v1\n"
+    with pytest.raises(ProfileError) as e:
+        load_profile(write(tmp_path, text), env={})
+    assert "diarization: unknown key (did you mean base_url?)" in str(e.value) and "base_ulr" not in str(e.value)
+
+
+def test_diarization_error_has_no_secret(tmp_path: Path) -> None:
+    text = f"diarization:\n  api_key: {SECRET}\n  base_url: https://u:p@a.test/v1/diarize\n"
+    with pytest.raises(ProfileError) as e:
+        load_profile(write(tmp_path, text), env={})
+    assert SECRET not in str(e.value) and "diarization.base_url" in str(e.value)
+    with pytest.raises(ProfileError) as e:
+        load_profile(write(tmp_path, "diarization: {}\n"), env={})
+    assert "diarization.api_key" in str(e.value)

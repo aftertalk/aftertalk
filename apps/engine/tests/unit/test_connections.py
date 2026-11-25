@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from aftertalk.models import LLMConnection, ModelTiers, SpeechConnection
+from aftertalk.models import DiarizationConnection, LLMConnection, ModelTiers, SpeechConnection
 from aftertalk.models.connections import reveal
 
 KEY = "sk-super-secret-123"
@@ -220,3 +220,64 @@ def test_speech_extra_headers_are_secret_and_cannot_carry_auth() -> None:
         SpeechConnection(base_url="https://x.test/v1", model="m", extra_headers={"Authorization": "x"})
     with pytest.raises(ValidationError, match="not allowed in extra_headers"):
         llm(extra_headers={"api-key": "x"})
+
+
+def diar(**kw):
+    return DiarizationConnection(**{"api_key": KEY, **kw})
+
+
+def test_diarization_defaults() -> None:
+    d = diar()
+    assert d.adapter == "pyannote-ai" and d.base_url == "https://api.pyannote.ai/v1"
+
+
+def test_diarization_base_url() -> None:
+    assert diar(base_url="http://pyannote:8000/v1/").base_url == "http://pyannote:8000/v1"
+    assert diar(base_url="http://x.test").base_url == "http://x.test"
+
+
+@pytest.mark.parametrize("path", ["diarize", "media/input", "DIARIZE/"])
+def test_diarization_resource_path_rejected(path: str) -> None:
+    with pytest.raises(ValidationError, match="version path"):
+        diar(base_url=f"https://x.test/v1/{path}")
+
+
+def test_diarization_userinfo_rejected_without_echo() -> None:
+    with pytest.raises(ValidationError) as e:
+        diar(base_url="https://user:hunter2@x.test/v1")
+    assert "hunter2" not in str(e.value) and "username or password" in str(e.value)
+
+
+def test_diarization_extra_key_refused() -> None:
+    with pytest.raises(ValidationError, match="extra_forbidden|Extra inputs"):
+        diar(model="m")
+    with pytest.raises(ValidationError):
+        diar(extra_headers={"X-Org": "x"})
+
+
+def test_diarization_key_required() -> None:
+    with pytest.raises(ValidationError, match="Field required"):
+        DiarizationConnection()
+
+
+@pytest.mark.parametrize("value", ["", "  \n", "**********"])
+def test_diarization_bad_key_refused_without_echo(value: str) -> None:
+    with pytest.raises(ValidationError) as e:
+        diar(api_key=value)
+    assert "api_key" in str(e.value) and "input_value" not in str(e.value)
+    assert "leave it out" not in str(e.value)
+    if value.strip() == "":
+        assert "api_key is empty" in str(e.value)
+    else:
+        assert "masked placeholder" in str(e.value)
+
+
+def test_diarization_key_masked_and_revealed() -> None:
+    d = diar(api_key=f" {KEY}\n")
+    for text in (repr(d), str(d), d.model_dump_json(), str(d.model_dump())):
+        assert KEY not in text
+    assert d.model_dump(mode="json")["api_key"] == "**********"
+    assert reveal(d)["api_key"] == KEY
+    assert DiarizationConnection.model_validate(reveal(d)) == d
+    with pytest.raises(ValidationError):
+        DiarizationConnection.model_validate(d.model_dump(mode="json"))

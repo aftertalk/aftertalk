@@ -431,7 +431,9 @@ def test_timeout_reaches_the_pipeline(
 
     seen: list[object] = []
 
-    async def capture(path: object, speech: object, options: object, limits: object, on_event: object) -> None:
+    async def capture(
+        path: object, speech: object, options: object, limits: object, on_event: object, **kwargs: object
+    ) -> None:
         seen.append(limits)
         raise EngineError("internal")
 

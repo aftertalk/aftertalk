@@ -2,7 +2,7 @@
 
 Adapters to outside services, built from the settings in each job request (keys
 are never stored or logged). `speech/` (transcription, below), `llm.py` and `output.py`
-(LLM), `diarization/pyannote.py` (later). Spec: items 65-67, 69.
+(LLM), `diarization/` (speakers, below). Spec: items 65-67, 69.
 
 ## LLM
 
@@ -186,6 +186,9 @@ is `audio_unreadable`.
 `audio/encode.py`: `encode_pcm(samples, fmt)` encodes one window, in memory, as FLAC or WAV (16-bit PCM, mono,
 16 kHz); `SpeechConnection.audio_format` picks it: `flac` (default) or `wav` for servers that do not list FLAC (Azure,
 whisper.cpp without `--convert`). `open_encoded` (the whole file as one upload) is used only by `providers test`.
+`MonoWav` is the whole decoded track mixed to mono as 16-bit WAV for diarization: it is streamed from the decoded temp
+file in 1 MiB chunks and never built in memory, and `chunks()` starts again from the header, so a retried upload sends
+it whole.
 
 ### Commands
 
@@ -207,3 +210,69 @@ out is `limit_exceeded`. Its default is 3600 s, or twice the file's duration whe
 `{"ok": false, "code": ...}` with `--json`; `language_not_allowed` adds the detected language, `(detected: uk)` or
 `"detected_language": "uk"`), 2 no speech connection, bad connections file, bad arguments or a setting spelled with
 the `AFTERTALK_` prefix.
+
+## Diarization
+
+`diarization/` finds who speaks when in mixed audio. It is separate from speech (spec #6). The pipeline gives the
+provider the whole mixed track and assigns the words to speakers itself (`pipeline/turns.build_speaker_turns`); the
+provider's speaker labels are grouping keys and never leave the engine.
+
+| File | What it does |
+| --- | --- |
+| `diarization/protocols.py` | `DiarizationProvider` (`name`, `capabilities`, `check(deadline=)`, `diarize(audio, deadline=)`, `usage()`), `DiarizationCapabilities` (`max_upload_bytes`, `max_audio_seconds`), `DiarizationUpload` (`chunks()`, `size_bytes`, `duration_seconds`, `content_type`) and the output types (`DiarizationSegment`, `DiarizationOutput`). |
+| `diarization/pyannote.py` | The only adapter: `pyannote-ai`. `open_diarization(conn, block_private=)` makes the client, yields the provider and closes the client. One instance per run: it sums the run's requests into one `StepUsage` (`step` `diarize`, `provider` `pyannote-ai`, `model` `community-1`). It is the only place that reads the key. |
+
+### Connection
+
+`DiarizationConnection` (`diarization:` in the connections file): `adapter` (`pyannote-ai`, the default), `base_url`
+(default `https://api.pyannote.ai/v1`) and `api_key` (required).
+
+```yaml
+diarization:
+  api_key: ${PYANNOTE_API_KEY}
+```
+
+### Flow
+
+1. `check`: `POST {base_url}/media/input`, which sends no audio. A rejected key fails here, before any speech window.
+2. After the first speech window with text has passed the language and timestamp checks, `diarize` asks
+   `POST {base_url}/media/input` for an upload address and `PUT`s the whole mixed track there, once, as 16 kHz mono
+   16-bit WAV (115.2 MB an hour). The windows go on meanwhile.
+3. `POST {base_url}/diarize` with `model: community-1` and `exclusive: true` creates the job. `exclusiveDiarization` is
+   read from the answer when it has it.
+4. `GET {base_url}/jobs/{id}` every 2 s until the job has succeeded. The job id must match `[A-Za-z0-9_-]{1,128}`.
+
+A failure on either side (windows or diarization) cancels the other (spec failure rule #14: a diarize failure fails the
+run). A file over 1 GiB or 24 hours is not sent: it is transcribed with one speaker (`too_long`).
+
+### Limits and retries
+
+- Each request is tried up to 3 times on a connection error, a timeout, 408, 429 or 5xx, waiting 2 s then 10 s, or
+  `Retry-After`. A wait that would pass the deadline is `limit_exceeded`. A phase times out after 30 s, a connect after
+  5 s. `/diarize` is sent again only after a failed connect or an answer of 408, 429 or 5xx: after a timeout, a dropped
+  connection or a failed write a job may exist, and there is no endpoint to cancel one. The upload may take the time
+  left before the deadline (1800 s without one), and an upload that used all of it is not sent again.
+- The HTTP client loggers (`httpx`, `httpx2`, `httpcore`, `httpcore2`) are set to WARNING when `providers/net.py` is
+  imported: they log request URLs, and a presigned upload URL carries its signature.
+- Polling stops after the larger of 300 s and half the audio's length, and always at the run's deadline. Both are
+  `limit_exceeded`; the first is `PollingTimeout`, so the command can say that a longer `--timeout` does not help.
+- Errors carry a code and the usage so far, never provider text, the upload address or the key: 401 and 403
+  `provider_auth` (on the upload itself, which has no key, `provider_bad_response`); 402 `provider_quota_exceeded`; 413
+  on the upload `audio_too_long`; 429 `provider_rate_limited`; 408, 5xx and transport failures `provider_unreachable`;
+  a job that failed or was cancelled, a bad answer and any other 4xx `provider_bad_response`.
+- `usage.requests` counts requests that got a response, `attempts` every request sent, polls and the key check
+  included. `audio_seconds` is set once job creation was attempted, because from then on a job may be billed. The entry
+  is in the result whenever a request went to pyannote.ai.
+
+### Security
+
+The key goes only to requests on `{base_url}`, never to the upload host. The presigned upload goes through the same
+`make_client`, so `BLOCK_PRIVATE_ADDRESSES` checks its host too, and redirects are never followed. The address must be
+https unless `base_url` is http, and it is never logged or put in an error. Without `BLOCK_PRIVATE_ADDRESSES` the
+diarization server can pick any upload host: the same trust as `base_url`.
+
+### Billing and retention
+
+From pyannote.ai's documentation; the real API has not been tried. Only succeeded jobs are billed, 20 s at least. A job
+we stop polling (cancel, timeout, a speech window that fails after the job started) runs on and may be billed. An
+upload stays in pyannote.ai's storage for 24 to 48 hours. The limits are 1 GiB and 24 hours.
