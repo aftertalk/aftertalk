@@ -602,7 +602,8 @@ class _Run:
             output, skipped = None, "no_times"
         if output is not None:
             spans = self._spans(output)
-            turns, found, diarized = build_speaker_turns(segments, spans)
+            # In a thread: thousands of overlapping spans from a broken answer must not hold the event loop (deadline).
+            turns, found, diarized = await asyncio.to_thread(build_speaker_turns, segments, spans)
             if diarized:
                 speakers = found
             elif any(seg.text.strip() for seg in segments):
@@ -645,14 +646,18 @@ class _Run:
             if detecting and _has_text(part):
                 self.language.decide(part, self.state.totals)
             self._times(part, 0)
-            if _has_text(part) and part.timing == "none":
-                self.untimed_text = True
-                if gate is not None and gate.go:
-                    gate.abandon()  # diarization already running will not be used: stop waiting for it
-            if gate is not None and not gate.event.is_set() and _has_text(part):
-                gate.decide(go=part.timing != "none")
             offset = window.start / SAMPLE_RATE + self.offset
-            segments.extend(_shifted(part.segments, offset, (window.stop - window.start) / SAMPLE_RATE))
+            shifted = _shifted(part.segments, offset, (window.stop - window.start) / SAMPLE_RATE)
+            if _has_text(part):
+                # Judged on the times that survive `_bounded`: a time past the audio sent is no time.
+                timed = any(seg.start is not None or any(w.start is not None for w in seg.words) for seg in shifted)
+                if not timed:
+                    self.untimed_text = True
+                    if gate is not None and gate.go:
+                        gate.abandon()  # diarization already running will not be used: stop waiting for it
+                if gate is not None and not gate.event.is_set():
+                    gate.decide(go=timed)
+            segments.extend(shifted)
             self.done += 1
             self._progress("progress")
         if gate is not None and not gate.event.is_set():

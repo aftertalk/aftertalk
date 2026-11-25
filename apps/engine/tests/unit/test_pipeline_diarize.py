@@ -390,9 +390,35 @@ async def test_a_later_untimed_window_stops_waiting_for_the_diarization(
 ) -> None:
     path = make_tone(tmp_path / "long.wav", seconds=4.0, rate=16000, channels=1)
     fake_speech.forced = [reply(["a", "b"]), reply(["c", "d"], shape="text")]
-    fake_pyannote.statuses = ["running"] if job == "never finishes" else ["running"] * 20 + ["failed"]  # fails after window 2
+    fake_pyannote.statuses = (
+        ["running"] if job == "never finishes" else ["running"] * 20 + ["failed"]
+    )  # fails after window 2
     fake_speech.stall = 0.2  # the job exists before window 2 answers
     started = time.monotonic()
-    result = await run(fake_speech, fake_pyannote, path, window=2.0, poll_interval=0.05)
+    result = await run(
+        fake_speech, fake_pyannote, path, window=2.0, poll_interval=0.05, limits=JobLimits(timeout_seconds=10)
+    )
     assert time.monotonic() - started < 5
     assert result.diarization_skipped == "no_times" and len(fake_pyannote.jobs) == 1
+
+
+async def test_a_later_window_whose_times_are_all_out_of_range_counts_as_untimed(
+    fake_speech: FakeSpeech, fake_pyannote: FakePyannote, tmp_path: Path
+) -> None:
+    path = make_tone(tmp_path / "long.wav", seconds=4.0, rate=16000, channels=1)
+    late = {"text": "x y", "language": "polish", "segments": [{"id": 0, "start": 50.0, "end": 51.0, "text": " x y"}]}
+    fake_speech.forced = [reply(["a", "b"]), Forced(200, json.dumps(late))]
+    fake_pyannote.output = segments((0.0, 0.6, "A"), (0.6, 4.0, "B"))
+    result = await run(fake_speech, fake_pyannote, path, window=2.0, limits=JobLimits(timeout_seconds=20))
+    assert result.diarization_skipped == "no_times" and not result.transcript.source.diarized  # type: ignore[union-attr]
+
+
+async def test_a_later_silent_window_does_not_stop_diarization(
+    fake_speech: FakeSpeech, fake_pyannote: FakePyannote, tmp_path: Path
+) -> None:
+    path = make_tone(tmp_path / "long.wav", seconds=4.0, rate=16000, channels=1)
+    silent = {"text": "", "language": "polish", "segments": [], "words": []}
+    fake_speech.forced = [reply(["a", "b"]), Forced(200, json.dumps(silent))]
+    fake_pyannote.output = segments((0.0, 0.6, "A"), (0.6, 4.0, "B"))
+    result = await run(fake_speech, fake_pyannote, path, window=2.0, limits=JobLimits(timeout_seconds=20))
+    assert result.diarization_skipped is None and result.transcript.source.diarized  # type: ignore[union-attr]

@@ -64,23 +64,26 @@ def test_http_clients_never_log_request_urls(fake_pyannote, capsys: pytest.Captu
         assert not logging.getLogger(name).isEnabledFor(logging.INFO)
 
 
-def test_http_clients_are_quiet_without_setup_logging(fake_pyannote, capsys: pytest.CaptureFixture[str]) -> None:
-    """Whatever logging a library caller sets up, the HTTP client's request lines (URLs with signatures) stay out."""
-    import asyncio
+def test_http_clients_are_quiet_without_setup_logging(fake_pyannote, tmp_path) -> None:
+    """Whatever logging a library caller sets up, before or after importing the engine, the HTTP client's request
+    lines (URLs with signatures) stay out. In a fresh interpreter, so no earlier test's logging setup can hide it."""
+    import subprocess
     import sys
 
     from fake_pyannote import SIG
 
-    from aftertalk.providers.net import make_client
-
-    root = logging.getLogger()
-    root.handlers[:] = [logging.StreamHandler(sys.stderr)]
-    root.setLevel(logging.DEBUG)
-
-    async def put() -> None:
-        async with make_client(block_private=False) as client:
-            await client.put(f"{fake_pyannote.origin}/upload/1?sig={SIG}", content=b"x")
-
-    asyncio.run(put())
-    out = capsys.readouterr()
-    assert SIG not in out.out and SIG not in out.err
+    script = tmp_path / "probe.py"
+    script.write_text(
+        "import asyncio, logging, sys\n"
+        "logging.basicConfig(level=logging.DEBUG, stream=sys.stderr)\n"
+        "from aftertalk.providers.net import make_client\n"
+        "async def put():\n"
+        "    async with make_client(block_private=False) as client:\n"
+        f"        await client.put('{fake_pyannote.origin}/upload/1?sig={SIG}', content=b'x')\n"
+        "asyncio.run(put())\n"
+        "print('done')\n",
+        encoding="utf-8",
+    )
+    out = subprocess.run([sys.executable, str(script)], capture_output=True, text=True, timeout=60, check=True)
+    assert "done" in out.stdout
+    assert SIG not in out.stdout and SIG not in out.stderr

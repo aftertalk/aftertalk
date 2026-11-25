@@ -10,8 +10,8 @@ The flow (spec, Adapters): `POST {base_url}/media/input` for an upload address, 
 - Each request is tried up to `ATTEMPTS` times on a connection error, a timeout, 408, 429 or 5xx (waits
   `RETRY_WAITS`, or `Retry-After`). Job creation is sent again only when it provably did not reach the server (a
   failed connect) or the server answered 408, 429 or 5xx: after a timeout, a dropped connection or a failed write a job
-  may exist, and pyannote bills every job that succeeds. A request that used its whole wall-clock time (the upload: the
-  time left, or `MAX_UPLOAD_SECONDS` without a deadline) is never sent again. There is no endpoint to cancel a job, so
+  may exist, and pyannote bills every job that succeeds. An upload that used its whole wall-clock time (the time left, or
+  `MAX_UPLOAD_SECONDS` without a deadline) is never sent again; the other requests have `JSON_REQUEST_SECONDS` a try. There is no endpoint to cancel a job, so
   one we stop polling runs on.
 - Polling stops at the larger of `MIN_POLL_SECONDS` and half the audio's length, and always at the deadline: both are
   `limit_exceeded` (`PollingTimeout` for the cap, so the CLI can say which).
@@ -323,9 +323,9 @@ class PyannoteDiarization:
         """One request with its own retry budget. Returns a 200 or 201 response; anything else raises.
 
         `wall` caps one try in wall-clock seconds (None: the time left, or `MAX_UPLOAD_SECONDS` without a deadline);
-        a try that used it all is not sent again. Not `idempotent` (job creation): after a timeout, a dropped connection
+        an upload that used it all is not sent again (a JSON request is). Not `idempotent` (job creation): after a timeout, a dropped connection
         or a failed write it is not sent again either, since the server may have acted on it. `billable_seconds` is
-        what may be billed once the request was sent.
+        what may be billed once a try may have reached the server (not after a failed connect or a blocked address).
         """
         counters = self._counters
         failures = 0
@@ -337,24 +337,24 @@ class PyannoteDiarization:
                     raise self._fail("limit_exceeded")
                 total = remaining if wall is None else min(wall, remaining)
             counters.attempts += 1
-            if billable_seconds is not None:
-                counters.audio_seconds = billable_seconds
             response: httpx2.Response | None = None
             problem: ErrorCode | None = None
+            reached = True  # whether this try may have reached the server (and, for a job, be billed)
             try:
                 async with asyncio.timeout(total):
                     response = await request(
                         httpx2.Timeout(min(PHASE_TIMEOUT, total), connect=min(CONNECT_TIMEOUT, total))
                     )
-            except TimeoutError:  # the whole wall-clock time: trying again cannot be faster
+            except TimeoutError:  # the try's whole wall-clock time
                 late = deadline is not None and self._clock() >= deadline - 0.05
                 problem = "limit_exceeded" if late else "provider_unreachable"
-                failures = ATTEMPTS
+                if wall is None or not idempotent:
+                    failures = ATTEMPTS  # an upload that took all the time left, or a job that may exist: not again
             except BlockedAddressError:
-                problem = "provider_unreachable"
+                problem, reached = "provider_unreachable", False
                 failures = ATTEMPTS  # waiting does not unblock an address
             except (httpx2.ConnectError, httpx2.ConnectTimeout):
-                problem = "provider_unreachable"  # nothing reached the server: always safe to try again
+                problem, reached = "provider_unreachable", False  # nothing reached the server: safe to try again
             except (UnicodeEncodeError, httpx2.LocalProtocolError):
                 problem = "provider_config_invalid"
             except httpx2.TransportError:  # a phase timeout, a dropped connection, a failed write
@@ -365,6 +365,8 @@ class PyannoteDiarization:
                 problem = "provider_bad_response"
             except Exception:
                 problem = "internal"
+            if reached and billable_seconds is not None:
+                counters.audio_seconds = billable_seconds
             pause: float | None = None
             if response is not None:
                 counters.requests += 1

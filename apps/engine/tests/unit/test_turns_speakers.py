@@ -245,3 +245,47 @@ def test_property_every_word_once_in_order_and_valid() -> None:
             speakers=speakers,
             timing=timing_level(turns),
         )
+
+
+def _brute(spans: list[SpeakerSpan], start: float, end: float) -> str:
+    """The index's rule written out plainly, over every span."""
+    lo, hi = round(start * 1000), round(end * 1000)
+    mid = (lo + hi) / 2
+    items = sorted(
+        ((round(s.start * 1000), round(s.end * 1000), i, s.speaker) for i, s in enumerate(spans)),
+        key=lambda it: (it[0], it[2]),
+    )
+    covering = [it for it in items if it[0] <= mid < it[1]]
+    if covering:
+        return min(covering, key=lambda it: (-(min(it[1], hi) - max(it[0], lo)), it[1] - it[0], it[0], it[2]))[3]
+    # Nearest by distance to an edge; a tie goes to the earlier (a span before the midpoint), then the first in order.
+    return min(
+        items,
+        key=lambda it: (
+            it[0] - mid if mid < it[0] else mid - it[1],
+            0 if it[1] <= mid else 1,
+            it[1] * -1,
+            it[0],
+            it[2],
+        ),
+    )[3]
+
+
+def test_the_index_matches_a_plain_reference() -> None:
+    rng = random.Random(99)
+    for _ in range(1500):
+        spans = []
+        for _ in range(rng.randint(1, 14)):
+            a = round(rng.uniform(0, 20), 3)
+            spans.append(
+                span(
+                    a,
+                    round(a + rng.choice([0.001, 0.2, 1.0, 6.0, 15.0]) * rng.random() + 0.001, 3),
+                    rng.choice("ABCDEF"),
+                )
+            )
+        index = _SpeakerIndex(spans)
+        for _ in range(25):
+            a = round(rng.uniform(-2, 25), 3)
+            b = round(a + rng.choice([0.0, 0.05, 0.3, 1.0]) * rng.random(), 3)
+            assert index(a, b) == _brute(spans, a, b), (spans, a, b)

@@ -184,7 +184,7 @@ update the table above.
   - Each request is tried up to 3 times on a connection error, a timeout, 408, 429 (`Retry-After` is honoured) or 5xx.
     `/diarize` is sent again only after a failed connect or an answer of 408, 429 or 5xx; after a timeout, a dropped
     connection or a failed write a job may exist, so it is not. A phase times out after 30 s, a connect after 5 s. The
-    upload may take the time left before the deadline (1800 s without one); one that used it all is not sent again.
+    upload may take the time left before the deadline (1800 s without one); an upload that used it all is not sent again.
   - Errors: 401 and 403 on a request to `base_url` are `provider_auth`; 402 `provider_quota_exceeded`; 413 on the upload
     `audio_too_long`; a job that failed or was cancelled, and any answer we cannot use, `provider_bad_response`.
   - Speakers: each timed word takes the segment that covers its midpoint (`[start, end)` in ms). A segment without
