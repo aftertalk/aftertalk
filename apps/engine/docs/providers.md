@@ -87,11 +87,36 @@ update the table above.
   larger than WAV), so a smaller limit means shorter windows and more requests. A window is cut at the quietest point
   in its last 30 s when that point is silence, and cut hard at the longest length when there is none (music,
   crosstalk). Windows do not overlap, so a word can be cut in two at a window edge.
-- Every window gets only your `--prompt`; no text is carried from one window to the next.
-- Language: a forced language goes to every window. Otherwise it is detected on the first window, and every later
-  window is forced to it. A file that switches language part way keeps the first window's language.
-- Audio is mixed down to mono and only the first audio stream is read. One speaker per channel (two-channel calls)
-  comes in the next step of M2; files with several audio tracks are not handled.
+- With `--channels mix` every window gets only your `--prompt`; no text is carried from one window to the next.
+- Language, in both modes: a forced language, or exactly one allowed language, goes to every window. A call that is
+  really English with only Polish allowed then comes back as poor Polish-looking text, not an error. Otherwise
+  windows are sent with detection until one returns text, and every window sent after it is forced to that
+  window's language; every answer that was sent with detection and has text must be in an allowed language. `mix` tries windows in order. `split` tries the longest of the first five speech segments first, then the
+  next longest; filler that the hallucination filter's score rules would drop does not count as text. A window
+  without text never fails the language check. A file that switches language part way keeps the decided language.
+- `--channels mix` (default) mixes all channels to mono. `--channels split` gives one speaker per channel of a
+  two-channel file; any other file is mixed, with a warning. Only the first audio stream is read; files with several
+  audio tracks are not handled. Split needs the `[audio]` extra (`pip install 'aftertalk[audio]'`, or
+  `uv sync --project apps/engine --extra audio`); without it the command exits 2.
+- Split sends one request per speech segment (Silero: threshold 0.4, 250 ms minimum speech, 800 ms minimum silence,
+  longest segment 5 min, or less when the upload limit holds less audio; a longer segment is cut into equal pieces,
+  and an upload limit under 2 s of audio is `audio_too_long`). That can be hundreds of requests for a 30-minute call, so rate limits matter: at 20
+  requests a minute, about 15 minutes. The two channels run in parallel; the windows of one channel run in order.
+  Each request's prompt is the last 500 characters of the same channel's text, starting from `--prompt`.
+- A "fake stereo" file (the same audio on both channels) transcribed with split gives every sentence twice.
+- Audio shorter than 0.1 s is `audio_unreadable` before any request. A relative path with a colon
+  ("meeting: monday.wav") works.
+- The request form a server accepted is kept for the later windows of the run: a server that rejected word
+  timestamps (or `temperature`) is not asked again, so the later windows are not uploaded two or three times.
+- Hallucination filter (`split` only; mixed audio is never filtered). Per-segment requests on short speech produce
+  filler such as "Dziękuję." A provider segment is dropped, with its words, when
+  1. it is shorter than 1 s and its `avg_logprob` is under -0.45;
+  2. its `avg_logprob` is under -0.7;
+  3. it is shorter than 2 s and its `compression_ratio` is under 0.5;
+  4. the same speaker has the same text (stripped, compared exactly) in 3 or more segments of the call.
+  A provider that sends no scores gets only the repetition rule. The risk: a real short answer such as "tak" said
+  3 or more times by one speaker is dropped. The count is `dropped_segments` in `--format json` output and a line on
+  stderr.
 - Times are seconds from the start of the file, as a player shows them: an mp4 whose audio starts 45 s in has its
   first word at about 45 s (`source.start_offset_seconds`). The lead-in is not padded. Gaps inside the audio stream
   are filled with silence, at most 30 minutes in one file (more is `audio_unreadable`); a long hold with no packets
@@ -119,9 +144,19 @@ update the table above.
   in time is unknown. Treat `None` as "no playback for this segment". The timing level is set on the turns, so a
   window that came back without times can lower it for the whole file. Subtitle output skips untimed turns and says
   how many.
-- Subtitles need timestamps. `aftertalk transcribe --format vtt` or `--format srt` is refused after the run when the
-  provider returned no times (`timing: none`, for example `gpt-4o-transcribe`): the command exits 1 and writes
-  nothing, and the audio is already billed. Segment times are enough; word times are not needed. Check the
+- Output formats: `text` is one turn per line, with a "Label: " prefix when there are 2 or more speakers. `md` starts
+  with a header naming the speakers and roles, then one line per turn: `[t12 00:01:23] Agent: ...`, or
+  `[t12] Agent: ...` for a turn without times. The ids are the turn ids in the JSON. `vtt` and `srt` cut a turn into
+  cues by word times: a new cue starts when the cue would pass 84 characters or 7 s, or after a sentence end once the
+  cue is at least 1 s long. With 2 or more speakers a cue starts with the speaker (`<v Label>` in VTT, "Label: " in
+  SRT).
+- Usage has one entry per step: `decode`, `vad` (split only), `transcribe`.
+- On Windows a temp file that is still mapped cannot be deleted at once; it is deleted at the end of the run.
+  Windows remains unsupported.
+- Subtitles need timestamps. `aftertalk transcribe --format vtt` or `--format srt` fails early when the
+  provider returns no times (`timing: none`, for example `gpt-4o-transcribe`): the first answer with text stops the run
+  (per channel for split), so the rest is not paid for. The command exits 1 and writes nothing. Segment times are
+  enough; word times are not needed. Check the
   `timestamps:` value (`timing` in `--json` output) of `providers test --kind speech` first, or use
   `--format json --output <file>`, which is never refused for lack of times.
 - If any window fails after its retries, `aftertalk transcribe` exits 1 and writes nothing in any format; the windows

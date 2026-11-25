@@ -82,6 +82,25 @@ def tone(seconds: float, rate: int, freq: float = 440.0, amplitude: float = 1000
     return (np.sin(2 * np.pi * freq * np.arange(int(rate * seconds)) / rate) * amplitude).astype(np.int16)
 
 
+def make_stereo(
+    path: Path, left: list[tuple[float, float, int]], right: list[tuple[float, float, int]], *, seconds: float
+) -> Path:
+    """A 16 kHz stereo WAV, silent (exact zeros) except for `(start s, stop s, value)` spans of constant samples on
+    each channel: what one channel says is told apart from the other by its value. See `nonzero_runs`."""
+    signal = np.zeros((round(seconds * 16000), 2), dtype=np.int16)
+    for channel, spans in enumerate((left, right)):
+        for start, stop, value in spans:
+            signal[round(start * 16000) : round(stop * 16000), channel] = value
+    return make_media(path, "pcm_s16le", rate=16000, channels=2, signal=signal)
+
+
+def nonzero_runs(samples: np.ndarray, longest: float, stop: object = None) -> list[tuple[int, int]]:
+    """A stand-in speech detector (`audio.vad.SpeechDetector`): every run of non-zero samples is one speech segment."""
+    on = np.concatenate([[0], (np.asarray(samples) != 0).astype(np.int8), [0]])
+    edges = np.flatnonzero(np.diff(on))
+    return [(int(a), int(b)) for a, b in zip(edges[::2], edges[1::2], strict=True)]
+
+
 def make_media(
     path: Path,
     codec: str,

@@ -261,13 +261,14 @@ def test_cancel_during_encoding_leaves_nothing(
     tmp_path: Path, audio_dir: Path, monkeypatch: pytest.MonkeyPatch, how: str
 ) -> None:
     from aftertalk.cli import _transcribe
+    from aftertalk.pipeline import TranscribeOptions
 
     slow = SlowConvert()
     monkeypatch.setattr(decode, "_convert", slow)
     source = make_tone(tmp_path / "a.wav")
 
     async def main() -> None:
-        job = _transcribe(cli_conn(tmp_path), source, None, None, False, 3600)
+        job = _transcribe(cli_conn(tmp_path), source, TranscribeOptions(), False, 3600)
         if how == "cancel":
             task = asyncio.create_task(job)
             await asyncio.to_thread(slow.started.wait, 10)

@@ -93,8 +93,26 @@ class Kind(StrEnum):
 class OutputFormat(StrEnum):
     json = "json"
     text = "text"
+    md = "md"
     vtt = "vtt"
     srt = "srt"
+
+
+class Channels(StrEnum):
+    mix = "mix"
+    split = "split"
+
+
+def _pair(value: str, name: str) -> list[str]:
+    """`--speakers` / `--roles`: exactly two comma-separated values, channel 0 first; exits 2 otherwise."""
+    items = [item.strip() for item in value.split(",")]
+    if len(items) != 2 or not all(items):
+        typer.echo(f"--{name} takes two values, channel 0 first, for example {_EXAMPLES[name]}", err=True)
+        raise typer.Exit(2)
+    return items
+
+
+_EXAMPLES = {"speakers": "Customer,Agent", "roles": "customer,agent"}
 
 
 async def _probe_llm(conn: Any, block_private: bool) -> tuple[int, str]:
@@ -286,21 +304,20 @@ def _progress(event: Any) -> None:
         typer.echo("decoding audio", err=True)
     elif event.step == "decode" and event.kind == "finished" and event.audio_seconds is not None:
         typer.echo(f"audio length {_clock(event.audio_seconds)}", err=True)
+    elif event.step == "vad" and event.kind == "started":
+        typer.echo("detecting speech", err=True)
     elif event.step == "transcribe" and event.kind in ("started", "progress"):
         done, total = event.windows_done, event.windows_total
         if done is not None and total is not None and done < total:
             typer.echo(f"transcribing window {done + 1}/{total}", err=True)
 
 
-async def _transcribe(
-    conn: Any, path: Path, language: str | None, prompt: str | None, block_private: bool, timeout: int
-) -> Any:
+async def _transcribe(conn: Any, path: Path, options: Any, block_private: bool, timeout: int) -> Any:
     """Run the pipeline within `timeout` seconds, decoding included; running out is `limit_exceeded`."""
     from aftertalk.models.usage import JobLimits
-    from aftertalk.pipeline import TranscribeOptions, transcribe_file
+    from aftertalk.pipeline import transcribe_file
     from aftertalk.providers.speech.openai_compatible import open_speech
 
-    options = TranscribeOptions(language=language, prompt=prompt, audio_format=conn.audio_format)
     async with open_speech(conn, block_private=block_private) as provider:
         return await transcribe_file(path, provider, options, JobLimits(timeout_seconds=timeout), _progress)
 
@@ -316,6 +333,23 @@ def transcribe(
     ] = OutputFormat.text,
     language: Annotated[str | None, typer.Option(help="Force the spoken language, for example pl.")] = None,
     prompt: Annotated[str | None, typer.Option(help="Names and terms to help the recogniser.")] = None,
+    channels: Annotated[
+        Channels,
+        typer.Option(
+            help="mix: all channels as one track. split: one speaker per channel of a two-channel file (needs the "
+            r"\[audio] extra); a file without two channels is mixed."
+        ),
+    ] = Channels.mix,
+    speakers: Annotated[
+        str | None,
+        typer.Option(help="With --channels split: the two speakers' names, channel 0 first. Default: from the roles."),
+    ] = None,
+    roles: Annotated[
+        str | None,
+        typer.Option(
+            help="With --channels split: agent or customer per channel, channel 0 first. Default: customer,agent."
+        ),
+    ] = None,
     output: Annotated[Path | None, typer.Option("--output", "-o", help="Write here instead of stdout.")] = None,
     connections: Annotated[
         Path | None, typer.Option(help="Connections file (default ~/.aftertalk/connections.yaml).")
@@ -333,26 +367,68 @@ def transcribe(
     """Transcribe a file with the speech connection. Exit 0 ok, 1 failure, 2 configuration or usage error.
 
     Any length: long audio is sent in windows of at most 10 minutes. Progress goes to stderr.
-    `--format json` writes {"transcript": ..., "usage": [...]}, with one usage entry per step (decode, transcribe).
+    `--format json` writes {"transcript": ..., "usage": [...], "dropped_segments": n}, with one usage entry per step
+    (decode, vad for split, transcribe). `--channels split` sends each speech segment of each channel on its own.
     """
     from aftertalk.audio.decode import probe_duration
+    from aftertalk.audio.vad import INSTALL_HINT, silero_available
     from aftertalk.models.errors import EngineError
+    from aftertalk.pipeline import TimesUnavailable, TranscribeOptions
     from aftertalk.providers.speech.languages import normalize_language
-    from aftertalk.render import RenderError, render_srt, render_text, render_vtt, untimed_segments
+    from aftertalk.render import (
+        RenderError,
+        render_md,
+        render_srt,
+        render_text,
+        render_vtt,
+        times_needed,
+        untimed_segments,
+    )
 
     as_json = bool((ctx.obj or {}).get("json"))
     if language is not None and normalize_language(language) is None:
         typer.echo(f"unknown language {language!r}; use a code such as pl or en, or a name such as polish", err=True)
         raise typer.Exit(2)
+    split = channels is Channels.split
+    if not split and (speakers is not None or roles is not None):
+        typer.echo("--speakers and --roles need --channels split", err=True)
+        raise typer.Exit(2)
+    labels = _pair(speakers, "speakers") if speakers is not None else None
+    role_list = _pair(roles, "roles") if roles is not None else None
+    if role_list is not None:
+        if any(role not in ("agent", "customer") for role in role_list):
+            typer.echo("--roles takes agent or customer, for example customer,agent", err=True)
+            raise typer.Exit(2)
+        if len(set(role_list)) != 2:
+            typer.echo("--roles: at most one speaker per role", err=True)
+            raise typer.Exit(2)
+    if split and not silero_available():
+        typer.echo(f"--channels split needs voice detection: {INSTALL_HINT}", err=True)
+        raise typer.Exit(2)
     conn = _speech_connection(connections)
     block_private = _cli_settings().block_private_addresses
     seconds = timeout if timeout is not None else default_timeout(probe_duration(audio_file))
+    options = TranscribeOptions(
+        language=language,
+        prompt=prompt,
+        audio_format=conn.audio_format,
+        channels=channels.value,
+        labels=labels,
+        roles=role_list,  # type: ignore[arg-type]
+        require_times=format in (OutputFormat.vtt, OutputFormat.srt),
+    )
     failure: EngineError | None = None
+    no_times = False
     result: Any = None
     try:
-        result = asyncio.run(_transcribe(conn, audio_file, language, prompt, block_private, seconds))
+        result = asyncio.run(_transcribe(conn, audio_file, options, block_private, seconds))
+    except TimesUnavailable:
+        no_times = True
     except Exception as exc:
         failure = _failure(exc)
+    if no_times:
+        typer.echo(times_needed(format.value), err=True)  # the same words as when the renderer refuses
+        raise typer.Exit(1)
     if failure is not None:
         # Only the code and its fixed sentence are printed, never what the provider sent.
         if as_json:
@@ -361,6 +437,10 @@ def transcribe(
             typer.echo(_failure_text(failure), err=True)
         raise typer.Exit(1)
     transcript = result.transcript
+    if split and transcript.source is not None and transcript.source.channel_mode == "mix":
+        typer.echo("the file does not have two channels; it was transcribed as one mixed track", err=True)
+    if result.dropped_segments:
+        typer.echo(f"dropped {result.dropped_segments} segment(s) as likely hallucinations", err=True)
     speech_format = next((u.speech_format for u in result.usage if u.step == "transcribe"), None)
     if speech_format is not None and speech_format != "verbose_json":
         typer.echo(
@@ -375,10 +455,13 @@ def transcribe(
                 payload = {
                     "transcript": transcript.model_dump(mode="json"),
                     "usage": [usage.model_dump(mode="json") for usage in result.usage],
+                    "dropped_segments": result.dropped_segments,
                 }
                 text = json.dumps(payload, indent=2, ensure_ascii=False) + "\n"
             case OutputFormat.text:
                 text = render_text(transcript)
+            case OutputFormat.md:
+                text = render_md(transcript)
             case OutputFormat.vtt:
                 text = render_vtt(transcript)
             case OutputFormat.srt:

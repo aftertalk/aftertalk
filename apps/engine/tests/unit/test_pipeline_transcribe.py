@@ -21,7 +21,7 @@ from aftertalk.models.connections import SpeechConnection
 from aftertalk.models.errors import EngineError
 from aftertalk.models.transcript import Segment, Transcript, Word, timing_level
 from aftertalk.models.usage import JobLimits, StepUsage
-from aftertalk.pipeline import PipelineEvent, TranscribeOptions, TranscribeResult, transcribe_file
+from aftertalk.pipeline import PipelineEvent, TimesUnavailable, TranscribeOptions, TranscribeResult, transcribe_file
 from aftertalk.pipeline.transcribe import SENT_SLACK_SECONDS, _shifted, _Totals
 from aftertalk.providers.net import make_client
 from aftertalk.providers.speech.openai_compatible import OpenAICompatibleSpeech
@@ -176,11 +176,13 @@ async def test_a_language_that_is_not_allowed_names_it(fake_speech: FakeSpeech, 
     assert err.code == "language_not_allowed" and err.detected_language == "uk" and len(fake_speech.seen) == 1
 
 
-async def test_one_allowed_language_is_used_and_forced(fake_speech: FakeSpeech, twelve: Path) -> None:
-    fake_speech.forced = [reply(["hello"], language=None) for _ in range(3)]
-    result = await run(fake_speech, twelve, TranscribeOptions(allowed_languages=["pl"]), window=5.0)
+async def test_one_allowed_language_is_forced_on_every_window(fake_speech: FakeSpeech, twelve: Path) -> None:
+    """Spec: with one allowed language it is passed to the provider (#15), so an English IVR cannot fail the call."""
+    fake_speech.forced = [reply(["hello"], language="english") for _ in range(3)]
+    options = TranscribeOptions(allowed_languages=["pl", "PL", "polish"])  # one language, however it is spelled
+    result = await run(fake_speech, twelve, options, window=5.0)
     assert result.transcript.language == "pl"
-    assert [seen.values("language") for seen in fake_speech.seen] == [[], ["pl"], ["pl"]]
+    assert [seen.values("language") for seen in fake_speech.seen] == [["pl"], ["pl"], ["pl"]]
 
 
 async def test_no_language_from_window_one_leaves_the_rest_unforced(fake_speech: FakeSpeech, twelve: Path) -> None:
@@ -195,6 +197,91 @@ async def test_every_window_gets_only_the_callers_prompt(fake_speech: FakeSpeech
     assert [seen.values("prompt") for seen in fake_speech.seen] == [["Kenobi, Skywalker"]] * 3
     await run(fake_speech, twelve, window=5.0)
     assert [seen.values("prompt") for seen in fake_speech.seen[3:]] == [[]] * 3  # nothing chained
+
+
+def no_text(language: str | None = None) -> Forced:
+    """An answer without text (and without times)."""
+    data: dict = {"text": ""}
+    if language is not None:
+        data["language"] = language
+    return Forced(200, json.dumps(data))
+
+
+async def test_windows_without_text_are_detected_until_one_has_text(fake_speech: FakeSpeech, twelve: Path) -> None:
+    """Empty windows never decide and never fail on their language, even with several allowed."""
+    fake_speech.forced = [no_text(None), no_text("ukrainian"), reply(["one"], language="english"), reply(["two"])]
+    result = await run(fake_speech, twelve, TranscribeOptions(allowed_languages=["pl", "en"]), window=3.0)
+    assert [seen.values("language") for seen in fake_speech.seen] == [[], [], [], ["en"]]
+    assert result.transcript.language == "en" and result.transcript.text == "one two"
+
+
+async def test_mix_with_no_text_anywhere_has_no_language(fake_speech: FakeSpeech, twelve: Path) -> None:
+    fake_speech.forced = [no_text(None), no_text("ukrainian"), no_text(None)]
+    result = await run(fake_speech, twelve, TranscribeOptions(allowed_languages=["pl", "en"]), window=5.0)
+    assert [seen.values("language") for seen in fake_speech.seen] == [[], [], []]
+    assert (result.transcript.language, result.transcript.text, result.transcript.segments) == (None, "", [])
+
+
+# ---- require_times ----
+
+
+async def test_require_times_fails_on_the_first_window_with_text_and_no_times(
+    fake_speech: FakeSpeech, twelve: Path
+) -> None:
+    fake_speech.forced = [no_text(), reply(["two"], shape="text"), reply(["three"])]
+    with pytest.raises(TimesUnavailable) as info:
+        await run(fake_speech, twelve, TranscribeOptions(require_times=True), window=5.0)
+    assert len(fake_speech.seen) == 2  # window 3 was never paid for
+    usage = info.value.usage
+    assert usage is not None and usage.step == "transcribe" and usage.requests == 2
+
+
+async def test_require_times_checks_only_the_first_window_with_text(fake_speech: FakeSpeech, twelve: Path) -> None:
+    fake_speech.forced = [reply(["one"]), reply(["two"], shape="text"), reply(["three"])]
+    result = await run(fake_speech, twelve, TranscribeOptions(require_times=True), window=5.0)
+    assert result.transcript.text == "one two three" and len(fake_speech.seen) == 3
+
+
+# ---- the request form the server accepted ----
+
+
+@pytest.fixture
+def three_slices(tmp_path: Path) -> Path:
+    """12 s whose 5 s windows each sound different, so every upload can be told apart."""
+    signal = np.concatenate(
+        [tone(5.0, SAMPLE_RATE, 440, 6000), tone(5.0, SAMPLE_RATE, 1000, 12000), tone(2.0, SAMPLE_RATE, 2500, 3000)]
+    )
+    return make_media(tmp_path / "three.wav", "pcm_s16le", rate=SAMPLE_RATE, signal=signal[:, None])
+
+
+def uploads(fake: FakeSpeech) -> list[bytes]:
+    out = []
+    for seen in fake.seen:
+        assert seen.file is not None
+        out.append(seen.file.data)
+    return out
+
+
+async def test_later_windows_start_at_the_request_form_that_worked(fake_speech: FakeSpeech, three_slices: Path) -> None:
+    fake_speech.reject_granularities = True
+    result = await run(fake_speech, three_slices, TranscribeOptions(audio_format="wav"), window=5.0)
+    sent = uploads(fake_speech)
+    assert len(sent) == 4
+    assert sent[0] == sent[1] and len({sent[1], sent[2], sent[3]}) == 3  # window 1 twice, windows 2 and 3 once
+    assert [bool(seen.values("timestamp_granularities[]")) for seen in fake_speech.seen] == [True, False, False, False]
+    usage = result.usage[-1]
+    assert (usage.requests, usage.speech_format) == (4, "verbose_json_segments")
+
+
+async def test_later_windows_are_sent_without_a_rejected_temperature(
+    fake_speech: FakeSpeech, three_slices: Path
+) -> None:
+    fake_speech.reject_temperature = True
+    await run(fake_speech, three_slices, TranscribeOptions(audio_format="wav"), window=5.0)
+    sent = uploads(fake_speech)
+    assert len(sent) == 4
+    assert sent[0] == sent[1] and len({sent[1], sent[2], sent[3]}) == 3
+    assert [seen.values("temperature") for seen in fake_speech.seen] == [["0"], [], [], []]
 
 
 # ---- timing level ----

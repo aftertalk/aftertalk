@@ -64,6 +64,19 @@ jobs:
       - run: uv run --project apps/engine ruff format --check apps/engine
       - run: uv run --project apps/engine pytest apps/engine
 
+  # The [audio] extra (torch, silero-vad): the real voice-detection test and the split pipeline with Silero.
+  engine-audio:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v7
+        with:
+          version: '0.12.24'
+      - run: uv sync --frozen --project apps/engine --extra audio
+      - name: Fail when the extra does not import (the real Silero test would only be skipped)
+        run: uv run --frozen --project apps/engine --extra audio python -c "import torch, silero_vad"
+      - run: uv run --frozen --project apps/engine --extra audio pytest apps/engine
+
   compose:
     runs-on: ubuntu-latest
     steps:

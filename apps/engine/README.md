@@ -21,18 +21,36 @@ ENGINE_CALLBACK_SECRET=dev uv run --project apps/engine --extra server aftertalk
 
 Or the whole stack: `docker compose -f docker-compose.dev.yml up -d --build`.
 
+## Transcribe from the command line
+
+```sh
+aftertalk transcribe call.mp3 --format md                  # one mixed track
+aftertalk transcribe call.wav --channels split --format md # one speaker per channel
+```
+
+`--channels split` treats a two-channel file as two speakers: channel 0 is the customer and channel 1 the agent by
+default. Set them with `--speakers Customer,Agent` and `--roles customer,agent` (two values, channel 0 first; a
+label defaults from its role). `--speakers` and `--roles` only work with `split`; otherwise the command exits 2. A file
+that does not have two channels is mixed, with a warning on stderr.
+
+Split needs voice detection, the `[audio]` extra: `pip install 'aftertalk[audio]'`, or in this repo
+`uv sync --project apps/engine --extra audio`. Without it `--channels split` exits 2. It sends one request per speech
+segment, which can be hundreds for a 30-minute call, so check your provider's rate limits. A hallucination filter
+drops likely filler; `--format json` reports the count as `dropped_segments`, and stderr says it too. Formats:
+`text`, `md`, `vtt`, `srt`, `json`. Details and limits: `docs/providers.md`.
+
 ## Layout
 
 ```
 src/aftertalk/
   cli.py       the `aftertalk` command (Typer)
-  audio/       decode, cut into windows, encode for providers (PyAV)
+  audio/       decode, cut into windows, voice detection, encode for providers (PyAV)
   assets/      bundled test clip (test-2s.wav)
-  render.py    a transcript as text, WebVTT or SRT
+  render.py    a transcript as text, Markdown, WebVTT or SRT
   models/      data models and error codes shared with web (through openapi.json)
   config/      the CLI connections file (~/.aftertalk/connections.yaml)
   api/         HTTP: app, job contract (OpenAPI), signing and callbacks
-  pipeline/    a file to a transcript: windows, stitching, turns
+  pipeline/    a file to a transcript: windows, stitching, filter, turns
   steps/       reserved for analyses and quotes (empty)
   providers/   speech, diarization and LLM adapters
   pii/         pattern rules, name detector, redaction
