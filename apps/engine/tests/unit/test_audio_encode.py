@@ -1,5 +1,6 @@
 import asyncio
 import io
+import math
 from pathlib import Path
 
 import av
@@ -78,3 +79,50 @@ def test_open_encoded_unreadable(tmp_path: Path) -> None:
     with pytest.raises(EngineError) as info:
         asyncio.run(main())
     assert info.value.code == "audio_unreadable" and info.value.__context__ is None
+
+
+def test_mono_wav_streams_the_same_bytes_as_encode_pcm_over_several_chunks() -> None:
+    import asyncio
+
+    import numpy as np
+
+    from aftertalk.audio.decode import to_mono
+    from aftertalk.audio.encode import _STREAM_FRAMES, MonoWav, encode_pcm
+
+    rng = np.random.default_rng(11)
+    for frames, channels in ((1, 1), (_STREAM_FRAMES, 1), (_STREAM_FRAMES * 2 + 7, 2)):
+        samples = rng.integers(-32768, 32767, size=(frames, channels), dtype=np.int16)
+        wav = MonoWav(samples)
+
+        async def collect(w: MonoWav = wav) -> list[bytes]:
+            return [chunk async for chunk in w.chunks()]
+
+        chunks = asyncio.run(collect())
+        assert b"".join(chunks) == encode_pcm(to_mono(samples), "wav").data
+        assert len(b"".join(chunks)) == wav.size_bytes
+        assert len(chunks) == 1 + math.ceil(frames / _STREAM_FRAMES)
+        assert b"".join(asyncio.run(collect())) == b"".join(chunks)  # each pass starts again from the header
+
+
+def test_mono_wav_close_drops_the_map_and_cuts_a_pass() -> None:
+    import asyncio
+
+    import numpy as np
+    import pytest
+
+    from aftertalk.audio.encode import _STREAM_FRAMES, MonoWav
+
+    wav = MonoWav(np.zeros((_STREAM_FRAMES * 2, 1), dtype=np.int16))
+    chunks = wav.chunks()
+
+    async def two() -> None:
+        await chunks.__anext__()  # header
+        await chunks.__anext__()
+        wav.close()
+        with pytest.raises(ValueError):
+            await chunks.__anext__()
+
+    asyncio.run(two())
+    assert wav._samples is None
+    with pytest.raises(ValueError):
+        wav.chunks()

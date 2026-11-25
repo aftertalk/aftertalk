@@ -299,14 +299,41 @@ class _SpeakerIndex:
         )
         self._items = items
         self._starts = [item[0] for item in items]
-        # The latest end among items[:i + 1], and the first item that has it: stops the backward scan, and is the
-        # nearest span before a midpoint that nothing covers.
+        # The latest end among items[:i + 1], and the first item that has it: the nearest span before a midpoint
+        # that nothing covers.
         self._reach: list[tuple[int, int]] = []
         best = (-1, -1)
         for k, item in enumerate(items):
             if item[1] > best[0]:
                 best = (item[1], k)
             self._reach.append(best)
+        # A max-end tree over the items in start order: the spans covering a midpoint are found without visiting the
+        # many short ones a long span may hold (only subtrees whose latest end passes the midpoint are entered).
+        size = 1
+        while size < max(1, len(items)):
+            size *= 2
+        self._size = size
+        self._tree = [-1] * (2 * size)
+        for k, item in enumerate(items):
+            self._tree[size + k] = item[1]
+        for node in range(size - 1, 0, -1):
+            self._tree[node] = max(self._tree[2 * node], self._tree[2 * node + 1])
+
+    def _covering(self, count: int, mid: float) -> list[int]:
+        """The indexes among items[:count] whose end is past `mid`."""
+        out: list[int] = []
+        stack = [(1, 0, self._size)]
+        while stack:
+            node, lo, hi = stack.pop()
+            if lo >= count or self._tree[node] <= mid:
+                continue
+            if hi - lo == 1:
+                out.append(lo)
+                continue
+            middle = (lo + hi) // 2
+            stack.append((2 * node + 1, middle, hi))
+            stack.append((2 * node, lo, middle))
+        return out
 
     def __call__(self, start: float, end: float) -> str:
         lo, hi = round(start * 1000), round(end * 1000)
@@ -314,14 +341,11 @@ class _SpeakerIndex:
         k = bisect.bisect_right(self._starts, mid)  # items[:k] start at or before the midpoint
         best: tuple[int, int, int, int] | None = None  # (-overlap, length, start, index)
         choice = ""
-        i = k - 1
-        while i >= 0 and self._reach[i][0] > mid:
+        for i in self._covering(k, mid):
             s, e, index, speaker = self._items[i]
-            if e > mid:
-                key = (-(min(e, hi) - max(s, lo)), e - s, s, index)
-                if best is None or key < best:
-                    best, choice = key, speaker
-            i -= 1
+            key = (-(min(e, hi) - max(s, lo)), e - s, s, index)
+            if best is None or key < best:
+                best, choice = key, speaker
         if best is not None:
             return choice
         before = self._items[self._reach[k - 1][1]] if k > 0 else None

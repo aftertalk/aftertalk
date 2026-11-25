@@ -38,8 +38,9 @@ the windows and the diarizer together:
   step is `diarize`.
 - The diarizer heard the track from 0, so its times are shifted by the file's start offset (`_spans`); an end past the
   audio is cut to it, and a segment that starts after it is dropped.
-- A skip gives one speaker, `source.diarized` false and `TranscribeResult.diarization_skipped`: `no_times` (the first
-  window with text has no times at all; segment times still diarize), `too_long` (over the diarizer's upload or length
+- A skip gives one speaker, `source.diarized` false and `TranscribeResult.diarization_skipped`: `no_times` (a window
+  with text has no times at all; segment times still diarize. When it is the first, nothing is uploaded; when a later
+  one, the diarization already paid for is not used), `too_long` (over the diarizer's upload or length
   limit; nothing is sent, no key check either) and `no_speakers` (it returned no usable segments).
 - The `diarize` usage entry comes after `transcribe`, and is there whenever a request went to the diarizer.
 - `source.diarized` is true when the speakers came from the diarizer. Speakers are `s1`, `s2`... ("Speaker 1"...) in

@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import time
 
 import numpy as np
 import pytest
@@ -382,3 +383,178 @@ def test_no_provider_text_or_key_in_logs(fake_pyannote: FakePyannote, capsys: py
     out = capsys.readouterr()
     for text in (MARKER, SIG, KEY):
         assert text not in out.out and text not in out.err
+
+
+# ---- from the adversarial review ----
+
+
+def test_the_upload_may_take_all_the_time_left_not_a_fixed_cap(fake_pyannote: FakePyannote, monkeypatch) -> None:
+    from aftertalk.providers.diarization import pyannote
+
+    monkeypatch.setattr(pyannote, "MAX_UPLOAD_SECONDS", 0.3)
+    fake_pyannote.stall["upload"] = 0.6
+    asyncio.run(diarize(fake_pyannote, deadline=time.monotonic() + 60))
+    assert len(fake_pyannote.requests("upload")) == 1
+
+
+def test_an_upload_that_used_its_whole_time_is_not_sent_again(fake_pyannote: FakePyannote, monkeypatch) -> None:
+    from aftertalk.providers.diarization import pyannote
+
+    monkeypatch.setattr(pyannote, "MAX_UPLOAD_SECONDS", 0.3)  # no deadline: this is the cap
+    fake_pyannote.stall["upload"] = 0.6
+    err = asyncio.run(fails(fake_pyannote))
+    assert err.code == "provider_unreachable" and len(fake_pyannote.requests("upload")) == 1
+
+
+def test_the_deadline_during_a_request_is_limit_exceeded(fake_pyannote: FakePyannote) -> None:
+    fake_pyannote.stall["media"] = 1.0
+    err = asyncio.run(fails(fake_pyannote, deadline=time.monotonic() + 0.3))
+    assert err.code == "limit_exceeded" and len(fake_pyannote.requests("media")) == 1
+
+
+def test_a_retry_wait_past_the_deadline_is_limit_exceeded_without_waiting(fake_pyannote: FakePyannote) -> None:
+    fake_pyannote.forced["media"] = [Forced(429, MARKER, {"Retry-After": "7"})]
+    clock = Clock()
+    err = asyncio.run(fails(fake_pyannote, clock=clock, sleep=clock.sleep, deadline=clock.now + 3))
+    assert err.code == "limit_exceeded" and clock.slept == []
+
+
+def test_408_is_retried(fake_pyannote: FakePyannote) -> None:
+    fake_pyannote.forced["job"] = [Forced(408, MARKER)]
+    asyncio.run(diarize(fake_pyannote))
+    assert len(fake_pyannote.requests("job")) == 3  # 408, running, succeeded
+
+
+def test_413_outside_the_upload_is_a_bad_response(fake_pyannote: FakePyannote) -> None:
+    fake_pyannote.forced["media"] = [Forced(413, MARKER)]
+    assert asyncio.run(fails(fake_pyannote)).code == "provider_bad_response"
+
+
+def _mock(handler) -> object:
+    import httpx2
+
+    return httpx2.MockTransport(handler)
+
+
+@pytest.mark.parametrize("error", ["ReadError", "RemoteProtocolError", "WriteError", "WriteTimeout"])
+def test_job_creation_is_not_sent_again_after_a_dropped_connection(error: str) -> None:
+    import httpx2
+
+    sent: list[str] = []
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        sent.append(request.url.path)
+        if request.url.path == "/v1/media/input":
+            return httpx2.Response(201, json={"url": "https://storage.example.com/up?sig=1"})
+        if request.url.path == "/v1/diarize":
+            raise getattr(httpx2, error)("dropped", request=request)
+        return httpx2.Response(200)
+
+    async def run() -> EngineError:
+        conn_ = DiarizationConnection.model_validate({"base_url": "https://api.example.com/v1", "api_key": KEY})
+        async with make_client(block_private=False, inner=_mock(handler)) as client:
+            provider = PyannoteDiarization(conn_, client, retry_waits=(0.0, 0.0))
+            with pytest.raises(EngineError) as info:
+                await provider.diarize(wav(), deadline=None)
+            return info.value
+
+    err = asyncio.run(run())
+    assert err.code == "provider_unreachable" and sent.count("/v1/diarize") == 1
+    assert err.usage is not None and err.usage.audio_seconds == 1.0
+
+
+def test_a_failed_connect_on_job_creation_is_tried_again() -> None:
+    import httpx2
+
+    sent: list[str] = []
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        sent.append(request.url.path)
+        if request.url.path == "/v1/media/input":
+            return httpx2.Response(201, json={"url": "https://storage.example.com/up?sig=1"})
+        if request.url.path == "/v1/diarize" and sent.count("/v1/diarize") == 1:
+            raise httpx2.ConnectError("refused", request=request)
+        if request.url.path == "/v1/diarize":
+            return httpx2.Response(200, json={"jobId": "j1"})
+        if request.url.path.startswith("/v1/jobs/"):
+            return httpx2.Response(200, json={"status": "succeeded", "output": {"diarization": []}})
+        return httpx2.Response(200)
+
+    async def run() -> None:
+        conn_ = DiarizationConnection.model_validate({"base_url": "https://api.example.com/v1", "api_key": KEY})
+        async with make_client(block_private=False, inner=_mock(handler)) as client:
+            await PyannoteDiarization(conn_, client, retry_waits=(0.0, 0.0)).diarize(wav(), deadline=None)
+
+    asyncio.run(run())
+    assert sent.count("/v1/diarize") == 2
+
+
+def test_the_upload_host_is_checked_by_the_guard() -> None:
+    import httpx2
+
+    sent: list[str] = []
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        sent.append(request.url.path)
+        return httpx2.Response(201, json={"url": "https://storage.internal.example.com/up?sig=1"})
+
+    async def resolver(host: str, port: int) -> list[str]:
+        return ["10.0.0.7"] if host.startswith("storage.") else ["93.184.215.14"]
+
+    async def run() -> EngineError:
+        conn_ = DiarizationConnection.model_validate({"base_url": "https://api.example.com/v1", "api_key": KEY})
+        async with make_client(block_private=True, resolver=resolver, inner=_mock(handler)) as client:
+            provider = PyannoteDiarization(conn_, client, retry_waits=(0.0, 0.0))
+            with pytest.raises(EngineError) as info:
+                await provider.diarize(wav(), deadline=None)
+            return info.value
+
+    err = asyncio.run(run())
+    assert err.code == "provider_unreachable"
+    assert sent == ["/v1/media/input"]  # the PUT never left
+    assert err.usage is not None and err.usage.attempts == 2  # one address request, one blocked upload, not retried
+
+
+@pytest.mark.parametrize("url", ["http://127.0.0.1:99999/x", "https://example.com/a\x00b", "https://example.com/\x7f"])
+def test_upload_addresses_the_client_cannot_send_are_bad_responses(fake_pyannote: FakePyannote, url: str) -> None:
+    fake_pyannote.presigned_url = url
+    err = asyncio.run(fails(fake_pyannote))
+    assert err.code == "provider_bad_response" and err.usage is not None and err.usage.attempts == 1
+
+
+def test_an_oversized_number_or_deep_json_is_a_bad_response(fake_pyannote: FakePyannote) -> None:
+    huge = "1" + "0" * 400
+    fake_pyannote.forced["job"] = [
+        Forced(
+            200,
+            '{"status": "succeeded", "output": {"diarization": [{"start": ' + huge + ', "end": 1, "speaker": "A"}]}}',
+        )
+    ]
+    assert asyncio.run(fails(fake_pyannote)).code == "provider_bad_response"
+    fake_pyannote.forced["job"] = [Forced(200, "[" * 100000 + "]" * 100000)]
+    assert asyncio.run(fails(fake_pyannote)).code == "provider_bad_response"
+
+
+def test_duration_counts_only_time_in_the_adapter(fake_pyannote: FakePyannote) -> None:
+    clock = Clock()
+
+    async def run():
+        async with make_client(block_private=False) as client:
+            provider = PyannoteDiarization(
+                conn(fake_pyannote), client, poll_interval=0.0, clock=clock, sleep=clock.sleep
+            )
+            await provider.check(deadline=None)
+            clock.now += 500.0  # the speech windows run meanwhile
+            return await provider.diarize(wav(), deadline=None)
+
+    _, usage = asyncio.run(run())
+    assert usage.duration_ms < 500_000
+
+
+def test_bad_upload_addresses_send_one_request_only(fake_pyannote: FakePyannote) -> None:
+    fake_pyannote.presigned_url = "https://user:pass@example.invalid/upload"
+    err = asyncio.run(fails(fake_pyannote))
+    assert err.usage is not None and err.usage.attempts == 1
+    fake_pyannote.presigned_url = "https://example.invalid/" + "a" * 5000
+    err = asyncio.run(fails(fake_pyannote))
+    assert err.usage is not None and err.usage.attempts == 1

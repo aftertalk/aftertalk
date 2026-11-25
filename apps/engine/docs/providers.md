@@ -182,8 +182,9 @@ update the table above.
   - Polling stops after the larger of 300 s and half the audio's length, and always at the run deadline; both are
     `limit_exceeded`. When the cap was hit, stderr says that a longer `--timeout` does not help.
   - Each request is tried up to 3 times on a connection error, a timeout, 408, 429 (`Retry-After` is honoured) or 5xx.
-    `/diarize` is not sent again after a timeout, because a job may exist. A phase times out after 30 s, a connect
-    after 5 s.
+    `/diarize` is sent again only after a failed connect or an answer of 408, 429 or 5xx; after a timeout, a dropped
+    connection or a failed write a job may exist, so it is not. A phase times out after 30 s, a connect after 5 s. The
+    upload may take the time left before the deadline (1800 s without one); one that used it all is not sent again.
   - Errors: 401 and 403 on a request to `base_url` are `provider_auth`; 402 `provider_quota_exceeded`; 413 on the upload
     `audio_too_long`; a job that failed or was cancelled, and any answer we cannot use, `provider_bad_response`.
   - Speakers: each timed word takes the segment that covers its midpoint (`[start, end)` in ms). A segment without
@@ -194,7 +195,8 @@ update the table above.
   - Turns: a new turn on a change of speaker, after a gap of 1.5 s inside one speaker, and at the 60 s split. The gap
     rule inside one speaker is a deliberate departure from spec line 1151 and #60.
   - Skipped, with one speaker and `source.diarized` false (`diarization_skipped` in the library, a line on stderr):
-    `no_times` (the first window with text has no times at all; segment times are enough), `too_long`, and
+    `no_times` (a window with text has no times at all; segment times are enough; a later one discards a diarization
+    already paid for), `too_long`, and
     `no_speakers` (pyannote.ai returned no segments). Whether a file was diarized is `source.diarized`.
   - Security: the presigned upload goes through the same HTTP client, so `BLOCK_PRIVATE_ADDRESSES` checks its host too.
     It must be https unless `base_url` is http, and it carries no `Authorization` header. Without

@@ -249,7 +249,11 @@ run). A file over 1 GiB or 24 hours is not sent: it is transcribed with one spea
 
 - Each request is tried up to 3 times on a connection error, a timeout, 408, 429 or 5xx, waiting 2 s then 10 s, or
   `Retry-After`. A wait that would pass the deadline is `limit_exceeded`. A phase times out after 30 s, a connect after
-  5 s. `/diarize` is not sent again after a timeout: a job may exist, and there is no endpoint to cancel one.
+  5 s. `/diarize` is sent again only after a failed connect or an answer of 408, 429 or 5xx: after a timeout, a dropped
+  connection or a failed write a job may exist, and there is no endpoint to cancel one. The upload may take the time
+  left before the deadline (1800 s without one), and one that used all of it is not sent again.
+- The HTTP client loggers (`httpx`, `httpx2`, `httpcore`, `httpcore2`) are set to WARNING when `providers/net.py` is
+  imported: they log request URLs, and a presigned upload URL carries its signature.
 - Polling stops after the larger of 300 s and half the audio's length, and always at the run's deadline. Both are
   `limit_exceeded`; the first is `PollingTimeout`, so the command can say that a longer `--timeout` does not help.
 - Errors carry a code and the usage so far, never provider text, the upload address or the key: 401 and 403

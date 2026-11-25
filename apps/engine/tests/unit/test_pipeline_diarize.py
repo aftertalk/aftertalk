@@ -310,3 +310,73 @@ def test_run_is_cancel_safe(fake_speech: FakeSpeech, fake_pyannote: FakePyannote
             await task
 
     asyncio.run(main())
+
+
+# ---- from the adversarial review ----
+
+
+async def test_a_later_window_without_times_discards_the_diarization(
+    fake_speech: FakeSpeech, fake_pyannote: FakePyannote, tmp_path: Path
+) -> None:
+    path = make_tone(tmp_path / "long.wav", seconds=4.0, rate=16000, channels=1)
+    fake_speech.forced = [reply(["a", "b"]), reply(["c", "d"], shape="text")]
+    fake_pyannote.output = segments((0.0, 0.6, "A"), (0.6, 4.0, "B"))
+    result = await run(fake_speech, fake_pyannote, path, window=2.0)
+    assert result.diarization_skipped == "no_times"
+    assert result.transcript.source.diarized is False  # type: ignore[union-attr]
+    assert {s.speaker for s in result.transcript.segments} == {"s1"} and len(result.transcript.speakers) == 1
+    assert "diarize" in steps(result)  # it was paid for: the usage says so
+
+
+async def test_a_later_timed_window_does_not_reopen_a_closed_gate(
+    fake_speech: FakeSpeech, fake_pyannote: FakePyannote, tmp_path: Path
+) -> None:
+    path = make_tone(tmp_path / "long.wav", seconds=4.0, rate=16000, channels=1)
+    fake_speech.forced = [reply(["a", "b"], shape="text"), reply(["c", "d"])]
+    result = await run(fake_speech, fake_pyannote, path, window=2.0)
+    assert result.diarization_skipped == "no_times"
+    assert fake_pyannote.requests("upload") == [] and fake_pyannote.jobs == []
+
+
+def test_spans_are_shifted_cut_and_dropped() -> None:
+    from types import SimpleNamespace
+
+    from aftertalk.pipeline.transcribe import _Run
+    from aftertalk.providers.diarization.protocols import DiarizationOutput, DiarizationSegment
+
+    output = DiarizationOutput(
+        segments=(
+            DiarizationSegment(0.0, 1.5, "A"),
+            DiarizationSegment(3.0, 9.0, "B"),  # past the end: cut to it
+            DiarizationSegment(4.0, 5.0, "C"),  # starts at the end: dropped
+            DiarizationSegment(3.9994, 4.5, "D"),  # starts just before the end: kept
+        )
+    )
+    spans = _Run._spans(SimpleNamespace(offset=45.0, duration=4.0), output)  # type: ignore[arg-type]
+    assert [(s.start, s.end, s.speaker) for s in spans] == [
+        (45.0, 46.5, "A"),
+        (48.0, 49.0, "B"),
+        (48.999, 49.0, "D"),
+    ]
+
+
+async def test_a_bug_in_the_key_check_is_internal_on_the_diarize_step(
+    fake_speech: FakeSpeech, fake_pyannote: FakePyannote, four: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def broken(self, *, deadline):  # noqa: ANN001
+        raise RuntimeError(PYANNOTE_MARKER)
+
+    monkeypatch.setattr(PyannoteDiarization, "check", broken)
+    err = await fails(fake_speech, fake_pyannote, four)
+    assert err.code == "internal" and err.usage is not None and err.usage.step == "diarize"
+    assert PYANNOTE_MARKER not in str(err) and fake_speech.seen == []
+
+
+async def test_spans_with_no_timed_word_to_place_say_no_times(
+    fake_speech: FakeSpeech, fake_pyannote: FakePyannote, four: Path
+) -> None:
+    # Times far past the window are dropped by the pipeline (`_bounded`): text with no usable time at all.
+    data = {"text": "x y", "language": "polish", "segments": [{"id": 0, "start": 50.0, "end": 51.0, "text": " x y"}]}
+    fake_speech.forced = [Forced(200, json.dumps(data))]
+    result = await run(fake_speech, fake_pyannote, four)
+    assert result.diarization_skipped == "no_times"

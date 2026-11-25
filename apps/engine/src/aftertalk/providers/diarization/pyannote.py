@@ -8,8 +8,11 @@ The flow (spec, Adapters): `POST {base_url}/media/input` for an upload address, 
   `base_url` is http: an own server, the tests) and is never logged or put in an error: it carries a signature.
 - The key goes only to the three `{base_url}` requests, never to the upload host; it is read when a request is built.
 - Each request is tried up to `ATTEMPTS` times on a connection error, a timeout, 408, 429 or 5xx (waits
-  `RETRY_WAITS`, or `Retry-After`). Job creation is not sent again after a timeout once it was sent: a job may exist,
-  and pyannote bills every job that succeeds. There is no endpoint to cancel a job, so one we stop polling runs on.
+  `RETRY_WAITS`, or `Retry-After`). Job creation is sent again only when it provably did not reach the server (a
+  failed connect) or the server answered 408, 429 or 5xx: after a timeout, a dropped connection or a failed write a job
+  may exist, and pyannote bills every job that succeeds. A request that used its whole wall-clock time (the upload: the
+  time left, or `MAX_UPLOAD_SECONDS` without a deadline) is never sent again. There is no endpoint to cancel a job, so
+  one we stop polling runs on.
 - Polling stops at the larger of `MIN_POLL_SECONDS` and half the audio's length, and always at the deadline: both are
   `limit_exceeded` (`PollingTimeout` for the cap, so the CLI can say which).
 - `exclusive: true` asks for one speaker at a time; `exclusiveDiarization` is read when the answer has it.
@@ -72,7 +75,8 @@ class PollingTimeout(EngineError):
 
 @dataclass
 class _Counters:
-    started: float | None = None
+    busy: float = 0.0  # seconds spent in `check` and `diarize` so far
+    active_since: float | None = None  # when the call running now started
     attempts: int = 0  # requests sent, also those that never got an answer
     requests: int = 0  # requests that got a response
     audio_seconds: float | None = None  # set once job creation was attempted: what may be billed
@@ -99,7 +103,10 @@ def _retryable(status: int) -> bool:
 def _number(value: Any) -> float | None:
     if isinstance(value, bool) or not isinstance(value, int | float):
         return None
-    number = float(value)
+    try:
+        number = float(value)
+    except OverflowError:  # an integer too large for a float
+        return None
     return number if math.isfinite(number) else None
 
 
@@ -122,7 +129,7 @@ def _segments(items: Any) -> tuple[DiarizationSegment, ...] | None:
 def _body(response: httpx2.Response) -> Any:
     try:
         return json.loads(response.content)
-    except ValueError:
+    except (ValueError, RecursionError):  # not JSON, or nested too deeply to parse
         return None
 
 
@@ -161,8 +168,23 @@ class PyannoteDiarization:
             requests=c.requests,
             attempts=c.attempts,
             audio_seconds=None if c.audio_seconds is None else round(c.audio_seconds, 3),
-            duration_ms=0 if c.started is None else max(0, int((self._clock() - c.started) * 1000)),
+            duration_ms=max(0, int(self._busy() * 1000)),
         )
+
+    def _busy(self) -> float:
+        c = self._counters
+        return c.busy + (0.0 if c.active_since is None else self._clock() - c.active_since)
+
+    @asynccontextmanager
+    async def _timed(self) -> AsyncIterator[None]:
+        """The time of one `check` or `diarize` call goes into the usage's duration, also when it fails."""
+        c = self._counters
+        c.active_since = self._clock()
+        try:
+            yield
+        finally:
+            c.busy += self._clock() - c.active_since
+            c.active_since = None
 
     def _fail(self, code: ErrorCode) -> EngineError:
         return EngineError(code, self.usage())
@@ -171,16 +193,20 @@ class PyannoteDiarization:
         return {"Authorization": f"Bearer {self._conn.api_key.get_secret_value()}"}
 
     async def check(self, *, deadline: float | None) -> None:
-        await self._upload_address(deadline)  # the address is thrown away: a fresh one is asked for the upload
+        async with self._timed():
+            await self._upload_address(deadline)  # the address is thrown away: a fresh one is asked for the upload
 
     async def diarize(self, audio: DiarizationUpload, *, deadline: float | None) -> tuple[DiarizationOutput, StepUsage]:
-        limit = self.capabilities.max_upload_bytes
-        if (limit is not None and audio.size_bytes > limit) or audio.duration_seconds > MAX_AUDIO_SECONDS:
+        caps = self.capabilities
+        if (caps.max_upload_bytes is not None and audio.size_bytes > caps.max_upload_bytes) or (
+            caps.max_audio_seconds is not None and audio.duration_seconds > caps.max_audio_seconds
+        ):
             raise self._fail("audio_too_long")
-        media, url = await self._upload_address(deadline)
-        await self._upload(url, audio, deadline)
-        job = await self._create(media, audio, deadline)
-        output = await self._poll(job, audio.duration_seconds, deadline)
+        async with self._timed():
+            media, url = await self._upload_address(deadline)
+            await self._upload(url, audio, deadline)
+            job = await self._create(media, audio, deadline)
+            output = await self._poll(job, audio.duration_seconds, deadline)
         return output, self.usage()
 
     async def _upload_address(self, deadline: float | None) -> tuple[str, str]:
@@ -191,7 +217,7 @@ class PyannoteDiarization:
             ),
             wall=JSON_REQUEST_SECONDS,
             deadline=deadline,
-            resend_after_timeout=True,
+            idempotent=True,
         )
         data = _body(response)
         url = data.get("url") if isinstance(data, dict) else None
@@ -203,12 +229,16 @@ class PyannoteDiarization:
     def _upload_url_ok(self, url: Any) -> bool:
         if not isinstance(url, str) or not url or len(url) > MAX_URL_CHARS:
             return False
+        if any(ord(c) < 33 or ord(c) == 127 for c in url):  # spaces and control characters
+            return False
         try:
             parts = urlsplit(url)
             host = parts.hostname
-        except ValueError:
+            _ = parts.port  # out of range raises
+            httpx2.URL(url)  # what the client will send must parse too
+        except Exception:
             return False
-        if not host or "@" in parts.netloc or any(c in url for c in "\r\n\t "):
+        if not host or "@" in parts.netloc:
             return False
         allowed = {"https"} if urlsplit(self._conn.base_url).scheme == "https" else {"https", "http"}
         return parts.scheme in allowed
@@ -217,22 +247,22 @@ class PyannoteDiarization:
         headers = {"Content-Type": "application/octet-stream", "Content-Length": str(audio.size_bytes)}
         await self._send(
             lambda timeout: self._client.put(url, content=audio.chunks(), headers=headers, timeout=timeout),
-            wall=MAX_UPLOAD_SECONDS,
+            wall=None,  # the time left, or MAX_UPLOAD_SECONDS without a deadline: a long upload is not cut short
             deadline=deadline,
-            resend_after_timeout=True,  # a repeat overwrites the same object
+            idempotent=True,  # a repeat overwrites the same object
             upload=True,
         )
 
     async def _create(self, media: str, audio: DiarizationUpload, deadline: float | None) -> str:
         body = {"url": media, "model": MODEL, "exclusive": True}
-        self._counters.audio_seconds = audio.duration_seconds  # from here a job may exist and be billed
         response = await self._send(
             lambda timeout: self._client.post(
                 f"{self._conn.base_url}/diarize", json=body, headers=self._auth(), timeout=timeout
             ),
             wall=JSON_REQUEST_SECONDS,
             deadline=deadline,
-            resend_after_timeout=False,
+            idempotent=False,
+            billable_seconds=audio.duration_seconds,  # once it is sent, a job may exist and be billed
         )
         data = _body(response)
         job = data.get("jobId") if isinstance(data, dict) else None
@@ -248,7 +278,7 @@ class PyannoteDiarization:
                 lambda timeout: self._client.get(url, headers=self._auth(), timeout=timeout),
                 wall=JSON_REQUEST_SECONDS,
                 deadline=deadline,
-                resend_after_timeout=True,
+                idempotent=True,
             )
             data = _body(response)
             status = data.get("status") if isinstance(data, dict) else None
@@ -284,24 +314,31 @@ class PyannoteDiarization:
         self,
         request: Callable[[httpx2.Timeout], Awaitable[httpx2.Response]],
         *,
-        wall: float,
+        wall: float | None,
         deadline: float | None,
-        resend_after_timeout: bool,
+        idempotent: bool,
         upload: bool = False,
+        billable_seconds: float | None = None,
     ) -> httpx2.Response:
-        """One request with its own retry budget. Returns a 200 or 201 response; anything else raises."""
+        """One request with its own retry budget. Returns a 200 or 201 response; anything else raises.
+
+        `wall` caps one try in wall-clock seconds (None: the time left, or `MAX_UPLOAD_SECONDS` without a deadline);
+        a try that used it all is not sent again. Not `idempotent` (job creation): after a timeout, a dropped connection
+        or a failed write it is not sent again either, since the server may have acted on it. `billable_seconds` is
+        what may be billed once the request was sent.
+        """
         counters = self._counters
-        if counters.started is None:
-            counters.started = self._clock()
         failures = 0
         while True:
-            total = wall
+            total = MAX_UPLOAD_SECONDS if wall is None else wall
             if deadline is not None:
                 remaining = deadline - self._clock()
                 if remaining <= 0:
                     raise self._fail("limit_exceeded")
-                total = min(total, remaining)
+                total = remaining if wall is None else min(wall, remaining)
             counters.attempts += 1
+            if billable_seconds is not None:
+                counters.audio_seconds = billable_seconds
             response: httpx2.Response | None = None
             problem: ErrorCode | None = None
             try:
@@ -309,18 +346,21 @@ class PyannoteDiarization:
                     response = await request(
                         httpx2.Timeout(min(PHASE_TIMEOUT, total), connect=min(CONNECT_TIMEOUT, total))
                     )
-            except (TimeoutError, httpx2.ReadTimeout):
+            except TimeoutError:  # the whole wall-clock time: trying again cannot be faster
                 late = deadline is not None and self._clock() >= deadline - 0.05
                 problem = "limit_exceeded" if late else "provider_unreachable"
-                if not resend_after_timeout:
-                    failures = ATTEMPTS  # the request may have been acted on: never sent twice
+                failures = ATTEMPTS
             except BlockedAddressError:
                 problem = "provider_unreachable"
                 failures = ATTEMPTS  # waiting does not unblock an address
+            except (httpx2.ConnectError, httpx2.ConnectTimeout):
+                problem = "provider_unreachable"  # nothing reached the server: always safe to try again
             except (UnicodeEncodeError, httpx2.LocalProtocolError):
                 problem = "provider_config_invalid"
-            except httpx2.TransportError:
+            except httpx2.TransportError:  # a phase timeout, a dropped connection, a failed write
                 problem = "provider_unreachable"
+                if not idempotent:
+                    failures = ATTEMPTS  # it may have been acted on: never sent twice
             except httpx2.HTTPError:
                 problem = "provider_bad_response"
             except Exception:

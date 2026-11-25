@@ -6,6 +6,16 @@ import pytest
 from aftertalk.logging import JsonFormatter, log, setup_logging
 
 
+@pytest.fixture(autouse=True)
+def restore_logging():
+    """`setup_logging` changes the root logger; put it back so later tests see the logging they expect."""
+    root = logging.getLogger()
+    handlers, level = root.handlers[:], root.level
+    yield
+    root.handlers[:] = handlers
+    root.setLevel(level)
+
+
 def test_log_writes_one_json_line_with_allowed_fields(capsys: pytest.CaptureFixture[str]) -> None:
     setup_logging("info")
     log("info", "step done", job_id="j1", step="transcribe", duration_ms=1200)
@@ -52,3 +62,25 @@ def test_http_clients_never_log_request_urls(fake_pyannote, capsys: pytest.Captu
     assert SIG not in out.out and SIG not in out.err
     for name in ("httpx", "httpx2", "httpcore", "httpcore2"):
         assert not logging.getLogger(name).isEnabledFor(logging.INFO)
+
+
+def test_http_clients_are_quiet_without_setup_logging(fake_pyannote, capsys: pytest.CaptureFixture[str]) -> None:
+    """Whatever logging a library caller sets up, the HTTP client's request lines (URLs with signatures) stay out."""
+    import asyncio
+    import sys
+
+    from fake_pyannote import SIG
+
+    from aftertalk.providers.net import make_client
+
+    root = logging.getLogger()
+    root.handlers[:] = [logging.StreamHandler(sys.stderr)]
+    root.setLevel(logging.DEBUG)
+
+    async def put() -> None:
+        async with make_client(block_private=False) as client:
+            await client.put(f"{fake_pyannote.origin}/upload/1?sig={SIG}", content=b"x")
+
+    asyncio.run(put())
+    out = capsys.readouterr()
+    assert SIG not in out.out and SIG not in out.err

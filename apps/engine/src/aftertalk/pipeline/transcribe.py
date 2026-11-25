@@ -497,6 +497,7 @@ class _Run:
         self.speech = speech
         self.diarizer = diarizer
         self.upload: MonoWav | None = None
+        self.untimed_text = False  # a window came back with text and no times at all (`mix`)
         self.options = options
         self.deadline = deadline
         self.state = state
@@ -588,12 +589,17 @@ class _Run:
         turns: list[Segment] | None = None
         speakers = [_MIX_SPEAKER]
         diarized = False
+        if output is not None and self.untimed_text:
+            # A later window came back without times (the request form moved down mid-run): its words cannot be placed,
+            # so the whole file keeps one speaker rather than a guess for part of it. The job is already paid.
+            output, skipped = None, "no_times"
         if output is not None:
-            turns, found, diarized = build_speaker_turns(segments, self._spans(output))
+            spans = self._spans(output)
+            turns, found, diarized = build_speaker_turns(segments, spans)
             if diarized:
                 speakers = found
-            else:
-                skipped = "no_speakers" if any(seg.text.strip() for seg in segments) else None
+            elif any(seg.text.strip() for seg in segments):
+                skipped = "no_times" if spans else "no_speakers"  # spans but no timed word to place, or no spans
         if not diarized:
             turns = build_turns(segments, speaker=_MIX_SPEAKER.id)
         assert turns is not None and self.audio is not None
@@ -632,6 +638,8 @@ class _Run:
             if detecting and _has_text(part):
                 self.language.decide(part, self.state.totals)
             self._times(part, 0)
+            if _has_text(part) and part.timing == "none":
+                self.untimed_text = True
             if gate is not None and not gate.event.is_set() and _has_text(part):
                 gate.decide(go=part.timing != "none")
             offset = window.start / SAMPLE_RATE + self.offset
@@ -657,6 +665,8 @@ class _Run:
             await diarizer.check(deadline=self.deadline)
         except EngineError as err:
             failure = err
+        except Exception:
+            failure = EngineError("internal", diarizer.usage())  # a bug of ours; its text is not shown
         if failure is not None:
             self.state.step = "diarize"
             try:
