@@ -7,3 +7,7 @@ export const SupportedLanguage = {
 } as const;
 
 export type SupportedLanguage = (typeof SupportedLanguage)[keyof typeof SupportedLanguage];
+
+/** The name is kept from the cloud, where it typed the language field of the upload form. */
+export const UploadAudioLanguage = SupportedLanguage;
+export type UploadAudioLanguage = SupportedLanguage;

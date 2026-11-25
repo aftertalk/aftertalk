@@ -146,6 +146,22 @@ export function buildDateRangeInput(params: { range?: string; from?: string; to?
   return { preset };
 }
 
+/**
+ * The range of the calls list (and of its export) from the page's query string. Defaults to all
+ * time, unlike the overview: a list that hides older calls reads as empty. A range the URL got
+ * wrong (a hand-edited date, more than a year) also falls back to all time instead of failing.
+ */
+export function callsDateRangeInput(params: { range?: string; from?: string; to?: string }): DateRangeInput {
+  const { range, from, to } = params;
+  const preset = range && VALID_PRESETS.includes(range as DateRangePreset) ? (range as DateRangePreset) : 'allTime';
+  if (preset !== 'custom') return { preset };
+  const validFrom = from && ISO_DATE_RE.test(from) ? from : undefined;
+  const validTo = to && ISO_DATE_RE.test(to) ? to : undefined;
+  if (!validFrom || !validTo) return { preset: 'allTime' };
+  const custom: DateRangeInput = { preset: 'custom', from: validFrom, to: validTo };
+  return isValidDateRangeInput(custom) ? custom : { preset: 'allTime' };
+}
+
 /** Whether resolveDateRange() accepts the input (e.g. a custom range within the 1-year limit). */
 export function isValidDateRangeInput(input: DateRangeInput): boolean {
   try {

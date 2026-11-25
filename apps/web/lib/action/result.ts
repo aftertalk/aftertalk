@@ -1,5 +1,3 @@
-import { unstable_rethrow } from 'next/navigation';
-
 /**
  * Discriminated result returned by user-facing server actions.
  *
@@ -48,21 +46,5 @@ export class NotFoundError extends BackendError {
   constructor(message = 'Not found') {
     super(404, message);
     this.name = 'NotFoundError';
-  }
-}
-
-/**
- * Runs a server-action body and converts an expected failure (a {@link BackendError} below 500)
- * into a returned {@link ActionResult}. Anything else stays thrown, so it's logged server-side and
- * the client shows its own translated generic message. Framework control-flow signals
- * (redirect / notFound) are re-thrown via `unstable_rethrow` so navigation still works.
- */
-export async function runAction<T>(fn: () => Promise<T>): Promise<ActionResult<T>> {
-  try {
-    return { ok: true, data: await fn() };
-  } catch (e) {
-    unstable_rethrow(e);
-    if (e instanceof BackendError && e.status < 500) return { ok: false, error: e.message };
-    throw e;
   }
 }

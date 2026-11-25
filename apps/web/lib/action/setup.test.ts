@@ -47,6 +47,6 @@ test('wrong token is refused; the right one creates owner, organisation, project
   expect(await setupStatus()).toEqual({ open: false });
   expect(await completeSetup({ ...input, email: 'second@example.com', token })).toEqual({
     ok: false,
-    error: 'Not found',
+    error: "This no longer exists, or you can't see it.",
   });
 });

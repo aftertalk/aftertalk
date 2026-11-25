@@ -12,7 +12,8 @@
     "activateAccount": "Aktywuj konto",
     "configure": "Konfiguracja",
     "projects": "Projekty",
-    "notFound": "Nie znaleziono strony"
+    "notFound": "Nie znaleziono strony",
+    "providers": "Dostawcy"
   },
   "common": {
     "loading": "Ładowanie...",
@@ -57,7 +58,8 @@
       "english": "Angielski",
       "german": "Niemiecki"
     },
-    "closeWithEsc": "Zamknij (Esc)"
+    "closeWithEsc": "Zamknij (Esc)",
+    "back": "Wstecz"
   },
   "auth": {
     "login": {
@@ -74,29 +76,11 @@
       "signInFailed": "Nie udało się zalogować",
       "socialTerms": "Logując się po raz pierwszy przez Google lub Microsoft, akceptujesz <terms>Regulamin</terms> i przyjmujesz do wiadomości <privacy>Politykę prywatności</privacy>."
     },
-    "signup": {
-      "title": "Zarejestruj się",
-      "description": "Podaj e-mail i hasło, aby utworzyć konto",
-      "signUp": "Zarejestruj się",
-      "creatingAccount": "Tworzenie konta...",
-      "passwordsDoNotMatch": "Hasła nie są takie same",
-      "alreadyHaveAccount": "Masz już konto?",
-      "acceptTerms": "Akceptuję <terms>Regulamin</terms> i przyjmuję do wiadomości <privacy>Politykę prywatności</privacy>."
-    },
     "signupSuccess": {
       "title": "Dziękujemy za rejestrację!",
       "subtitle": "Sprawdź skrzynkę, aby potwierdzić konto",
       "description": "Rejestracja przebiegła pomyślnie. Sprawdź swoją skrzynkę email, aby potwierdzić konto przed zalogowaniem.",
       "openEmail": "Otwórz {provider}"
-    },
-    "forgotPassword": {
-      "title": "Zresetuj hasło",
-      "description": "Wpisz swój email, a wyślemy Ci link do zresetowania hasła",
-      "sendResetEmail": "Wyślij link do resetu",
-      "sending": "Wysyłanie...",
-      "successTitle": "Sprawdź swoją skrzynkę",
-      "successSubtitle": "Instrukcje resetu hasła zostały wysłane",
-      "successDescription": "Jeśli konto zostało założone z adresem e-mail i hasłem, otrzymasz wiadomość z linkiem do resetu hasła."
     },
     "updatePassword": {
       "title": "Ustaw nowe hasło",
@@ -142,14 +126,6 @@
       "invalidToken": "Ten link konfiguracyjny jest nieprawidłowy lub wygasł. Zaloguj się ponownie.",
       "successTitle": "Uwierzytelnianie dwuskładnikowe włączone",
       "successDescription": "Wszystko gotowe — logowanie zakończone."
-    },
-    "confirmEmailChange": {
-      "title": "Potwierdzanie nowego adresu e-mail",
-      "confirming": "Potwierdzanie...",
-      "invalidToken": "Ten link potwierdzający jest nieprawidłowy lub wygasł.",
-      "successTitle": "Adres e-mail zaktualizowany",
-      "successDescription": "Twój adres e-mail został zmieniony. Użyj go przy następnym logowaniu.",
-      "errorTitle": "Potwierdzenie nie powiodło się"
     },
     "modal": {
       "description": "Formularz logowania i rejestracji"
@@ -421,20 +397,24 @@
       "apiDescription": "Dzięki API zintegrujesz Aftertalk z własnymi narzędziami.",
       "apiButton": "Dostęp do API"
     },
-    "insights": {
-      "eyebrow": "Analiza AI",
-      "title": "Najważniejsze wnioski",
-      "readMore": "Zobacz rozmowy",
-      "empty": "Brak wniosków w tym okresie",
-      "emptyDescription": "Wnioski powstają, gdy w okresie są co najmniej 3 przeanalizowane rozmowy.",
-      "unavailableTitle": "Wnioski są chwilowo niedostępne",
-      "unavailableDescription": "Spróbuj odświeżyć stronę za kilka minut."
-    },
     "toReview": {
       "title": "Do przejrzenia",
       "description": "Najnowsze rozmowy z negatywnym wydźwiękiem.",
       "empty": "Brak rozmów z negatywnym wydźwiękiem w tym okresie",
       "olderOnly": "Negatywne rozmowy z tego okresu są starsze niż 50 najnowszych. Zobacz rozmowy z tego okresu."
+    },
+    "checklist": {
+      "title": "Dokończ konfigurację projektu",
+      "description": "Rozmowy można przesyłać po ustawieniu wymaganych elementów.",
+      "askAdmin": "Poproś administratora projektu o ich ustawienie przed przesłaniem rozmów.",
+      "categories": "Dodaj co najmniej jedną kategorię",
+      "roles": "Dodaj role rozmówców",
+      "templates": "Dodaj szablon analizy",
+      "speech": "Wybierz dostawcę rozpoznawania mowy",
+      "llm": "Wybierz model językowy",
+      "diarization": "Brak rozdzielania rozmówców: nagrania jednokanałowe będą traktowane jako jeden rozmówca.",
+      "optional": "Opcjonalne",
+      "fix": "Wybierz dostawcę"
     }
   },
   "upload": {
@@ -458,9 +438,6 @@
       "forAll": "Dla wszystkich:",
       "mixed": "Różne",
       "remove": "Usuń z kolejki",
-      "language": "Język",
-      "languageProjectDefault": "Jak w projekcie ({language})",
-      "languageProjectDefaultUnknown": "Jak w projekcie",
       "channelRoles": "Role mówców",
       "channel0": "Kanał 1 (lewy)",
       "channel1": "Kanał 2 (prawy)",
@@ -473,8 +450,7 @@
         "uploading": "Przesyłanie",
         "processing": "Przetwarzanie",
         "completed": "Przesłano",
-        "error": "Błąd",
-        "duplicate": "Duplikat"
+        "error": "Błąd"
       }
     },
     "summary": {
@@ -482,31 +458,16 @@
       "failed": "{count, plural, one {# nagrania nie udało się przesłać} other {# nagrań nie udało się przesłać}} — szczegóły przy plikach poniżej.",
       "goToCalls": "Przejdź do rozmów"
     },
-    "blocked": {
-      "trialExpiredTitle": "Okres próbny się skończył",
-      "trialExpiredBody": "Twój okres próbny dobiegł końca. Wybierz plan, aby kontynuować przesyłanie plików.",
-      "trialExpiredBodyContact": "Twój okres próbny dobiegł końca. Skontaktuj się z nami, aby kontynuować przesyłanie plików.",
-      "allowanceExhaustedTitle": "Limit audio wyczerpany",
-      "allowanceExhaustedBody": "Cały limit audio w tym okresie został wykorzystany. Dokup godziny albo poczekaj do odnowienia limitu.",
-      "allowanceExhaustedBodyContact": "Cały limit audio w tym okresie został wykorzystany. Skontaktuj się z nami, aby go zwiększyć.",
-      "genericTitle": "Przesyłanie zablokowane",
-      "genericBody": "Przesyłanie nagrań wymaga aktywnego planu organizacji.",
-      "genericBodyContact": "Przesyłanie nagrań jest wstrzymane. Skontaktuj się z nami.",
-      "choosePlan": "Wybierz plan",
-      "contact": "Skontaktuj się z nami",
-      "askOwner": "Poproś właściciela organizacji",
-      "nearLimitTitle": "Wykorzystano {percent} limitu audio",
-      "nearLimitBody": "W tym okresie zostało {remaining}.",
-      "askOwnerSubject": "Aftertalk: przesyłanie nagrań jest zablokowane"
-    },
-    "duplicate": {
-      "body": "Ten plik został już przesłany jako {filename}.",
-      "uploadAnyway": "Prześlij mimo to",
-      "skip": "Pomiń"
-    },
     "errors": {
       "fileTooLarge": "Ten plik jest za duży, aby go przesłać. Skontaktuj się z pomocą, aby zwiększyć limit przesyłania.",
-      "uploadFailed": "Nie udało się przesłać pliku. Spróbuj ponownie."
+      "uploadFailed": "Nie udało się przesłać pliku. Spróbuj ponownie.",
+      "tooLarge": "Plik jest większy niż 500 MB.",
+      "empty": "Plik jest pusty.",
+      "badFormat": "To nie jest plik WAV, MP3, M4A, OGG, FLAC ani WebM.",
+      "badFilename": "Brak nazwy pliku albo jest za długa.",
+      "badChannels": "Podaj obie etykiety kanałów albo żadną. Każda ma od 1 do 40 znaków i muszą się różnić.",
+      "incomplete": "Przesyłanie zostało przerwane. Spróbuj ponownie.",
+      "notReady": "Ten projekt nie jest jeszcze gotowy na przesyłanie. Najpierw dokończ konfigurację."
     },
     "dropToUpload": "Upuść, aby przesłać"
   },
@@ -514,7 +475,9 @@
     "header": {
       "title": "Rozmowy",
       "description": "Wszystkie rozmowy tego projektu z transkrypcją i analizą.",
-      "backToDashboard": "Wróć do panelu"
+      "backToDashboard": "Wróć do panelu",
+      "export": "Eksportuj",
+      "exportHint": "Pobierz rozmowy z tej listy jako JSON. Tekst jest zawsze zanonimizowany."
     },
     "table": {
       "call": "Rozmowa",
@@ -535,13 +498,16 @@
       "tasksCount": "{count, plural, one {# zadanie} few {# zadania} many {# zadań} other {# zadania}}",
       "deleteConfirm": {
         "title": "Usuń rozmowę",
-        "description": "Czy na pewno chcesz usunąć tę rozmowę? Tej akcji nie można cofnąć."
+        "description": "To trwale usuwa rozmowę razem z nagraniem, transkrypcją i analizami. Nie ma kosza i nie da się tego cofnąć.",
+        "typeToConfirm": "Wpisz „{name}”, aby potwierdzić."
       }
     },
     "empty": {
       "title": "Brak rozmów",
       "description": "Prześlij pierwszy plik audio, aby rozpocząć transkrypcję i analizę rozmów.",
-      "uploadButton": "Prześlij pliki"
+      "uploadButton": "Prześlij pliki",
+      "periodTitle": "Brak rozmów w tym okresie",
+      "periodDescription": "Wybierz inny zakres dat."
     },
     "pagination": {
       "showing": "Pokazano {start}–{end} z {total, plural, one {# rozmowy} few {# rozmów} many {# rozmów} other {# rozmowy}}",
@@ -569,7 +535,19 @@
       "details": "Szczegóły",
       "noTranscript": "Brak transkrypcji",
       "lowConfidence": "Niska pewność",
-      "playFrom": "Odtwórz od {time}"
+      "playFrom": "Odtwórz od {time}",
+      "quoteUnverified": "Nie znaleziono w transkrypcji, więc nie ma cytatu do pokazania.",
+      "showOriginal": "Pokaż oryginał",
+      "originalShown": "Czytasz oryginalne słowa. Ich otwarcie zostało zapisane w dzienniku dostępu.",
+      "originalFailed": "Nie udało się wczytać oryginalnego tekstu.",
+      "notDiarized": "Nagranie jednokanałowe bez rozdzielania rozmówców: cała rozmowa to jeden rozmówca.",
+      "audioNotReady": "Nagranie można odtworzyć po przetworzeniu rozmowy.",
+      "audioNotAllowed": "W tym projekcie nagrania mogą odtwarzać tylko właściciele i administratorzy organizacji.",
+      "emptyProcessing": "Jeszcze niegotowe: rozmowa jest nadal przetwarzana.",
+      "emptyFailed": "Nie ma nic do pokazania: przetwarzanie tej rozmowy nie powiodło się.",
+      "emptyStepFailed": "Ten krok się nie powiódł: {reason}",
+      "emptyNoTemplate": "Analiza nie powstała: podczas przetwarzania tej rozmowy projekt nie miał aktywnego szablonu analizy.",
+      "emptyNoTemplateAskAdmin": "Analiza nie powstała: podczas przetwarzania tej rozmowy projekt nie miał aktywnego szablonu analizy."
     },
     "player": {
       "play": "Odtwórz",
@@ -581,6 +559,44 @@
       "speed": "Prędkość odtwarzania",
       "position": "Pozycja nagrania",
       "volume": "Głośność"
+    },
+    "status": {
+      "queued": "W kolejce",
+      "processing": "Przetwarzanie",
+      "completed": "Gotowa",
+      "completedWithErrors": "Gotowa z błędami",
+      "failed": "Błąd",
+      "laterQueued": "Nowe przetwarzanie czeka w kolejce. To wyniki poprzedniego.",
+      "laterProcessing": "Trwa nowe przetwarzanie. To wyniki poprzedniego.",
+      "laterFailed": "Ostatnie przetwarzanie nie powiodło się, więc to starsze wyniki: {reason}"
+    },
+    "steps": {
+      "title": "Kroki przetwarzania",
+      "completed": "Gotowe",
+      "failed": "Błąd",
+      "skipped": "Pominięto",
+      "cached": "Z pamięci podręcznej",
+      "tokens": "wejście {input}, wyjście {output} (tokeny)",
+      "names": {
+        "decode": "Odczyt nagrania",
+        "vad": "Wykrywanie mowy",
+        "transcribe": "Transkrypcja",
+        "diarize": "Rozdzielanie rozmówców",
+        "redact": "Anonimizacja danych osobowych",
+        "summary": "Podsumowanie",
+        "call_reason": "Kategoria",
+        "scorecard": "Analiza",
+        "quotes": "Dopasowanie cytatów"
+      }
+    },
+    "accessLog": {
+      "title": "Dziennik dostępu",
+      "description": "Kto otworzył oryginalny tekst lub odtworzył nagranie tej rozmowy.",
+      "empty": "Jeszcze nikt.",
+      "text": "oryginalny tekst",
+      "audio": "nagranie",
+      "deletedUser": "Usunięty użytkownik",
+      "loadFailed": "Nie udało się wczytać dziennika dostępu."
     }
   },
   "settings": {
@@ -604,7 +620,7 @@
     },
     "security": {
       "title": "Bezpieczeństwo",
-      "description": "Zarządzaj hasłem, adresem e-mail i uwierzytelnianiem dwuskładnikowym",
+      "description": "Zarządzaj hasłem i uwierzytelnianiem dwuskładnikowym.",
       "twoFactorAuth": "Uwierzytelnianie dwuskładnikowe",
       "twoFactorDescription": "Wymagaj jednorazowego kodu z aplikacji uwierzytelniającej przy logowaniu.",
       "notEnabled": "Wyłączone",
@@ -612,7 +628,6 @@
       "enable2FA": "Włącz 2FA",
       "enable": "Włącz",
       "disable": "Wyłącz",
-      "adminRequired": "Wymagane dla administratorów",
       "changePassword": "Zmień hasło",
       "changePasswordDescription": "Zaktualizuj hasło używane do logowania.",
       "changeEmail": "Zmień e-mail",
@@ -621,20 +636,18 @@
       "newPassword": "Nowe hasło",
       "confirmPassword": "Potwierdź nowe hasło",
       "password": "Hasło",
-      "newEmail": "Nowy e-mail",
       "code": "Kod uwierzytelniający",
       "passwordsDontMatch": "Hasła nie są zgodne",
       "passwordChanged": "Hasło zmienione",
-      "emailLinkSent": "Link wysłany na {email}",
       "logoutOthers": "Wyloguj inne urządzenia",
       "sessionsRevoked": "Wylogowano z innych urządzeń",
       "disableTwoFactorTitle": "Wyłącz uwierzytelnianie dwuskładnikowe",
-      "disableTwoFactorDescription": "Wprowadź aktualny kod z aplikacji uwierzytelniającej, aby je wyłączyć.",
       "sessionTimeout": "Limit czasu sesji",
       "hour1": "1 godzina",
       "hours4": "4 godziny",
       "hours8": "8 godzin",
-      "hours24": "24 godziny"
+      "hours24": "24 godziny",
+      "disableTwoFactorPassword": "Podaj hasło, aby wyłączyć uwierzytelnianie dwuskładnikowe."
     },
     "taxonomy": {
       "categories": {
@@ -733,136 +746,31 @@
         "update": "Nie udało się zaktualizować zestawu",
         "delete": "Nie udało się usunąć zestawu"
       }
-    },
-    "apiKeys": {
-      "title": "Klucze API",
-      "description": "Twórz i odwołuj klucze API, aby zarządzać dostępem do API Aftertalk. Klucz skopiujesz tylko raz — zaraz po utworzeniu.",
-      "keys": "Klucze",
-      "usageLimits": "Limity użycia",
-      "usageLimitsDescription": "Sprawdź bieżące zużycie i limity API Aftertalk.",
-      "apiCalls": "Liczba wywołań API",
-      "transcriptionMinutes": "Minuty transkrypcji",
-      "storage": "Magazyn",
-      "storageDescription": "Sprawdź bieżące zużycie przestrzeni i limity API Aftertalk.",
-      "rateLimits": "Limity zapytań",
-      "rateLimitsDescription": "Sprawdź bieżące limity liczby zapytań w API Aftertalk.",
-      "apiCallsPerMinute": "Liczba wywołań API na minutę",
-      "concurrentUploads": "Współbieżne przesyłania",
-      "maxFileSize": "Maksymalny rozmiar pliku",
-      "webhookTimeout": "Limit czasu webhook",
-      "documentation": "Dokumentacja",
-      "documentationDescription": "Zobacz dokumentację API Aftertalk.",
-      "authentication": "Uwierzytelnianie",
-      "uploadAudio": "Prześlij audio",
-      "viewFullDocumentation": "Zobacz pełną dokumentację",
-      "sdks": "Biblioteki SDK",
-      "sdksDescription": "Gotowe biblioteki SDK do API Aftertalk.",
-      "sdksNotAvailable": "Biblioteki SDK nie są jeszcze dostępne.",
-      "active": "Aktywny",
-      "paused": "Wstrzymany",
-      "pause": "Wstrzymaj klucz",
-      "resume": "Wznów klucz",
-      "noKeysTitle": "Brak kluczy API",
-      "createdOn": "Utworzony {date}",
-      "lastUsedOn": "Ostatnio użyty {date}",
-      "neverUsed": "Jeszcze nieużywany",
-      "requestsCount": "{count, plural, one {# żądanie} few {# żądania} many {# żądań} other {# żądania}}",
-      "revoke": "Usuń",
-      "revokeKey": "Usuń klucz",
-      "revokeKeyConfirmation": "Usunąć klucz?",
-      "revokeKeyConfirmationMessage": "Aplikacje używające tego klucza stracą dostęp do API. Tej operacji nie da się cofnąć.",
-      "revokeKeyConfirmationButton": "Usuń klucz",
-      "revokeKeySuccess": "Klucz API został usunięty",
-      "copy": "Kopiuj",
-      "copied": "Skopiowano",
-      "noKeys": "Nie masz jeszcze kluczy API. Dodaj pierwszy, aby zacząć.",
-      "createKey": {
-        "keyName": "Nazwa klucza",
-        "placeholder": "Wprowadź nazwę swojego klucza",
-        "alert": "Klucz zobaczysz i skopiujesz tylko raz — zaraz po utworzeniu.",
-        "createKey": "Utwórz klucz",
-        "creating": "Tworzenie...",
-        "cancel": "Anuluj"
-      },
-      "keyCreated": {
-        "title": "Klucz API utworzony",
-        "warning": "Skopiuj klucz teraz — później nie będzie go już widać.",
-        "done": "Gotowe"
-      },
-      "nameRequired": "Podaj nazwę klucza."
-    },
-    "access": {
-      "title": "Dostęp",
-      "description": "Kto widzi ten projekt i jaką rolę dostaje domyślnie.",
-      "visibility": "Widoczność",
-      "visibilityOrg": "Organizacja",
-      "visibilityPrivate": "Prywatny",
-      "visibilityOrgHint": "Każdy członek organizacji otrzymuje poniższą rolę domyślną.",
-      "visibilityPrivateHint": "Tylko osoby z przyznanym dostępem widzą ten projekt.",
-      "defaultRole": "Rola domyślna",
-      "defaultRoleHint": "Rola dla członków organizacji bez bezpośredniego nadania.",
-      "members": "Osoby z dostępem",
-      "selectMember": "Wybierz osobę z organizacji…",
-      "addMember": "Dodaj do projektu",
-      "memberAdded": "Członek dodany",
-      "memberRole": "Rola",
-      "you": "Ty",
-      "removeGrant": "Cofnij dostęp",
-      "memberRemoved": "Nadanie usunięte",
-      "removeConfirm": {
-        "title": "Cofnąć dostęp?",
-        "description": "Spowoduje to usunięcie bezpośredniego dostępu {email} do projektu. Osoba ta może nadal widzieć projekt w ramach widoczności dla całej organizacji."
-      },
-      "updated": "Dostęp zaktualizowany",
-      "actionFailed": "Coś poszło nie tak",
-      "projectRoles": {
-        "admin": "Administrator",
-        "editor": "Edytor",
-        "viewer": "Obserwator"
-      },
-      "sources": {
-        "org_admin": "Administrator organizacji, zawsze ma pełny dostęp",
-        "direct": "Dodano bezpośrednio do projektu",
-        "org_default": "Rola domyślna dla członków organizacji"
-      },
-      "membersDescription": "Przy każdej osobie widać, skąd ma dostęp. Bezpośrednie nadanie możesz cofnąć.",
-      "selectMemberFirst": "Najpierw wybierz osobę.",
-      "removeGrantFor": "Cofnij dostęp: {email}",
-      "adminOnly": "Widoczność i dostęp zmienia administrator projektu."
     }
   },
   "navbar": {
     "signedInAs": "Zalogowano jako",
     "home": "Przegląd",
     "calls": "Rozmowy",
-    "analytics": "Analityka",
     "upload": "Prześlij nagrania",
     "tasks": "Zadania",
     "configure": "Konfiguracja",
     "categories": "Kategorie",
     "channelRoles": "Role mówców",
     "analysisTemplates": "Szablony analizy",
-    "billing": "Rozliczenia",
     "settings": "Ustawienia",
-    "docs": "Dokumentacja",
     "logout": "Wyloguj",
-    "pricing": "Cennik",
-    "contact": "Kontakt",
-    "trialActive": "Okres próbny · {days, plural, one {pozostał # dzień} few {pozostały # dni} many {pozostało # dni} other {pozostało # dnia}}",
-    "trialExpired": "Okres próbny wygasł · Wybierz plan",
-    "trialExpiredContact": "Okres próbny wygasł",
     "organization": "Organizacja",
     "theme": "Motyw",
     "themeLight": "Jasny",
     "themeDark": "Ciemny",
     "themeSystem": "Systemowy",
     "projects": "Projekty",
-    "members": "Członkowie",
     "accountSettings": "Konto",
-    "adminPanel": "Panel administracyjny",
     "allProjects": "Wszystkie projekty",
     "backToOrganization": "Wróć do organizacji",
-    "skipToContent": "Przejdź do treści"
+    "skipToContent": "Przejdź do treści",
+    "providers": "Dostawcy"
   },
   "templates": {
     "title": "Szablony analizy",
@@ -950,78 +858,21 @@
   "orgSwitcher": {
     "organization": "Organizacja",
     "settings": "Ustawienia organizacji",
-    "create": "Nowa organizacja",
     "creating": "Tworzenie...",
     "createTitle": "Utwórz organizację",
     "createDescription": "Organizacje grupują Twoje projekty i współpracowników.",
-    "namePlaceholder": "Nazwa organizacji",
-    "limitReached": "Plan {plan} pozwala na maksymalnie {limit, plural, one {# organizację} few {# organizacje} many {# organizacji} other {# organizacji}}. Przejdź na wyższy plan, aby dodać więcej.",
-    "limitReachedContact": "Osiągnięto limit: maksymalnie {limit, plural, one {# organizacja} few {# organizacje} many {# organizacji} other {# organizacji}}. Skontaktuj się z nami, aby dodać więcej."
+    "namePlaceholder": "Nazwa organizacji"
   },
   "organization": {
     "createFailed": "Nie udało się utworzyć organizacji",
-    "renameBanner": {
-      "title": "Nadaj organizacji prawdziwą nazwę",
-      "description": "Twoja organizacja została utworzona automatycznie i wciąż ma tymczasową nazwę. Zmień ją na coś, co Twoi współpracownicy rozpoznają.",
-      "cta": "Nazwę zmienisz poniżej."
-    },
-    "header": {
-      "memberCount": "{count, plural, one {# członek} few {# członków} many {# członków} other {# członka}}"
-    },
+    "header": {},
     "general": {
       "title": "Ogólne",
-      "description": "Nazwa organizacji i zasady",
+      "description": "Nazwa Twojej organizacji",
       "name": "Nazwa",
-      "memberProjectCreate": "Członkowie mogą tworzyć projekty",
-      "memberProjectCreateDescription": "Gdy wyłączone, tylko właściciele i administratorzy mogą tworzyć projekty.",
-      "requireTwoFa": "Wymagaj uwierzytelniania dwuskładnikowego",
-      "requireTwoFaDescription": "Gdy włączone, wszyscy członkowie muszą włączyć 2FA. Osoby bez niego zostaną poproszone o konfigurację przy następnym logowaniu.",
       "saved": "Organizacja zaktualizowana",
       "savedInline": "Zapisano",
       "saveFailed": "Nie udało się zaktualizować organizacji"
-    },
-    "roles": {
-      "owner": "Właściciel",
-      "admin": "Administrator",
-      "member": "Członek"
-    },
-    "members": {
-      "title": "Członkowie",
-      "description": "Osoby z dostępem do tej organizacji i ich role.",
-      "role": "Rola",
-      "you": "Ty",
-      "inviteAction": "Zaproś osoby",
-      "sendInvites": "Wyślij zaproszenia",
-      "emailsLabel": "Adresy e-mail",
-      "emailsHint": "Enter, przecinek lub spacja dodaje adres. Każda osoba dostanie e-mail z linkiem do ustawienia hasła.",
-      "removeEmail": "Usuń {email}",
-      "invalidEmails": "Sprawdź adresy: {emails}",
-      "invitePlaceholder": "osoba@firma.pl",
-      "inviteSent": "Zaproszenie wysłane",
-      "sentInline": "Wysłano",
-      "joinedOn": "Dołączono {date}",
-      "invitedOn": "zaproszenie z {date}",
-      "actions": "Działania",
-      "remove": "Usuń z organizacji",
-      "removeTitle": "Usunąć z organizacji?",
-      "removeDescription": "{email} straci dostęp do organizacji i jej projektów.",
-      "removed": "Usunięto z organizacji",
-      "leave": "Opuść organizację",
-      "leaveTitle": "Opuścić organizację?",
-      "leaveDescription": "Stracisz dostęp do {name} i jej projektów. Wrócić można tylko z nowym zaproszeniem.",
-      "left": "Opuszczono organizację",
-      "cancelInvite": "Cofnij zaproszenie",
-      "cancelInviteTitle": "Cofnąć zaproszenie?",
-      "cancelInviteDescription": "{email} nie dołączy do organizacji.",
-      "inviteCancelled": "Zaproszenie cofnięte",
-      "makeOwner": "Przekaż własność",
-      "transferTitle": "Przekazać własność?",
-      "transferDescription": "Własność przejdzie na {email}, a Twoja rola zmieni się na „Administrator”. Nie cofniesz tego samodzielnie.",
-      "transferTypeToConfirm": "Wpisz „{name}”, aby potwierdzić.",
-      "transferConfirm": "Przekaż własność",
-      "ownershipTransferred": "Własność przekazana: {email}",
-      "actionFailed": "Coś poszło nie tak",
-      "emailsRequired": "Wpisz co najmniej jeden adres e-mail."
     },
     "danger": {
       "title": "Nieodwracalne działania",
@@ -1033,85 +884,33 @@
       "deleteFailed": "Nie udało się usunąć organizacji",
       "confirmTitle": "Usunąć organizację?",
       "confirmDescription": "Organizacja {name} z projektami i rozmowami przestanie być dostępna dla wszystkich członków. Tego nie cofniesz.",
-      "typeToConfirm": "Wpisz „{name}”, aby potwierdzić."
+      "typeToConfirm": "Wpisz „{name}”, aby potwierdzić.",
+      "lastOrganization": "To jedyna organizacja tej instalacji, więc nie można jej usunąć."
     },
     "settings": {
-      "description": "Nazwa, zasady dostępu i bezpieczeństwo tej organizacji."
-    }
-  },
-  "onboarding": {
-    "titleSetup": "Skonfiguruj swoją przestrzeń roboczą",
-    "titleNewProject": "Utwórz nowy projekt",
-    "welcome": "Witaj!",
-    "welcomeNamed": "Witaj, {email}!",
-    "back": "Wstecz",
-    "skip": "Pomiń",
-    "optional": "(opcjonalnie)",
-    "steps": {
-      "project": "Projekt",
-      "categories": "Kategorie",
-      "roles": "Role",
-      "templates": "Szablony"
-    },
-    "create": {
-      "createdTitle": "Projekt utworzony",
-      "createdSubtitle": "Twój projekt został skonfigurowany. Kontynuuj, aby skonfigurować resztę.",
-      "firstProjectTitle": "Utwórz swój pierwszy projekt",
-      "newProjectTitle": "Utwórz nowy projekt",
-      "subtitle": "Projekt grupuje Twoje rozmowy i analizy w jednym miejscu.",
-      "orgNameLabel": "Nazwa organizacji",
-      "orgNamePlaceholder": "np. Acme Sp. z o.o.",
-      "orgNameHint": "Twoja przestrzeń robocza — zapraszaj zespół i grupuj projekty.",
-      "projectNameLabel": "Nazwa projektu",
-      "projectNamePlaceholder": "np. Rozmowy sprzedażowe Q1",
-      "descriptionLabel": "Opis",
-      "descriptionPlaceholder": "Co analizujesz w tym projekcie?",
-      "creating": "Tworzenie…",
-      "createButton": "Utwórz projekt",
-      "error": "Nie udało się utworzyć projektu. Spróbuj ponownie."
-    },
-    "done": {
-      "title": "Wszystko gotowe!",
-      "subtitleNewProject": "Twój projekt jest gotowy. Prześlij pierwsze nagrania, a zobaczysz je w przeglądzie.",
-      "subtitleWorkspace": "Twoja przestrzeń robocza jest gotowa. Prześlij swoje pierwsze nagranie i zacznij analizę.",
-      "whatsNext": "Co dalej?",
-      "whatsNextDescription": "Przejdź do przeglądu projektu i prześlij rozmowy. Kategoriami, rolami kanałów i szablonami zarządzasz w każdej chwili w Konfiguracji.",
-      "goToDashboard": "Przejdź do przeglądu"
-    },
-    "stepCount": "Krok {current} z {total}",
-    "org": {
-      "title": "Skonfiguruj organizację",
-      "subtitle": "Organizacja grupuje projekty i współpracowników. Możesz zaprosić ich później.",
-      "nameLabel": "Nazwa organizacji",
-      "namePlaceholder": "np. Acme Sp. z o.o.",
-      "personaLabel": "Do czego użyjesz Aftertalk?",
-      "personaStudent": "Nauka",
-      "personaStudentHint": "Wykłady, badania i nauka",
-      "personaProfessional": "Praca własna",
-      "personaProfessionalHint": "Własne rozmowy, spotkania i wywiady",
-      "personaCompany": "Firma",
-      "personaCompanyHint": "Zespół analizujący rozmowy z klientami",
-      "personaOther": "Inne",
-      "personaOtherHint": "Coś zupełnie innego",
-      "trialNote": "Zaczniesz od 14-dniowego bezpłatnego okresu próbnego — plan podniesiesz i opłacisz w każdej chwili w Rozliczeniach.",
-      "trialNoteFree": "Zaczniesz od 14-dniowego bezpłatnego okresu próbnego.",
-      "create": "Utwórz organizację",
-      "creating": "Tworzenie...",
-      "error": "Nie udało się utworzyć organizacji"
+      "description": "Ustawienia tej organizacji."
     }
   },
   "projectConfig": {
     "general": {
       "title": "Ogólne",
       "description": "Ustawienia obowiązujące dla wszystkich rozmów w tym projekcie.",
-      "defaultLanguage": "Domyślny język transkrypcji",
-      "defaultLanguageHint": "Używany dla przesyłanych plików bez wybranego języka, także tych z klucza API.",
       "name": "Nazwa",
       "projectDescription": "Opis",
       "nameRequired": "Podaj nazwę projektu.",
       "saveFailed": "Nie udało się zapisać. Spróbuj ponownie.",
-      "saveError": "Nie udało się zaktualizować domyślnego języka.",
-      "loadError": "Nie udało się wczytać ustawień tego projektu. Odśwież stronę, aby spróbować ponownie."
+      "loadError": "Nie udało się wczytać ustawień tego projektu. Odśwież stronę, aby spróbować ponownie.",
+      "languages": "Języki rozmów",
+      "languagesHint": "Języki, w których mogą być rozmowy w tym projekcie. Przy jednym języku każda rozmowa jest w nim przetwarzana. Przy kilku język każdej rozmowy jest wykrywany.",
+      "retention": "Usuwaj rozmowy po (dni)",
+      "retentionHint": "Rozmowy starsze niż podana liczba dni są trwale usuwane razem z nagraniem i analizami. Zostaw puste, aby je zachować.",
+      "retentionNever": "Nigdy",
+      "piiAccess": "Oryginalny tekst i nagranie",
+      "piiAccessFull": "Wszyscy członkowie projektu",
+      "piiAccessStrict": "Tylko właściciele i administratorzy",
+      "piiAccessFullHint": "Każda strona pokazuje tekst zanonimizowany. Każdy członek projektu może włączyć oryginalny tekst i odtworzyć nagranie.",
+      "piiAccessStrictHint": "Każda strona pokazuje tekst zanonimizowany. Tylko właściciele i administratorzy organizacji mogą włączyć oryginalny tekst i odtworzyć nagranie.",
+      "piiAccessLocked": "To ustawienie zmieniają właściciele i administratorzy organizacji."
     },
     "saved": "Zapisano",
     "delete": {
@@ -1123,70 +922,32 @@
       "typeToConfirm": "Wpisz „{name}”, aby potwierdzić.",
       "deleting": "Usuwanie...",
       "success": "Projekt usunięty",
-      "error": "Nie udało się usunąć projektu",
-      "forbidden": "Tylko administratorzy projektu mogą usunąć projekt."
+      "error": "Nie udało się usunąć projektu"
     },
     "title": "Konfiguracja",
-    "description": "Kategorie, role mówców, szablony analizy i dostęp do tego projektu.",
+    "description": "Kategorie, role rozmówców, szablony analizy i dostawcy dla tego projektu.",
     "dangerTitle": "Nieodwracalne działania",
-    "dangerDescription": "Dostępne dla właścicieli i administratorów organizacji.",
-    "webhooks": {
-      "title": "Webhooki",
-      "description": "Powiadamiamy Twój system, gdy rozmowa zostanie przetworzona — nie trzeba odpytywać API o status.",
-      "viewDocs": "Dokumentacja",
-      "url": "Adres URL",
-      "urlHint": "Wymagany publiczny adres HTTPS. Nie podążamy za przekierowaniami.",
-      "events": "Zdarzenia",
-      "actions": "Akcje",
-      "active": "aktywny",
-      "paused": "wstrzymany",
-      "none": "Brak webhooków",
-      "add": "Dodaj webhook",
-      "adding": "Dodawanie...",
-      "addTitle": "Dodaj webhook",
-      "eventsRequired": "Wybierz przynajmniej jedno zdarzenie.",
-      "createError": "Nie udało się dodać webhooka. Spróbuj ponownie.",
-      "createdTitle": "Webhook dodany",
-      "secretWarning": "Klucz pokazujemy tylko teraz. Skopiuj go i zapisz w bezpiecznym miejscu.",
-      "secretHint": "Podpis trafia do nagłówka X-Aftertalk-Signature w formacie t=sekundy,v1=HMAC SHA-256 z treści żądania.",
-      "copySecret": "Kopiuj klucz",
-      "copied": "Klucz skopiowany",
-      "done": "Gotowe",
-      "deleteError": "Nie udało się usunąć webhooka",
-      "deleteTitle": "Usunąć ten webhook?",
-      "deleteDescription": "Przestaniemy wysyłać zdarzenia na ten adres, a historia dostarczeń zostanie usunięta.",
-      "deleteConfirm": "Usuń webhook",
-      "toggleError": "Nie udało się zmienić statusu",
-      "log": "Historia",
-      "lastDelivery": "Ostatnie dostarczenie",
-      "attempts": "Próby",
-      "noDeliveries": "Brak dostarczeń",
-      "delivered": "dostarczone",
-      "failed": "nieudane",
-      "pending": "w kolejce",
-      "pause": "Wstrzymaj",
-      "resume": "Wznów",
-      "copyUrl": "Kopiuj adres",
-      "urlCopied": "Adres skopiowany",
-      "failingStreak": "{count, plural, one {# nieudane dostarczenie z rzędu} few {# nieudane dostarczenia z rzędu} many {# nieudanych dostarczeń z rzędu} other {# nieudanych dostarczeń z rzędu}}",
-      "invalidUrl": "To nie wygląda na poprawny adres. Powinien zaczynać się od https://"
-    },
-    "readOnly": "Możesz przeglądać konfigurację; zmieniają ją administratorzy projektu."
-  },
-  "orgCreate": {
-    "title": "Utwórz organizację",
-    "subtitle": "Organizacje grupują Twoje projekty i współpracowników w jednym miejscu.",
-    "nameLabel": "Nazwa organizacji",
-    "namePlaceholder": "np. Acme Sp. z o.o.",
-    "inviteTitle": "Zaproś zespół",
-    "emailPlaceholder": "osoba@firma.pl",
-    "addAnother": "Dodaj kolejną osobę",
-    "create": "Utwórz organizację",
-    "creating": "Tworzenie…",
-    "inviteFailed": "Organizacja utworzona, ale nie udało się wysłać zaproszeń: {message}",
-    "nameDescription": "Tak zobaczą ją osoby, które do niej zaprosisz. Możesz ją później zmienić.",
-    "inviteDescription": "Zaproszenia wyślemy po utworzeniu organizacji. Możesz to zrobić także później.",
-    "nameRequired": "Podaj nazwę organizacji."
+    "dangerDescription": "Dostępne dla administratorów projektu.",
+    "readOnly": "Możesz przeglądać konfigurację; zmieniają ją administratorzy projektu.",
+    "providers": {
+      "title": "Dostawcy",
+      "description": "Które usługi rozpoznawania mowy i modele językowe przetwarzają rozmowy tego projektu.",
+      "speech": "Rozpoznawanie mowy",
+      "speechHint": "Zamienia nagranie na tekst. Wymagane.",
+      "llm": "Model językowy",
+      "llmHint": "Pisze podsumowanie, wybiera kategorię i wypełnia szablon analizy. Wymagane.",
+      "diarization": "Rozdzielanie rozmówców",
+      "diarizationHint": "Opcjonalne. Rozróżnia rozmówców w nagraniach jednokanałowych. Bez tego nagranie jednokanałowe to jeden rozmówca; nagrania dwukanałowe tego nie potrzebują.",
+      "none": "Brak",
+      "model": "Model",
+      "modelPlaceholder": "Nazwa modelu, na przykład whisper-1",
+      "modelRequired": "Wpisz nazwę modelu.",
+      "noConnections": "Nie ma jeszcze połączenia tego rodzaju.",
+      "connections": "Połączenia z dostawcami",
+      "connectionsHint": "Adresy i klucze API ustawia się raz dla całej organizacji.",
+      "connectionsAskAdmin": "Poproś właściciela lub administratora organizacji o dodanie połączenia.",
+      "manage": "Zarządzaj połączeniami"
+    }
   },
   "orgEmpty": {
     "title": "Brak projektów",
@@ -1196,8 +957,6 @@
   "projectSelector": {
     "newProject": "Nowy projekt",
     "selectProject": "Wybierz projekt",
-    "limitReached": "Plan {plan} pozwala na maksymalnie {limit, plural, one {# projekt} few {# projekty} many {# projektów} other {# projektu}}. Przejdź na wyższy plan, aby dodać więcej.",
-    "limitReachedContact": "Osiągnięto limit: maksymalnie {limit, plural, one {# projekt} few {# projekty} many {# projektów} other {# projektu}}. Skontaktuj się z nami, aby dodać więcej.",
     "createRestricted": "Tylko właściciele i administratorzy mogą tworzyć projekty w tej organizacji."
   },
   "notFound": {
@@ -1229,7 +988,7 @@
   "uploadGate": {
     "kicker": "Przed pierwszym przesłaniem",
     "title": "Skonfiguruj ten projekt",
-    "description": "Przesyłanie wymaga kategorii, ról mówców i szablonu analizy, aby Aftertalk wiedział, jak analizować Twoje rozmowy. Dodaj przynajmniej po jednym — możesz je później doprecyzować w Konfiguracji.",
+    "description": "Przesyłanie wymaga kategorii, ról mówców, szablonu analizy oraz dostawcy rozpoznawania mowy i modelu językowego, aby Aftertalk wiedział, jak i czym analizować Twoje rozmowy. Wszystko to możesz później zmienić w Konfiguracji.",
     "rolesLabel": "Role mówców",
     "templatesLabel": "Szablony analizy",
     "categoriesLabel": "Kategorie",
@@ -1239,114 +998,6 @@
     "continue": "Dalej",
     "finish": "Przejdź do przesyłania",
     "checking": "Sprawdzanie..."
-  },
-  "analytics": {
-    "title": "Analityka",
-    "edit": "Edytuj",
-    "done": "Gotowe",
-    "saving": "Zapisywanie…",
-    "cancel": "Anuluj",
-    "addWidget": "Dodaj widżet",
-    "setAsDefaultTooltip": "Ustaw jako domyślny pulpit",
-    "alreadyDefaultTooltip": "Ten pulpit jest już domyślny",
-    "deleteDashboard": "Usuń pulpit",
-    "confirmDeleteDashboard": "Usunąć pulpit?",
-    "deleteDashboardDescription": "Pulpit „{name}” i jego widżety znikną. Rozmowy i ich analizy pozostaną bez zmian.",
-    "newDashboard": "Nowy pulpit",
-    "untitledDashboard": "Pulpit bez nazwy",
-    "dashboardNameAria": "Nazwa pulpitu",
-    "dashboardNamePlaceholder": "Mój pulpit",
-    "dragAria": "Przeciągnij",
-    "editWidgetAria": "Edytuj widżet",
-    "removeWidgetAria": "Usuń widżet",
-    "addFirstWidget": "Dodaj pierwszy widżet.",
-    "noWidgetsYet": "Ten pulpit nie ma jeszcze widżetów.",
-    "buildFirstTitle": "Zbuduj swój pierwszy pulpit",
-    "buildFirstSubtitle": "Zacznij od szablonu albo od pustej strony.",
-    "nameLabel": "Nazwa",
-    "startFromTemplateHint": "Zacznij od szablonu albo od pustego pulpitu.",
-    "blank": "Pusty",
-    "noDataInRange": "Brak danych w tym zakresie",
-    "failedToLoad": "Nie udało się wczytać danych",
-    "overPeriod": "w tym okresie",
-    "pointsDelta": "{value} p.p.",
-    "editOnLargerScreen": "Układ pulpitu można zmieniać na większym ekranie.",
-    "tableHeaderGroup": "Grupa",
-    "tableHeaderValue": "Wartość",
-    "seriesValue": "Wartość",
-    "starters": {
-      "qualityOverview": "Przegląd jakości",
-      "volumeTrends": "Wolumen i trendy"
-    },
-    "widgets": {
-      "positiveSentiment": "Pozytywny wydźwięk",
-      "totalCalls": "Liczba rozmów",
-      "actionItems": "Nowe zadania",
-      "sentimentByCategory": "Wydźwięk wg kategorii",
-      "sentimentSplit": "Podział wydźwięku",
-      "avgDuration": "Średni czas trwania",
-      "callsOverTime": "Rozmowy w czasie",
-      "callsByLanguage": "Rozmowy wg języka",
-      "recentCalls": "Ostatnie rozmowy"
-    },
-    "widgetTypes": {
-      "KPI": "Wskaźnik",
-      "LINE": "Liniowy",
-      "AREA": "Warstwowy",
-      "BAR": "Słupkowy",
-      "DONUT": "Pierścieniowy",
-      "TABLE": "Tabela",
-      "CALLS": "Rozmowy",
-      "TASKS": "Zadania",
-      "INSIGHTS": "Wnioski"
-    },
-    "measures": {
-      "CALL_COUNT": "Liczba rozmów",
-      "AVG_DURATION": "Średni czas trwania",
-      "TOTAL_DURATION": "Łączny czas trwania",
-      "POSITIVE_SENTIMENT_PCT": "% pozytywnego wydźwięku",
-      "AVG_SENTIMENT_CONFIDENCE": "Średnia pewność wydźwięku",
-      "ACTION_ITEMS_TOTAL": "Nowe zadania",
-      "FOLLOWUP_REQUIRED_PCT": "% wymagających kontynuacji"
-    },
-    "dimensions": {
-      "DATE": "Data",
-      "CATEGORY": "Kategoria",
-      "SENTIMENT_LEVEL": "Wydźwięk",
-      "LANGUAGE": "Język"
-    },
-    "granularity": {
-      "DAY": "Dzień",
-      "WEEK": "Tydzień",
-      "MONTH": "Miesiąc"
-    },
-    "builder": {
-      "editTitle": "Edytuj widżet",
-      "addTitle": "Dodaj widżet",
-      "chartType": "Wykres",
-      "measure": "Miara",
-      "groupBy": "Grupuj wg",
-      "granularityLabel": "Dokładność",
-      "breakdownBy": "Podziel wg (opcjonalnie)",
-      "none": "Brak",
-      "showTrend": "Pokaż trend i wykres iskrowy",
-      "filters": "Filtry",
-      "addFilter": "Dodaj filtr",
-      "removeFilterAria": "Usuń filtr",
-      "filterValuesPlaceholder": "wartość, wartość",
-      "widgetTitle": "Tytuł",
-      "preview": "Podgląd",
-      "saveWidget": "Zapisz widżet",
-      "noCategoriesYet": "Brak kategorii",
-      "contentNoConfigHint": "Ten panel osadza istniejący widok {type} — nie wymaga konfiguracji.",
-      "sampleInsightBilling": "Reklamacje rozliczeniowe wywołały najwięcej negatywnych rozmów w tym okresie.",
-      "sampleInsightResolution": "Średni czas rozwiązania poprawił się względem poprzedniego okresu.",
-      "sampleInsightOnboarding": "Kilka rozmów wdrożeniowych dotyczyło tej samej brakującej funkcji.",
-      "listType": "Lista",
-      "description": "Wybierz, co pokazać. Podgląd używa danych z wybranego okresu."
-    },
-    "description": "Pulpity z wykresami rozmów tego projektu.",
-    "deleteDashboardOpen": "Usuń pulpit…"
   },
   "suggestions": {
     "categories": {
@@ -1564,21 +1215,13 @@
     "resetNotice": "Hasło do Twojego konta zostało zresetowane {date} przez {by}.",
     "someone": "operatora serwera"
   },
-  "invitation": {
-    "joinTitle": "Dołącz do {organization}",
-    "joinDescription": "Masz już konto z adresem {email}. Zaloguj się, aby dołączyć.",
-    "join": "Dołącz",
-    "signInToJoin": "Zaloguj się, aby dołączyć",
-    "wrongAccount": "To zaproszenie jest dla {email}. Wyloguj się i zaloguj na to konto.",
-    "invalid": "To zaproszenie wygasło, zostało cofnięte lub już użyte. Poproś o nowe.",
-    "emailLabel": "E-mail"
-  },
   "noOrganization": {
     "title": "Nie należysz do żadnej organizacji",
     "description": "To konto nie należy do żadnej organizacji.",
     "signOut": "Wyloguj się",
     "noProjectTitle": "Brak projektu do otwarcia",
     "noProjectDescription": "W Twojej organizacji nie ma projektu, który możesz zobaczyć. Poproś administratora o dodanie do projektu.",
+    "openOrganization": "Otwórz organizację",
     "noProjectAdmin": "Utwórz projekt w organizacji, aby zacząć."
   },
   "home": {
@@ -1587,5 +1230,102 @@
     "twoFactorOff": "Weryfikacja dwuetapowa: wyłączona",
     "setUpTwoFactor": "Włącz weryfikację dwuetapową",
     "signOut": "Wyloguj się"
+  },
+  "errors": {
+    "invalidInput": "Ta wartość jest nieprawidłowa.",
+    "textLength": "Wpisz od 1 do {max} znaków.",
+    "tooMany": "W tym miejscu może być najwyżej {max}.",
+    "nameTaken": "Ta nazwa jest już używana.",
+    "languages": "Wybierz co najmniej jeden język.",
+    "retentionDays": "Wpisz od 1 do 3650 dni albo zostaw pole puste.",
+    "categoryDepth": "Kategorie mogą mieć najwyżej trzy poziomy.",
+    "speakerLabels": "Wpisz co najmniej dwie różne etykiety, każda do {max} znaków.",
+    "twoFactorFirst": "Najpierw włącz uwierzytelnianie dwuskładnikowe na swoim koncie.",
+    "forbidden": "Nie masz uprawnień do tej czynności.",
+    "notFound": "To już nie istnieje albo nie masz do tego dostępu.",
+    "twoFactorRequired": "Ta organizacja wymaga uwierzytelniania dwuskładnikowego. Najpierw włącz je na swoim koncie."
+  },
+  "providers": {
+    "errors": {
+      "baseUrl": "Wpisz adres http lub https bez parametrów, na przykład https://api.openai.com/v1.",
+      "baseUrlResource": "Wpisz adres kończący się na numerze wersji, na przykład https://api.openai.com/v1, bez /chat/completions ani /audio/transcriptions.",
+      "hostNotAllowed": "Ten serwer zezwala tylko na hosty dostawców z listy (PROVIDER_HOST_ALLOWLIST).",
+      "apiKey": "Wpisz klucz API o długości do 500 znaków.",
+      "inUse": "Z tego połączenia korzysta projekt. Najpierw wybierz w nim inne.",
+      "keyAgain": "Przenosząc połączenie na inny host, wpisz klucz API ponownie albo go usuń."
+    },
+    "title": "Dostawcy",
+    "description": "Usługi rozpoznawania mowy, modele językowe i rozdzielanie rozmówców, z których korzysta ta organizacja. Każdy projekt wybiera spośród nich.",
+    "empty": "Nie ma jeszcze połączeń. Dodaj jedno do rozpoznawania mowy i jedno do modelu językowego, aby zacząć przetwarzać rozmowy.",
+    "add": "Dodaj połączenie",
+    "addTitle": "Dodaj połączenie z dostawcą",
+    "editTitle": "Edytuj połączenie",
+    "edit": "Edytuj",
+    "name": "Nazwa",
+    "namePlaceholder": "Na przykład OpenAI EU",
+    "kind": "Rodzaj",
+    "kinds": {
+      "speech": "Rozpoznawanie mowy",
+      "llm": "Model językowy",
+      "diarization": "Rozdzielanie rozmówców"
+    },
+    "kindFixed": "Rodzaju nie można później zmienić.",
+    "baseUrl": "Adres bazowy",
+    "baseUrlHint": "Do wersji, na przykład https://api.openai.com/v1 albo http://whisper:8000/v1.",
+    "baseUrlHintDiarization": "Dla pyannoteAI: https://api.pyannote.ai/v1.",
+    "apiKey": "Klucz API",
+    "apiKeyHintNew": "Zostaw puste dla serwera we własnej sieci, który nie wymaga klucza.",
+    "apiKeyHintEdit": "Zostaw puste, aby zachować zapisany klucz. Zapisany klucz nie jest już nigdy pokazywany.",
+    "removeKey": "Usuń zapisany klucz",
+    "keySet": "Klucz zapisany",
+    "keyNone": "Bez klucza",
+    "dataLocation": "Gdzie przetwarzane są dane",
+    "dataLocationHint": "To Twoja deklaracja; Aftertalk nie może jej zweryfikować. Sprawdź umowę z dostawcą.",
+    "location": {
+      "eu": "Unia Europejska",
+      "us": "Stany Zjednoczone",
+      "ownNetwork": "Własna sieć",
+      "other": "Inne"
+    },
+    "locationDeclared": "Miejsce przetwarzania: {location} (deklaracja, niezweryfikowana)",
+    "inUse": "W użyciu",
+    "test": "Testuj",
+    "testing": "Testowanie...",
+    "testPassed": "Test zakończony pomyślnie.",
+    "testFailed": "Test nie powiódł się: {reason}",
+    "noWordTimes": "Brak czasów słów: cytaty odtwarzają się od początku swojego fragmentu.",
+    "save": "Zapisz",
+    "saving": "Zapisywanie...",
+    "saved": "Połączenie zapisane",
+    "saveFailed": "Nie udało się zapisać połączenia. Spróbuj ponownie.",
+    "remove": "Usuń",
+    "removeTitle": "Usunąć to połączenie?",
+    "removeDescription": "Adres i zapisany klucz zostaną usunięte. Przetworzone już rozmowy zachowają wyniki.",
+    "removed": "Połączenie usunięte",
+    "removeFailed": "Nie udało się usunąć połączenia."
+  },
+  "jobErrors": {
+    "unknown": "Coś poszło nie tak podczas przetwarzania.",
+    "internal": "Błąd wewnętrzny przerwał przetwarzanie.",
+    "stalled": "Przetwarzanie przestało odpowiadać.",
+    "contract_rejected": "Wynik nie miał oczekiwanej postaci.",
+    "provider_missing": "Projekt nie ma dostawcy rozpoznawania mowy lub modelu językowego.",
+    "audio_unreadable": "Nie udało się odczytać nagrania.",
+    "audio_too_long": "Nagranie jest za długie dla dostawcy rozpoznawania mowy.",
+    "language_not_allowed": "Rozmowa jest w języku, na który ten projekt nie zezwala.",
+    "language_not_allowed_detected": "Rozmowa wygląda na prowadzoną w języku: {language}, na który ten projekt nie zezwala.",
+    "limit_exceeded": "Rozmowa przekroczyła limit przetwarzania.",
+    "provider_auth": "Dostawca odrzucił klucz API.",
+    "provider_unreachable": "Nie udało się połączyć z dostawcą.",
+    "provider_rate_limited": "Dostawca ogranicza liczbę zapytań. Spróbuj później.",
+    "provider_quota_exceeded": "Na koncie u dostawcy skończył się limit lub środki.",
+    "provider_model_not_found": "Dostawca nie ma wybranego modelu.",
+    "provider_context_too_long": "Rozmowa jest za długa dla wybranego modelu.",
+    "provider_bad_response": "Dostawca przysłał odpowiedź, której nie dało się użyć.",
+    "provider_output_invalid": "Odpowiedź modelu nie miała oczekiwanej postaci.",
+    "llm_output_invalid": "Odpowiedź modelu nie miała oczekiwanej postaci.",
+    "provider_output_truncated": "Odpowiedź modelu została ucięta.",
+    "provider_refused": "Model odmówił odpowiedzi.",
+    "provider_config_invalid": "Połączenie z dostawcą jest błędnie skonfigurowane."
   }
 }

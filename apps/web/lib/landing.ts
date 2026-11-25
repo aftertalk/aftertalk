@@ -13,7 +13,7 @@ export type Landing =
   | { kind: 'project'; projectId: string }
   | { kind: 'no-organization' }
   /** In an organisation, but no project they can see (none made yet, or all private). */
-  | { kind: 'no-project'; orgRole: OrgRole };
+  | { kind: 'no-project'; orgRole: OrgRole; organizationId: string };
 
 export async function landingFor(userId: string): Promise<Landing> {
   const rows = await db
@@ -50,6 +50,6 @@ export async function landingFor(userId: string): Promise<Landing> {
   const org = prefer.org(orgs)!;
   // Last-used project if still visible; else the first in the last-used organisation; else any.
   const project = prefer.project(visible.filter((p) => p.organizationId === org.id)) ?? prefer.project(visible);
-  if (!project) return { kind: 'no-project', orgRole: org.role };
+  if (!project) return { kind: 'no-project', orgRole: org.role, organizationId: org.id };
   return { kind: 'project', projectId: project.id };
 }

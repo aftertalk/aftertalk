@@ -1,0 +1,415 @@
+{
+  "job_id": "33333333-3333-4333-8333-333333333399",
+  "attempt": 1,
+  "status": "completed",
+  "language": "pl",
+  "duration_ms": 20325,
+  "transcript": {
+    "words": [
+      {
+        "w": "Dzień",
+        "start_ms": 400,
+        "end_ms": 765,
+        "speaker": "agent"
+      },
+      {
+        "w": "dobry,",
+        "start_ms": 825,
+        "end_ms": 1235,
+        "speaker": "agent"
+      },
+      {
+        "w": "Biuro",
+        "start_ms": 1295,
+        "end_ms": 1660,
+        "speaker": "agent"
+      },
+      {
+        "w": "Obsługi",
+        "start_ms": 1720,
+        "end_ms": 2175,
+        "speaker": "agent"
+      },
+      {
+        "w": "Solaris,",
+        "start_ms": 2235,
+        "end_ms": 2735,
+        "speaker": "agent"
+      },
+      {
+        "w": "przy",
+        "start_ms": 2795,
+        "end_ms": 3115,
+        "speaker": "agent"
+      },
+      {
+        "w": "telefonie",
+        "start_ms": 3175,
+        "end_ms": 3720,
+        "speaker": "agent"
+      },
+      {
+        "w": "Anna",
+        "start_ms": 3780,
+        "end_ms": 4100,
+        "speaker": "agent"
+      },
+      {
+        "w": "Nowak.",
+        "start_ms": 4160,
+        "end_ms": 4570,
+        "speaker": "agent"
+      },
+      {
+        "w": "Dzień",
+        "start_ms": 5130,
+        "end_ms": 5495,
+        "speaker": "customer"
+      },
+      {
+        "w": "dobry,",
+        "start_ms": 5555,
+        "end_ms": 5965,
+        "speaker": "customer"
+      },
+      {
+        "w": "mówi",
+        "start_ms": 6025,
+        "end_ms": 6345,
+        "speaker": "customer"
+      },
+      {
+        "w": "Piotr",
+        "start_ms": 6405,
+        "end_ms": 6770,
+        "speaker": "customer"
+      },
+      {
+        "w": "Wiśniewski.",
+        "start_ms": 6830,
+        "end_ms": 7465,
+        "speaker": "customer"
+      },
+      {
+        "w": "Dostałem",
+        "start_ms": 7525,
+        "end_ms": 8025,
+        "speaker": "customer"
+      },
+      {
+        "w": "fakturę",
+        "start_ms": 8085,
+        "end_ms": 8540,
+        "speaker": "customer"
+      },
+      {
+        "w": "wyższą",
+        "start_ms": 8600,
+        "end_ms": 9010,
+        "speaker": "customer"
+      },
+      {
+        "w": "niż",
+        "start_ms": 9070,
+        "end_ms": 9345,
+        "speaker": "customer"
+      },
+      {
+        "w": "zwykle",
+        "start_ms": 9405,
+        "end_ms": 9815,
+        "speaker": "customer"
+      },
+      {
+        "w": "i",
+        "start_ms": 9875,
+        "end_ms": 10060,
+        "speaker": "customer"
+      },
+      {
+        "w": "chcę",
+        "start_ms": 10120,
+        "end_ms": 10440,
+        "speaker": "customer"
+      },
+      {
+        "w": "złożyć",
+        "start_ms": 10500,
+        "end_ms": 10910,
+        "speaker": "customer"
+      },
+      {
+        "w": "reklamację.",
+        "start_ms": 10970,
+        "end_ms": 11605,
+        "speaker": "customer"
+      },
+      {
+        "w": "Rozumiem.",
+        "start_ms": 12165,
+        "end_ms": 12710,
+        "speaker": "agent"
+      },
+      {
+        "w": "Sprawdzę",
+        "start_ms": 12770,
+        "end_ms": 13270,
+        "speaker": "agent"
+      },
+      {
+        "w": "rozliczenie",
+        "start_ms": 13330,
+        "end_ms": 13965,
+        "speaker": "agent"
+      },
+      {
+        "w": "i",
+        "start_ms": 14025,
+        "end_ms": 14210,
+        "speaker": "agent"
+      },
+      {
+        "w": "oddzwonię",
+        "start_ms": 14270,
+        "end_ms": 14815,
+        "speaker": "agent"
+      },
+      {
+        "w": "do",
+        "start_ms": 14875,
+        "end_ms": 15105,
+        "speaker": "agent"
+      },
+      {
+        "w": "pana",
+        "start_ms": 15165,
+        "end_ms": 15485,
+        "speaker": "agent"
+      },
+      {
+        "w": "do",
+        "start_ms": 15545,
+        "end_ms": 15775,
+        "speaker": "agent"
+      },
+      {
+        "w": "piątku.",
+        "start_ms": 15835,
+        "end_ms": 16290,
+        "speaker": "agent"
+      },
+      {
+        "w": "Dobrze,",
+        "start_ms": 16850,
+        "end_ms": 17305,
+        "speaker": "customer"
+      },
+      {
+        "w": "ale",
+        "start_ms": 17365,
+        "end_ms": 17640,
+        "speaker": "customer"
+      },
+      {
+        "w": "proszę",
+        "start_ms": 17700,
+        "end_ms": 18110,
+        "speaker": "customer"
+      },
+      {
+        "w": "o",
+        "start_ms": 18170,
+        "end_ms": 18355,
+        "speaker": "customer"
+      },
+      {
+        "w": "odpowiedź",
+        "start_ms": 18415,
+        "end_ms": 18960,
+        "speaker": "customer"
+      },
+      {
+        "w": "na",
+        "start_ms": 19020,
+        "end_ms": 19250,
+        "speaker": "customer"
+      },
+      {
+        "w": "piśmie.",
+        "start_ms": 19310,
+        "end_ms": 19765,
+        "speaker": "customer"
+      }
+    ],
+    "turns": [
+      {
+        "speaker": "agent",
+        "start_word": 0,
+        "end_word": 8
+      },
+      {
+        "speaker": "customer",
+        "start_word": 9,
+        "end_word": 22
+      },
+      {
+        "speaker": "agent",
+        "start_word": 23,
+        "end_word": 31
+      },
+      {
+        "speaker": "customer",
+        "start_word": 32,
+        "end_word": 38
+      }
+    ],
+    "speakers": [
+      {
+        "id": "agent",
+        "label": "Konsultant"
+      },
+      {
+        "id": "customer",
+        "label": "Klient"
+      }
+    ]
+  },
+  "pii_ranges": [
+    {
+      "start_word": 7,
+      "end_word": 8,
+      "type": "PERSON",
+      "token": "[OSOBA_1]"
+    },
+    {
+      "start_word": 12,
+      "end_word": 13,
+      "type": "PERSON",
+      "token": "[OSOBA_2]"
+    }
+  ],
+  "analyses": [
+    {
+      "kind": "summary",
+      "status": "completed",
+      "result": {
+        "title": "Reklamacja zawyżonej faktury",
+        "executive_summary": "Klient zgłosił reklamację faktury wyższej niż zwykle. Konsultant obiecał sprawdzić rozliczenie i oddzwonić do piątku, a klient poprosił o odpowiedź na piśmie.",
+        "key_discussion_points": [
+          "Faktura wyższa niż zwykle",
+          "Konsultant sprawdzi rozliczenie",
+          "Klient chce odpowiedzi na piśmie"
+        ],
+        "resolution_provided": null,
+        "follow_up_required": true,
+        "next_steps": [
+          "Sprawdzić rozliczenie",
+          "Odpowiedzieć klientowi na piśmie"
+        ],
+        "sentiment": {
+          "overall_sentiment": "negative",
+          "sentiment_progression": "negative to neutral",
+          "confidence": 0.74
+        },
+        "action_items": [
+          {
+            "description": "Sprawdzić rozliczenie i oddzwonić do klienta",
+            "responsible_party": "agent",
+            "deadline_mentioned": "do piątku"
+          }
+        ]
+      },
+      "quotes": [
+        {
+          "claim_path": "sentiment",
+          "turn": 2,
+          "start_word": 20,
+          "end_word": 22,
+          "match": "verbatim"
+        },
+        {
+          "claim_path": "action_items.0",
+          "turn": 3,
+          "start_word": 24,
+          "end_word": 31,
+          "match": "verbatim"
+        }
+      ]
+    },
+    {
+      "kind": "call_reason",
+      "status": "completed",
+      "result": {
+        "primary": {
+          "category_path": [
+            "11111111-1111-4111-8111-111111111104"
+          ],
+          "confidence": 0.9,
+          "explanation": "Klient mówi wprost, że chce złożyć reklamację faktury."
+        },
+        "secondary": [
+          {
+            "category_path": [
+              "11111111-1111-4111-8111-111111111101"
+            ],
+            "confidence": 0.55,
+            "explanation": "Rozmowa dotyczy wysokości faktury."
+          }
+        ],
+        "overall_confidence": 0.88,
+        "reasoning": "Reklamacja dotycząca rozliczenia."
+      },
+      "quotes": []
+    }
+  ],
+  "steps": [
+    {
+      "name": "decode",
+      "status": "completed",
+      "cached": false,
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "duration_ms": 280
+    },
+    {
+      "name": "transcribe",
+      "status": "completed",
+      "cached": false,
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "duration_ms": 3900
+    },
+    {
+      "name": "redact",
+      "status": "completed",
+      "cached": false,
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "duration_ms": 540
+    },
+    {
+      "name": "summary",
+      "status": "completed",
+      "cached": false,
+      "tokens_in": 401,
+      "tokens_out": 162,
+      "duration_ms": 1900
+    },
+    {
+      "name": "call_reason",
+      "status": "completed",
+      "cached": false,
+      "tokens_in": 377,
+      "tokens_out": 70,
+      "duration_ms": 1200
+    },
+    {
+      "name": "quotes",
+      "status": "completed",
+      "cached": false,
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "duration_ms": 31
+    }
+  ]
+}
