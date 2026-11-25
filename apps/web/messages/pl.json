@@ -407,9 +407,9 @@
       "title": "Dokończ konfigurację projektu",
       "description": "Rozmowy można przesyłać po ustawieniu wymaganych elementów.",
       "askAdmin": "Poproś administratora projektu o ich ustawienie przed przesłaniem rozmów.",
-      "categories": "Dodaj co najmniej jeden powód rozmowy",
+      "categories": "Dodaj co najmniej jedną kategorię",
       "roles": "Dodaj role rozmówców",
-      "templates": "Dodaj szablon karty oceny",
+      "templates": "Dodaj szablon analizy",
       "speech": "Wybierz dostawcę rozpoznawania mowy",
       "llm": "Wybierz model językowy",
       "diarization": "Brak rozdzielania rozmówców: nagrania jednokanałowe będą traktowane jako jeden rozmówca.",
@@ -546,8 +546,8 @@
       "emptyProcessing": "Jeszcze niegotowe: rozmowa jest nadal przetwarzana.",
       "emptyFailed": "Nie ma nic do pokazania: przetwarzanie tej rozmowy nie powiodło się.",
       "emptyStepFailed": "Ten krok się nie powiódł: {reason}",
-      "emptyNoTemplate": "Karta oceny nie powstała: podczas przetwarzania tej rozmowy projekt nie miał aktywnego szablonu.",
-      "emptyNoTemplateAskAdmin": "Karta oceny nie powstała: podczas przetwarzania tej rozmowy projekt nie miał aktywnego szablonu."
+      "emptyNoTemplate": "Analiza nie powstała: podczas przetwarzania tej rozmowy projekt nie miał aktywnego szablonu analizy.",
+      "emptyNoTemplateAskAdmin": "Analiza nie powstała: podczas przetwarzania tej rozmowy projekt nie miał aktywnego szablonu analizy."
     },
     "player": {
       "play": "Odtwórz",
@@ -584,8 +584,8 @@
         "diarize": "Rozdzielanie rozmówców",
         "redact": "Anonimizacja danych osobowych",
         "summary": "Podsumowanie",
-        "call_reason": "Powód rozmowy",
-        "scorecard": "Karta oceny",
+        "call_reason": "Kategoria",
+        "scorecard": "Analiza",
         "quotes": "Dopasowanie cytatów"
       }
     },
@@ -868,12 +868,8 @@
     "header": {},
     "general": {
       "title": "Ogólne",
-      "description": "Nazwa organizacji i zasady",
+      "description": "Nazwa Twojej organizacji",
       "name": "Nazwa",
-      "memberProjectCreate": "Członkowie mogą tworzyć projekty",
-      "memberProjectCreateDescription": "Gdy wyłączone, tylko właściciele i administratorzy mogą tworzyć projekty.",
-      "requireTwoFa": "Wymagaj uwierzytelniania dwuskładnikowego",
-      "requireTwoFaDescription": "Gdy włączone, wszyscy członkowie muszą włączyć 2FA. Osoby bez niego zostaną poproszone o konfigurację przy następnym logowaniu.",
       "saved": "Organizacja zaktualizowana",
       "savedInline": "Zapisano",
       "saveFailed": "Nie udało się zaktualizować organizacji"
@@ -892,7 +888,7 @@
       "lastOrganization": "To jedyna organizacja tej instalacji, więc nie można jej usunąć."
     },
     "settings": {
-      "description": "Nazwa, zasady dostępu i bezpieczeństwo tej organizacji."
+      "description": "Ustawienia tej organizacji."
     }
   },
   "projectConfig": {
@@ -929,7 +925,7 @@
       "error": "Nie udało się usunąć projektu"
     },
     "title": "Konfiguracja",
-    "description": "Powody rozmów, role rozmówców, szablony ocen i dostawcy dla tego projektu.",
+    "description": "Kategorie, role rozmówców, szablony analizy i dostawcy dla tego projektu.",
     "dangerTitle": "Nieodwracalne działania",
     "dangerDescription": "Dostępne dla administratorów projektu.",
     "readOnly": "Możesz przeglądać konfigurację; zmieniają ją administratorzy projektu.",
@@ -939,7 +935,7 @@
       "speech": "Rozpoznawanie mowy",
       "speechHint": "Zamienia nagranie na tekst. Wymagane.",
       "llm": "Model językowy",
-      "llmHint": "Pisze podsumowanie, wybiera powód rozmowy i wypełnia kartę oceny. Wymagane.",
+      "llmHint": "Pisze podsumowanie, wybiera kategorię i wypełnia szablon analizy. Wymagane.",
       "diarization": "Rozdzielanie rozmówców",
       "diarizationHint": "Opcjonalne. Rozróżnia rozmówców w nagraniach jednokanałowych. Bez tego nagranie jednokanałowe to jeden rozmówca; nagrania dwukanałowe tego nie potrzebują.",
       "none": "Brak",
@@ -1242,7 +1238,7 @@
     "nameTaken": "Ta nazwa jest już używana.",
     "languages": "Wybierz co najmniej jeden język.",
     "retentionDays": "Wpisz od 1 do 3650 dni albo zostaw pole puste.",
-    "categoryDepth": "Powody rozmów mogą mieć najwyżej trzy poziomy.",
+    "categoryDepth": "Kategorie mogą mieć najwyżej trzy poziomy.",
     "speakerLabels": "Wpisz co najmniej dwie różne etykiety, każda do {max} znaków.",
     "twoFactorFirst": "Najpierw włącz uwierzytelnianie dwuskładnikowe na swoim koncie.",
     "forbidden": "Nie masz uprawnień do tej czynności.",

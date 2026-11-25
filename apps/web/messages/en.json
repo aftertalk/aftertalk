@@ -244,7 +244,7 @@
         "loadFailed": "Couldn't load the categories"
       },
       "analysis": {
-        "noAnalysis": "No Template Analysis",
+        "noAnalysis": "No template analysis",
         "noAnalysisDescription": "This call has not been analyzed with a template. Analysis runs automatically on new calls when an active template is configured.",
         "templateName": "Template",
         "results": "Results",
@@ -407,9 +407,9 @@
       "title": "Finish setting up this project",
       "description": "Calls can be uploaded once the required items are set.",
       "askAdmin": "Ask a project admin to set these before uploading calls.",
-      "categories": "Add at least one call reason",
+      "categories": "Add at least one category",
       "roles": "Add speaker roles",
-      "templates": "Add a scorecard template",
+      "templates": "Add an analysis template",
       "speech": "Choose a speech-to-text provider",
       "llm": "Choose a language model",
       "diarization": "No speaker separation: one-channel recordings will be one speaker.",
@@ -546,8 +546,8 @@
       "emptyProcessing": "Not ready yet: the call is still being processed.",
       "emptyFailed": "Nothing to show: processing this call failed.",
       "emptyStepFailed": "This step failed: {reason}",
-      "emptyNoTemplate": "No scorecard was made: the project had no active template when this call was processed.",
-      "emptyNoTemplateAskAdmin": "No scorecard was made: the project had no active template when this call was processed."
+      "emptyNoTemplate": "No analysis was made: the project had no active analysis template when this call was processed.",
+      "emptyNoTemplateAskAdmin": "No analysis was made: the project had no active analysis template when this call was processed."
     },
     "player": {
       "play": "Play",
@@ -584,8 +584,8 @@
         "diarize": "Separate speakers",
         "redact": "Redact personal data",
         "summary": "Summary",
-        "call_reason": "Call reason",
-        "scorecard": "Scorecard",
+        "call_reason": "Category",
+        "scorecard": "Analysis",
         "quotes": "Match quotes"
       }
     },
@@ -757,7 +757,7 @@
     "configure": "Configuration",
     "categories": "Categories",
     "channelRoles": "Speaker roles",
-    "analysisTemplates": "Analysis Templates",
+    "analysisTemplates": "Analysis templates",
     "settings": "Settings",
     "logout": "Log out",
     "organization": "Organization",
@@ -790,7 +790,7 @@
     "deleteConfirm": {
       "title": "Delete this template?",
       "description": "This action cannot be undone.",
-      "confirm": "Delete Template",
+      "confirm": "Delete template",
       "deleting": "Deleting..."
     },
     "error": {
@@ -868,12 +868,8 @@
     "header": {},
     "general": {
       "title": "General",
-      "description": "Organization name and policies",
+      "description": "The name of your organization",
       "name": "Name",
-      "memberProjectCreate": "Members can create projects",
-      "memberProjectCreateDescription": "When off, only owners and admins can create projects.",
-      "requireTwoFa": "Require two-factor authentication",
-      "requireTwoFaDescription": "When on, all members must enable 2FA. Those without it are prompted to set it up on their next sign-in.",
       "saved": "Organization updated",
       "savedInline": "Saved",
       "saveFailed": "Could not update the organization"
@@ -892,7 +888,7 @@
       "lastOrganization": "This is the only organization of this install, so it can't be deleted."
     },
     "settings": {
-      "description": "This organization's name, access rules and security."
+      "description": "Settings for this organization."
     }
   },
   "projectConfig": {
@@ -929,7 +925,7 @@
       "error": "Could not delete the project"
     },
     "title": "Configuration",
-    "description": "Call reasons, speaker roles, scorecard templates and providers for this project.",
+    "description": "Categories, speaker roles, analysis templates and providers for this project.",
     "dangerTitle": "Irreversible actions",
     "dangerDescription": "Available to project admins.",
     "readOnly": "You can view the configuration; project admins change it.",
@@ -939,7 +935,7 @@
       "speech": "Speech to text",
       "speechHint": "Turns the recording into text. Required.",
       "llm": "Language model",
-      "llmHint": "Writes the summary, picks the call reason and fills the scorecard. Required.",
+      "llmHint": "Writes the summary, picks the category and fills in the analysis template. Required.",
       "diarization": "Speaker separation",
       "diarizationHint": "Optional. Tells speakers apart in one-channel recordings. Without it a one-channel recording is one speaker; two-channel recordings do not need it.",
       "none": "None",
@@ -1242,7 +1238,7 @@
     "nameTaken": "This name is already used.",
     "languages": "Pick at least one language.",
     "retentionDays": "Enter 1 to 3650 days, or leave the field empty.",
-    "categoryDepth": "Call reasons can be nested three levels deep at most.",
+    "categoryDepth": "Categories can be nested three levels deep at most.",
     "speakerLabels": "Enter at least two different labels, each up to {max} characters.",
     "twoFactorFirst": "Set up two-factor authentication on your own account first.",
     "forbidden": "You don't have permission to do this.",

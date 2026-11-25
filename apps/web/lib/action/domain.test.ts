@@ -552,7 +552,7 @@ describe('providers and readiness', () => {
   });
 });
 
-describe('templates and call reasons', () => {
+describe('templates and categories', () => {
   test('a field keeps its id when its label and answer stay, so stored answers still find it', async () => {
     await signIn(w.editor.email);
     const [template] = await getAnalysisTemplates(w.projectId);
@@ -592,7 +592,7 @@ describe('templates and call reasons', () => {
     expect((await activateAnalysisTemplate(w.projectId, template.id)).isActive).toBe(true);
   });
 
-  test('call reasons nest three levels and never under themselves', async () => {
+  test('categories nest three levels and never under themselves', async () => {
     await signIn(w.editor.email);
     const tree = await getTaxonomy(w.projectId);
     const fault = tree.find((c) => c.name === 'Fault')!;

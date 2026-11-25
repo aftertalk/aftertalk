@@ -12,7 +12,6 @@ import { SettingsRow, SettingsSection, SettingsSections } from '@/components/sha
 import { Button } from '@/components/ui/button';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { Input } from '@/components/ui/input';
-import { Switch } from '@/components/ui/switch';
 import { i18n } from '@/i18n/constants';
 import { deleteOrganization, updateOrganization } from '@/lib/action/organizations';
 import type { OrganizationResponse, UpdateOrganizationRequest } from '@/lib/types';
@@ -24,7 +23,7 @@ interface OrganizationSettingsProps {
   canDelete: boolean;
 }
 
-type Field = 'name' | 'allowMemberProjectCreate' | 'twoFaRequired';
+type Field = 'name';
 
 // Brief inline confirmation next to the control that was just saved.
 function Saved({ label }: { label: string }) {
@@ -44,8 +43,6 @@ export function OrganizationSettings({ organization, canDelete }: OrganizationSe
 
   const [savedName, setSavedName] = useState(organization.name);
   const [name, setName] = useState(organization.name);
-  const [allowMemberProjectCreate, setAllowMemberProjectCreate] = useState(organization.allowMemberProjectCreate);
-  const [twoFaRequired, setTwoFaRequired] = useState(organization.twoFaRequired);
   const [saving, setSaving] = useState<Field | null>(null);
   const [justSaved, setJustSaved] = useState<Field | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -57,7 +54,8 @@ export function OrganizationSettings({ organization, canDelete }: OrganizationSe
     return () => clearTimeout(timer);
   }, [justSaved]);
 
-  // Each setting saves on its own: switches on toggle, the name from its own button.
+  // The open version has one organisation with one owner (decision 91), so the settings for
+  // members (who may create projects, required 2FA) are not shown; the name is the only setting.
   const save = async (field: Field, patch: UpdateOrganizationRequest, revert?: () => void) => {
     setSaving(field);
     try {
@@ -80,12 +78,6 @@ export function OrganizationSettings({ organization, canDelete }: OrganizationSe
     if (!next) return setName(savedName);
     if (next === savedName) return;
     if (await save('name', { name: next }, () => setName(savedName))) setSavedName(next);
-  };
-
-  const toggle = (field: 'allowMemberProjectCreate' | 'twoFaRequired', value: boolean) => {
-    const set = field === 'allowMemberProjectCreate' ? setAllowMemberProjectCreate : setTwoFaRequired;
-    set(value);
-    void save(field, { [field]: value }, () => set(!value));
   };
 
   const handleDelete = async () => {
@@ -131,32 +123,6 @@ export function OrganizationSettings({ organization, canDelete }: OrganizationSe
               }}
               disabled={!isAdmin || saving === 'name'}
               className="w-full sm:w-72"
-            />
-          </SettingsRow>
-          <SettingsRow
-            label={t(i18n.organization.general.memberProjectCreate)}
-            description={t(i18n.organization.general.memberProjectCreateDescription)}
-            htmlFor="org-member-projects"
-            status={justSaved === 'allowMemberProjectCreate' && <Saved label={savedLabel} />}
-          >
-            <Switch
-              id="org-member-projects"
-              checked={allowMemberProjectCreate}
-              onCheckedChange={(v) => toggle('allowMemberProjectCreate', v)}
-              disabled={!isAdmin || saving === 'allowMemberProjectCreate'}
-            />
-          </SettingsRow>
-          <SettingsRow
-            label={t(i18n.organization.general.requireTwoFa)}
-            description={t(i18n.organization.general.requireTwoFaDescription)}
-            htmlFor="org-require-2fa"
-            status={justSaved === 'twoFaRequired' && <Saved label={savedLabel} />}
-          >
-            <Switch
-              id="org-require-2fa"
-              checked={twoFaRequired}
-              onCheckedChange={(v) => toggle('twoFaRequired', v)}
-              disabled={!isAdmin || saving === 'twoFaRequired'}
             />
           </SettingsRow>
         </SettingsSection>
